@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.soundboss.app"
+      "bundleIdentifier": "com.soundboss.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.soundboss.app",
@@ -45,7 +48,12 @@
         }
       ],
       "expo-secure-store",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "SoundBoss utilise ton micro pour enregistrer tes notes vocales et tes répétitions."
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -57,7 +65,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "SoundBoss accède à tes photos pour les partager avec tes groupes."
+          "photosPermission": "SoundBoss accède à tes photos pour les partager avec tes groupes.",
+          "cameraPermission": false,
+          "microphonePermission": "SoundBoss utilise ton micro pour enregistrer tes notes vocales et tes répétitions."
         }
       ],
       "@react-native-community/datetimepicker",
