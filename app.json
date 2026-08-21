@@ -68,7 +68,8 @@
           "username": "dosus4",
           "projectId": "cc17c254-98b9-4cb8-b825-92d489bc115c"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

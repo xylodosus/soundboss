@@ -52,9 +52,11 @@
 | 9 | Fichiers / médiathèque (upload R2 compressé) | ✅ fait |
 | 10 | Studios : catalogue, fiche, réservation | ✅ fait |
 | 11 | Wallet + Profil + Notifications + Paramètres | ✅ fait |
-| 12 | Push notifications (expo-notifications, tokens, rappels) | ⏳ à faire |
+| 12 | Push notifications (expo-notifications, tokens, rappels) | ✅ client fait |
 | 13 | Mode clair + i18n (fr/en/wo/ln) | ⏳ à faire |
-| 14 | Offline-first (cache React Query persistant) + EAS build | ⏳ à faire |
+| 14 | Offline-first + EAS build | 🟡 EAS/updates faits, offline à faire |
+| 15 | Invitations par code, dossiers perso, bibliothèque ressources | ✅ fait |
+| 16 | Monétisation crédits (IA / Labo Audio, quotas, masterclass) | ⏳ à faire |
 
 ### ✅ Améliorations transverses (session 16/08)
 
@@ -74,6 +76,24 @@
 - **Réglages divers** : bouton « Ajouter » uniformisé (pilule jaune), clavier
   chat corrigé (Android edge-to-edge / iOS safe area), publication Realtime
   activée (elle était vide), erreurs PostgREST ne sont plus avalées.
+### ✅ Nouveautés (session 17-20/08)
+
+- **Invitations par code** (`app/rejoindre.tsx`, `src/components/groupe/invitation-groupe.tsx`) :
+  code à 6 chiffres généré par le chef/admin, valable 48 h, partage natif
+  (`Share`), révocation, deep link `soundboss://rejoindre?code=123456`,
+  RPC `rejoindre_par_code`.
+- **Fichiers personnels & dossiers** (`src/lib/queries/dossiers.ts`,
+  `src/components/personnel/onglet-fichiers-personnels.tsx`) : 5 dossiers créés
+  par défaut (Mes documents / loops / partitions / audios / styles), CRUD
+  dossier, upload R2, réutilisation de `ModalDetailFichier`.
+- **Bibliothèque de ressources SoundBoss** (`src/lib/queries/ressources-equipe.ts`,
+  `src/components/ressources/onglet-ressources.tsx`) : table
+  `bibliotheque_ressources`, filtrage automatique selon les instruments et
+  genres du musicien (ressource sans étiquette = visible par tous).
+- **Polish UI** : squelettes animés `Shimmer` (reanimated + gradient),
+  `Drapeau` + `PaysCard` (21 pays africains à l'inscription), `BoutonDore`,
+  `ModalChoix`, `LecteurAudioModal`.
+
 ## 4. Détail des étapes
 
 ### ✅ Étape 0 — Scaffold
@@ -180,17 +200,30 @@
 - Profil : carte + édition, notifications (marquer lu), paramètres (langue,
   devise, toggles), jobs IA (historique).
 
-### ⏳ Étape 12 — Push notifications
-- expo-notifications : token device → table `push_tokens` (user_id, token,
-  plateforme), envoi via edge function `send-push` (service_role) déclenchée
-  par triggers DB (nouveau message, séance, rappel).
+### ✅ Étape 12 — Push notifications (client)
+- `src/lib/push.tsx` : `FournisseurPush` monté dans `app/_layout.tsx`.
+  Permissions + canal Android `default` (importance MAX, couleur warmGold),
+  `getExpoPushTokenAsync` avec le `projectId` EAS, upsert dans la table
+  **`device_token`** (`user_id`, `expo_token`, `platform`, `device_label`,
+  `app_version`, `last_seen_at`, `est_actif`) — conflit sur `user_id,expo_token`.
+- Navigation depuis une notification : `addNotificationResponseReceivedListener`
+  + `getLastNotificationResponseAsync` (lancement à froid), via `data.url`.
+- ⚠️ **Reste à vérifier côté serveur** : l'edge function `send-push` n'est pas
+  dans `../supabase/functions/` (seules `get-signed-*-url` y sont) — à déployer
+  ou à confirmer, ainsi que les triggers DB (nouveau message, séance, rappel).
 
 ### ⏳ Étape 13 — Mode clair & i18n
 - ThemeProvider light/dark, strings fr/en/wo/ln.
 
-### ⏳ Étape 14 — Offline & build
-- Persistance React Query (AsyncStorage), EAS build (dev/prod profiles),
-  notifications distantes Android/iOS.
+### 🟡 Étape 14 — Offline & build
+- ✅ **EAS** : `eas.json` avec 3 profils (`development` client de dev,
+  `preview` APK interne, `production` app-bundle), chacun sur son canal.
+- ✅ **expo-updates** : plugin + `runtimeVersion: appVersion` + URL
+  `u.expo.dev/cc17c254-…` dans `app.json` ; `google-services.json` en place ;
+  bundle `com.soundboss.app` (iOS + Android).
+- ⏳ **Offline-first** : pas encore de persistance React Query
+  (`@tanstack/query-async-storage-persister` + `persistQueryClient`). Le
+  `gcTime: 24 h` est déjà posé dans `app/_layout.tsx`, il manque le persister.
 
 ## 4 bis. Monétisation par crédits (modèle pay-as-you-go)
 
@@ -199,6 +232,13 @@
 > consomment par opération. Infrastructure déjà en base : `credit_packs`,
 > `credit_tarifs`, `wallets`, `wallet_transactions`, `paiements`,
 > `revenus_plateforme`, `ai_jobs`, `ai_creations`, `ressources_traitees`.
+
+> **Statut au 20/08 — non implémenté.** Seuls existent : l'achat de packs dans
+> `app/wallet.tsx` (`crediter_wallet`, paiement simulé), l'historique des
+> transactions et l'écran `app/profil/jobs-ia.tsx` (lecture seule). **Aucune
+> fonctionnalité ne consomme de crédits** : pas de Labo Audio / IA, pas de
+> grille tarifaire affichée, pas de quota de stockage payant, pas de
+> masterclass. C'est le principal chantier restant (étape 16).
 
 **Fonctionnalités payantes proposées**
 
@@ -252,3 +292,20 @@ npx expo install <pkg>   # installer une dep (versions compatibles SDK 54)
 - **Types** : `src/lib/database.types.ts` à régénérer après chaque migration
   (MCP Supabase → generate_typescript_types).
 - **Orientation** : portrait uniquement, edge-to-edge Android activé.
+
+- **⚠️ Versions natives Expo — crash au lancement des builds EAS (21/08)** :
+  l'APK `preview` s'ouvrait sur le splash puis se fermait aussitôt.
+  Cause : `expo-audio@1.1.1` déclare `expo-asset: "*"` en **peerDependency sans
+  borne** ; npm (auto-install des peers) a donc installé le **dernier**
+  `expo-asset` publié — `57.0.11`, d'une future ligne SDK — et l'a hissé à la
+  racine de `node_modules`, alors que le SDK 54 attend `~12.0.13`.
+  L'autolinking liant la version hissée, le natif plantait à l'init de React :
+  `NoClassDefFoundError: expo.modules.kotlin.types.AnyTypeCache` depuis
+  `AssetModule.kt:125` — classe inexistante dans `expo-modules-core@3.0.30`.
+  **Correctif** : `expo-asset` épinglé en dépendance directe (`~12.0.13`),
+  tout l'arbre est dédupliqué dessus.
+  **À retenir** : `npx expo install --check` **ne détecte pas** ce cas (il
+  n'inspecte que les dépendances *directes*). Après tout `npm install`,
+  vérifier `npm ls expo-asset` — plus généralement se méfier des peers `"*"`.
+  Diagnostic reproductible sans téléphone : télécharger l'APK EAS, l'installer
+  sur un émulateur (`adb install`), lancer et lire `adb logcat` (`FATAL EXCEPTION`).
