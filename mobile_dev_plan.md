@@ -54,7 +54,7 @@
 | 11 | Wallet + Profil + Notifications + Paramètres | ✅ fait |
 | 12 | Push notifications (expo-notifications, tokens, rappels) | ✅ client fait |
 | 13 | Mode clair + i18n (fr/en/wo/ln) | ⏳ à faire |
-| 14 | Offline-first + EAS build | 🟡 EAS/updates faits, offline à faire |
+| 14 | Offline-first + EAS build | 🟡 APK preview validé sur appareil, offline à faire |
 | 15 | Invitations par code, dossiers perso, bibliothèque ressources | ✅ fait |
 | 16 | Monétisation crédits (IA / Labo Audio, quotas, masterclass) | ⏳ à faire |
 
@@ -309,3 +309,5 @@ npx expo install <pkg>   # installer une dep (versions compatibles SDK 54)
   vérifier `npm ls expo-asset` — plus généralement se méfier des peers `"*"`.
   Diagnostic reproductible sans téléphone : télécharger l'APK EAS, l'installer
   sur un émulateur (`adb install`), lancer et lire `adb logcat` (`FATAL EXCEPTION`).
+  ✅ **Corrigé et vérifié le 21/08** : build `preview` installé sur appareil
+  réel — l'app démarre, la connexion et l'affichage fonctionnent.
