@@ -52,9 +52,9 @@
 | 9 | Fichiers / médiathèque (upload R2 compressé) | ✅ fait |
 | 10 | Studios : catalogue, fiche, réservation | ✅ fait |
 | 11 | Wallet + Profil + Notifications + Paramètres | ✅ fait |
-| 12 | Push notifications (expo-notifications, tokens, rappels) | ✅ client fait |
+| 12 | Push notifications (expo-notifications, tokens, rappels) | ✅ fait (client + serveur) |
 | 13 | Mode clair + i18n (fr/en/wo/ln) | ⏳ à faire |
-| 14 | Offline-first + EAS build | 🟡 APK preview validé sur appareil, offline à faire |
+| 14 | Offline-first + EAS build | 🟡 Android + iOS livrés, offline à faire |
 | 15 | Invitations par code, dossiers perso, bibliothèque ressources | ✅ fait |
 | 16 | Monétisation crédits (IA / Labo Audio, quotas, masterclass) | ⏳ à faire |
 
@@ -208,9 +208,46 @@
   `app_version`, `last_seen_at`, `est_actif`) — conflit sur `user_id,expo_token`.
 - Navigation depuis une notification : `addNotificationResponseReceivedListener`
   + `getLastNotificationResponseAsync` (lancement à froid), via `data.url`.
-- ⚠️ **Reste à vérifier côté serveur** : l'edge function `send-push` n'est pas
-  dans `../supabase/functions/` (seules `get-signed-*-url` y sont) — à déployer
-  ou à confirmer, ainsi que les triggers DB (nouveau message, séance, rappel).
+#### Chaîne serveur (déployée le 20/08, **non versionnée dans le dépôt**)
+
+> Relevé via le MCP Supabase le 21/08. `send-push` et les triggers n'existent
+> que sur le projet distant : à exporter dans `supabase/` un jour.
+
+1. **10 triggers** `AFTER INSERT/UPDATE` appellent `ff_enqueue_notif()` :
+   `trg_message_envoye` (+ réponse au parent), `trg_seance_creee`,
+   `trg_projet_cree`, `trg_projet_termine`, `trg_ressource_ajoutee`,
+   `trg_enregistrement_ajoute`, `trg_setlist_ajoute`, `trg_groupe_membre_ajoute`,
+   `trg_groupe_admin_nomme`, `trg_ressource_equipe_publiee`,
+   `trigger_notify_ai_job_termine`.
+2. **`ff_enqueue_notif(dest[], canal, titre, body, lien_url)`** (SECURITY DEFINER) :
+   insère une ligne dans `notifications` par destinataire, lit
+   `push_dispatch_secret` et `supabase_functions_url` dans la table
+   **`app_secrets`**, puis `net.http_post` vers `/send-push` avec l'en-tête
+   `X-Push-Secret`. Les destinataires viennent de `membres_actifs_groupe()` ou
+   `membres_du_pupitre()`, l'émetteur étant retiré du lot.
+3. **Edge function `send-push`** (`verify_jwt: false`, protégée par le secret
+   d'en-tête) : lit les `device_token` où `est_actif`, calcule le **badge =
+   nombre de notifications non lues** par utilisateur, envoie à l'API Expo par
+   **lots de 100**, et repasse `est_actif = false` sur les tokens rejetés en
+   `DeviceNotRegistered` / `InvalidCredentials`.
+4. **`app_secrets`** : RLS actif, politiques `USING (false)` — inaccessible aux
+   utilisateurs authentifiés, seul le `service_role` la lit. ✅ vérifié.
+5. 🔒 **Correctif du 21/08** : `ff_enqueue_notif` était exécutable par `anon`
+   (droit hérité de `PUBLIC`), permettant à quiconque détenant la clé anon —
+   publique, embarquée dans l'APK/IPA — d'envoyer un push au contenu arbitraire
+   à n'importe quel utilisateur via `/rest/v1/rpc/ff_enqueue_notif`.
+   Migrations `revoke_ff_enqueue_notif_from_public_roles` puis
+   `revoke_ff_enqueue_notif_from_public`. ACL désormais
+   `{postgres=X/postgres, service_role=X/postgres}`.
+   ⚠️ Piège : `REVOKE … FROM anon, authenticated` **ne suffit pas**, le droit
+   vient de `PUBLIC` — toujours révoquer `FROM PUBLIC` et revérifier avec
+   `has_function_privilege()`, le `success: true` d'une migration ne prouve rien.
+   Les triggers ne sont pas affectés : ils sont `SECURITY DEFINER` et
+   appartiennent à `postgres`, qui conserve `EXECUTE`.
+
+Le `data.url` posé par les triggers (`/groupes/<id>/chat`,
+`/groupes/<id>/seances/<id>`) correspond aux routes qu'ouvre `push.tsx`.
+✅ Testé et fonctionnel sur Android.
 
 ### ⏳ Étape 13 — Mode clair & i18n
 - ThemeProvider light/dark, strings fr/en/wo/ln.
@@ -218,6 +255,16 @@
 ### 🟡 Étape 14 — Offline & build
 - ✅ **EAS** : `eas.json` avec 3 profils (`development` client de dev,
   `preview` APK interne, `production` app-bundle), chacun sur son canal.
+- ✅ **iOS / TestFlight (21/08)** : App ID `com.soundboss.app` créé, credentials
+  EAS générés (certificat de distribution, profil de provisioning, **clé APNs**),
+  build `production` 1.0.0 (build 1) soumis et distribué aux testeurs internes.
+  Entitlements vérifiés dans l'IPA : `aps-environment: production`,
+  `beta-reports-active: true`, `get-task-allow: false`.
+  Config iOS préparée dans `app.json` : chaînes de permission en français
+  (micro, photos), `NSCameraUsageDescription` retirée (caméra non utilisée),
+  `ITSAppUsesNonExemptEncryption: false`, `autoIncrement` sur le profil
+  production (évite le rejet pour numéro de build dupliqué).
+  ⏳ Reste à confirmer : réception d'un push sur un iPhone TestFlight.
 - ✅ **expo-updates** : plugin + `runtimeVersion: appVersion` + URL
   `u.expo.dev/cc17c254-…` dans `app.json` ; `google-services.json` en place ;
   bundle `com.soundboss.app` (iOS + Android).
@@ -291,6 +338,10 @@ npx expo install <pkg>   # installer une dep (versions compatibles SDK 54)
   `{success, message, data}`) — réutilisées telles quelles.
 - **Types** : `src/lib/database.types.ts` à régénérer après chaque migration
   (MCP Supabase → generate_typescript_types).
+  ⚠️ Le générateur **omet les fonctions surchargées** : `ajouter_morceau_setlist`
+  existe en deux versions (5 et 7 arguments) et disparaît donc des types sans
+  que rien ne soit cassé (PostgREST résout vers celle à 7 arguments, `tsc` passe).
+  Supprimer la surcharge obsolète assainirait la situation.
 - **Orientation** : portrait uniquement, edge-to-edge Android activé.
 
 - **⚠️ Versions natives Expo — crash au lancement des builds EAS (21/08)** :

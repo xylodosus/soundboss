@@ -1,8 +1,3 @@
-/* ============================================================
- * SoundBoss - Types générés depuis la base Supabase (MCP)
- * (supabase gen types typescript -format enums)
- * ============================================================ */
-
 export type Json =
   | string
   | number
@@ -19,123 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      device_token: {
-        Row: {
-          app_version: string | null
-          created_at: string | null
-          device_label: string | null
-          est_actif: boolean | null
-          expo_token: string
-          id: number
-          last_seen_at: string | null
-          platform: string
-          user_id: string
-        }
-        Insert: {
-          app_version?: string | null
-          created_at?: string | null
-          device_label?: string | null
-          est_actif?: boolean | null
-          expo_token: string
-          id?: never
-          last_seen_at?: string | null
-          platform: string
-          user_id: string
-        }
-        Update: {
-          app_version?: string | null
-          created_at?: string | null
-          device_label?: string | null
-          est_actif?: boolean | null
-          expo_token?: string
-          id?: never
-          last_seen_at?: string | null
-          platform?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_token_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      dossiers_personnels: {
-        Row: {
-          created_at: string | null
-          id: string
-          nom: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          nom: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          nom?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "dossiers_personnels_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bibliotheque_ressources: {
-        Row: {
-          cree_par: string | null
-          created_at: string | null
-          description: string | null
-          fichier_nom: string | null
-          fichier_url: string | null
-          id: string
-          tags: string[]
-          titre: string
-          type: Database["public"]["Enums"]["bibliotheque_type"]
-        }
-        Insert: {
-          cree_par?: string | null
-          created_at?: string | null
-          description?: string | null
-          fichier_nom?: string | null
-          fichier_url?: string | null
-          id?: string
-          tags?: string[]
-          titre: string
-          type: Database["public"]["Enums"]["bibliotheque_type"]
-        }
-        Update: {
-          cree_par?: string | null
-          created_at?: string | null
-          description?: string | null
-          fichier_nom?: string | null
-          fichier_url?: string | null
-          id?: string
-          tags?: string[]
-          titre?: string
-          type?: Database["public"]["Enums"]["bibliotheque_type"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bibliotheque_ressources_cree_par_fkey"
-            columns: ["cree_par"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ai_creations: {
         Row: {
           audio_url: string | null
@@ -415,6 +293,21 @@ export type Database = {
           },
         ]
       }
+      app_secrets: {
+        Row: {
+          cle: string
+          valeur: string
+        }
+        Insert: {
+          cle: string
+          valeur: string
+        }
+        Update: {
+          cle?: string
+          valeur?: string
+        }
+        Relationships: []
+      }
       avis_studios: {
         Row: {
           commentaire: string | null
@@ -479,6 +372,50 @@ export type Database = {
           {
             foreignKeyName: "avis_studios_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bibliotheque_ressources: {
+        Row: {
+          created_at: string
+          cree_par: string | null
+          description: string | null
+          fichier_nom: string | null
+          fichier_url: string | null
+          id: string
+          tags: string[]
+          titre: string
+          type: Database["public"]["Enums"]["bibliotheque_type"]
+        }
+        Insert: {
+          created_at?: string
+          cree_par?: string | null
+          description?: string | null
+          fichier_nom?: string | null
+          fichier_url?: string | null
+          id?: string
+          tags?: string[]
+          titre: string
+          type: Database["public"]["Enums"]["bibliotheque_type"]
+        }
+        Update: {
+          created_at?: string
+          cree_par?: string | null
+          description?: string | null
+          fichier_nom?: string | null
+          fichier_url?: string | null
+          id?: string
+          tags?: string[]
+          titre?: string
+          type?: Database["public"]["Enums"]["bibliotheque_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bibliotheque_ressources_cree_par_fkey"
+            columns: ["cree_par"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -556,6 +493,79 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      device_token: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_label: string | null
+          est_actif: boolean | null
+          expo_token: string
+          id: number
+          last_seen_at: string | null
+          platform: string
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_label?: string | null
+          est_actif?: boolean | null
+          expo_token: string
+          id?: never
+          last_seen_at?: string | null
+          platform: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_label?: string | null
+          est_actif?: boolean | null
+          expo_token?: string
+          id?: never
+          last_seen_at?: string | null
+          platform?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_token_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dossiers_personnels: {
+        Row: {
+          created_at: string
+          id: string
+          nom: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nom: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nom?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dossiers_personnels_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       forum_categories: {
         Row: {
@@ -976,6 +986,68 @@ export type Database = {
             columns: ["chef_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invitations_groupe: {
+        Row: {
+          code_hash: string
+          created_at: string
+          cree_par: string
+          est_actif: boolean
+          expire_at: string
+          groupe_id: string
+          id: string
+          utilisations: number
+        }
+        Insert: {
+          code_hash: string
+          created_at?: string
+          cree_par: string
+          est_actif?: boolean
+          expire_at: string
+          groupe_id: string
+          id?: string
+          utilisations?: number
+        }
+        Update: {
+          code_hash?: string
+          created_at?: string
+          cree_par?: string
+          est_actif?: boolean
+          expire_at?: string
+          groupe_id?: string
+          id?: string
+          utilisations?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitations_groupe_cree_par_fkey"
+            columns: ["cree_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_groupe_groupe_id_fkey"
+            columns: ["groupe_id"]
+            isOneToOne: false
+            referencedRelation: "groupes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_groupe_groupe_id_fkey"
+            columns: ["groupe_id"]
+            isOneToOne: false
+            referencedRelation: "vue_dashboard_chef"
+            referencedColumns: ["groupe_id"]
+          },
+          {
+            foreignKeyName: "invitations_groupe_groupe_id_fkey"
+            columns: ["groupe_id"]
+            isOneToOne: false
+            referencedRelation: "vue_groupes_complets"
             referencedColumns: ["id"]
           },
         ]
@@ -1414,54 +1486,6 @@ export type Database = {
             columns: ["produit_id"]
             isOneToOne: false
             referencedRelation: "vue_marketplace_catalogue"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      invitations_groupe: {
-        Row: {
-          code_hash: string
-          cree_par: string
-          created_at: string | null
-          est_actif: boolean | null
-          expire_at: string
-          groupe_id: string
-          id: string
-          utilisations: number | null
-        }
-        Insert: {
-          code_hash: string
-          cree_par: string
-          created_at?: string | null
-          est_actif?: boolean | null
-          expire_at: string
-          groupe_id: string
-          id?: string
-          utilisations?: number | null
-        }
-        Update: {
-          code_hash?: string
-          cree_par?: string
-          created_at?: string | null
-          est_actif?: boolean | null
-          expire_at?: string
-          groupe_id?: string
-          id?: string
-          utilisations?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invitations_groupe_cree_par_fkey"
-            columns: ["cree_par"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invitations_groupe_groupe_id_fkey"
-            columns: ["groupe_id"]
-            isOneToOne: false
-            referencedRelation: "groupes"
             referencedColumns: ["id"]
           },
         ]
@@ -2225,9 +2249,9 @@ export type Database = {
           date_lecture: string | null
           est_lue: boolean | null
           id: string
-          lien_url: string | null
           lien_id: string | null
           lien_type: string | null
+          lien_url: string | null
           titre: string
           type: string
           user_id: string | null
@@ -2570,8 +2594,6 @@ export type Database = {
           annulee_par: string | null
           caution: number | null
           client_id: string | null
-          quantite: number
-          service_id: string | null
           commission_plateforme: number | null
           created_at: string | null
           date_annulation: string | null
@@ -2586,7 +2608,9 @@ export type Database = {
           notes_client: string | null
           paiement_statut: Database["public"]["Enums"]["paiement_statut"] | null
           prix_total: number
+          quantite: number
           raison_annulation: string | null
+          service_id: string | null
           statut: string | null
           studio_id: string | null
           updated_at: string | null
@@ -2596,8 +2620,6 @@ export type Database = {
           caution?: number | null
           client_id?: string | null
           commission_plateforme?: number | null
-          quantite?: number
-          service_id?: string | null
           created_at?: string | null
           date_annulation?: string | null
           date_debut: string
@@ -2613,7 +2635,9 @@ export type Database = {
             | Database["public"]["Enums"]["paiement_statut"]
             | null
           prix_total: number
+          quantite?: number
           raison_annulation?: string | null
+          service_id?: string | null
           statut?: string | null
           studio_id?: string | null
           updated_at?: string | null
@@ -2623,8 +2647,6 @@ export type Database = {
           caution?: number | null
           client_id?: string | null
           commission_plateforme?: number | null
-          quantite?: number
-          service_id?: string | null
           created_at?: string | null
           date_annulation?: string | null
           date_debut?: string
@@ -2640,7 +2662,9 @@ export type Database = {
             | Database["public"]["Enums"]["paiement_statut"]
             | null
           prix_total?: number
+          quantite?: number
           raison_annulation?: string | null
+          service_id?: string | null
           statut?: string | null
           studio_id?: string | null
           updated_at?: string | null
@@ -2682,6 +2706,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "reservations_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "studio_services"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "reservations_studio_id_fkey"
             columns: ["studio_id"]
             isOneToOne: false
@@ -2694,8 +2725,8 @@ export type Database = {
         Row: {
           created_at: string | null
           description: string | null
-          duree_secondes: number | null
           dossier_id: string | null
+          duree_secondes: number | null
           format: string | null
           id: string
           nom: string
@@ -2742,8 +2773,8 @@ export type Database = {
         Update: {
           created_at?: string | null
           description?: string | null
-          duree_secondes?: number | null
           dossier_id?: string | null
+          duree_secondes?: number | null
           format?: string | null
           id?: string
           nom?: string
@@ -2764,6 +2795,13 @@ export type Database = {
           visibilite?: Database["public"]["Enums"]["ressource_visibilite"]
         }
         Relationships: [
+          {
+            foreignKeyName: "ressources_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers_personnels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ressources_partage_groupe_id_fkey"
             columns: ["partage_groupe_id"]
@@ -3302,8 +3340,8 @@ export type Database = {
       studio_services: {
         Row: {
           actif: boolean
+          created_at: string
           est_vedette: boolean
-          created_at: string | null
           id: string
           prix: number
           studio_id: string
@@ -3312,7 +3350,7 @@ export type Database = {
         }
         Insert: {
           actif?: boolean
-          created_at?: string | null
+          created_at?: string
           est_vedette?: boolean
           id?: string
           prix: number
@@ -3322,7 +3360,7 @@ export type Database = {
         }
         Update: {
           actif?: boolean
-          created_at?: string | null
+          created_at?: string
           est_vedette?: boolean
           id?: string
           prix?: number
@@ -4030,16 +4068,29 @@ export type Database = {
         }
         Returns: Json
       }
-      ajouter_morceau_setlist: {
-        Args: {
-          p_duree_minutes?: number
-          p_ordre?: number
-          p_repertoire_id?: string
-          p_seance_id: string
-          p_titre: string
-        }
-        Returns: Json
-      }
+      ajouter_morceau_setlist:
+        | {
+            Args: {
+              p_duree_minutes?: number
+              p_ordre?: number
+              p_repertoire_id?: string
+              p_seance_id: string
+              p_titre: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_duree_minutes?: number
+              p_ordre?: number
+              p_repertoire_id?: string
+              p_seance_id: string
+              p_tempo?: number
+              p_titre: string
+              p_tonalite?: string
+            }
+            Returns: Json
+          }
       ajouter_note_seance: {
         Args: {
           p_audio_url?: string
@@ -4130,6 +4181,10 @@ export type Database = {
         Args: { p_masterclass_id: string }
         Returns: boolean
       }
+      est_gestionnaire_ressource: {
+        Args: { r: Database["public"]["Tables"]["ressources"]["Row"] }
+        Returns: boolean
+      }
       est_gestionnaire_seance: {
         Args: { p_seance_id: string }
         Returns: boolean
@@ -4142,9 +4197,19 @@ export type Database = {
       est_membre_du_projet: { Args: { p_projet_id: string }; Returns: boolean }
       est_membre_groupe: { Args: { p_groupe_id: string }; Returns: boolean }
       est_membre_pupitre: { Args: { p_pupitre_id: string }; Returns: boolean }
+      ff_enqueue_notif: {
+        Args: {
+          p_body: string
+          p_canal: string
+          p_destinataire_ids: string[]
+          p_lien_url?: string
+          p_titre: string
+        }
+        Returns: undefined
+      }
       generer_code_invitation: { Args: { p_groupe_id: string }; Returns: Json }
-      rejoindre_par_code: { Args: { p_code: string }; Returns: Json }
-      retirer_invitation: { Args: { p_invitation_id: string }; Returns: Json }
+      groupe_du_membre: { Args: { p_membre_id: string }; Returns: string }
+      groupe_du_pupitre: { Args: { p_pupitre_id: string }; Returns: string }
       maj_avancement_morceau: {
         Args: { p_avancement: number; p_morceau_id: string }
         Returns: Json
@@ -4158,6 +4223,11 @@ export type Database = {
         }
         Returns: Json
       }
+      membres_actifs_groupe: {
+        Args: { p_groupe_id: string }
+        Returns: string[]
+      }
+      membres_du_pupitre: { Args: { p_pupitre_id: string }; Returns: string[] }
       modifier_projet: {
         Args: {
           p_affiche_url?: string
@@ -4183,12 +4253,14 @@ export type Database = {
         Returns: boolean
       }
       peut_voir_seance: { Args: { p_seance_id: string }; Returns: boolean }
+      rejoindre_par_code: { Args: { p_code: string }; Returns: Json }
       rembourser_ai_job: { Args: { p_job_id: string }; Returns: boolean }
       reponse_erreur: { Args: { p_message: string }; Returns: Json }
       reponse_succes: {
         Args: { p_data?: Json; p_message: string }
         Returns: Json
       }
+      retirer_invitation: { Args: { p_invitation_id: string }; Returns: Json }
       rsvp_seance: {
         Args: {
           p_heure_arrivee?: string
@@ -4214,13 +4286,6 @@ export type Database = {
     }
     Enums: {
       ai_creation_statut: "privee" | "publique" | "archivee"
-      bibliotheque_type:
-        | "contrat"
-        | "loop"
-        | "style"
-        | "backing_track"
-        | "partition"
-        | "opportunite"
       ai_job_statut:
         | "queued"
         | "processing"
@@ -4243,6 +4308,13 @@ export type Database = {
         | "audio_vers_midi"
         | "mastering"
       assignation_type: "membre" | "role"
+      bibliotheque_type:
+        | "contrat"
+        | "loop"
+        | "style"
+        | "backing_track"
+        | "partition"
+        | "opportunite"
       devise: "XOF" | "EUR" | "USD" | "GNF" | "MAD" | "autre"
       forum_statut: "ouverte" | "resolue" | "fermee"
       groupe_type:
@@ -4289,7 +4361,6 @@ export type Database = {
         | "autre"
       ressource_visibilite: "publique" | "draft"
       seance_statut: "planifiee" | "en_cours" | "terminee" | "annulee"
-      tache_statut: "todo" | "en_cours" | "terminee" | "annulee"
       service_unite: "heure" | "bloc_4h" | "titre"
       studio_service_type:
         | "repetition"
@@ -4299,6 +4370,7 @@ export type Database = {
         | "mixage"
         | "mastering"
       studio_type: "repetition" | "enregistrement" | "mixte"
+      tache_statut: "todo" | "en_cours" | "terminee" | "annulee"
       traitement_type:
         | "separation_pistes"
         | "transposition"
@@ -4452,14 +4524,6 @@ export const Constants = {
   public: {
     Enums: {
       ai_creation_statut: ["privee", "publique", "archivee"],
-      bibliotheque_type: [
-        "contrat",
-        "loop",
-        "style",
-        "backing_track",
-        "partition",
-        "opportunite",
-      ],
       ai_job_statut: [
         "queued",
         "processing",
@@ -4484,6 +4548,14 @@ export const Constants = {
         "mastering",
       ],
       assignation_type: ["membre", "role"],
+      bibliotheque_type: [
+        "contrat",
+        "loop",
+        "style",
+        "backing_track",
+        "partition",
+        "opportunite",
+      ],
       devise: ["XOF", "EUR", "USD", "GNF", "MAD", "autre"],
       forum_statut: ["ouverte", "resolue", "fermee"],
       groupe_type: ["orchestre", "choeur", "band", "ensemble", "duo", "autre"],
@@ -4520,7 +4592,6 @@ export const Constants = {
       ressource_type: ["audio", "video", "pdf", "partition", "image", "autre"],
       ressource_visibilite: ["publique", "draft"],
       seance_statut: ["planifiee", "en_cours", "terminee", "annulee"],
-      tache_statut: ["todo", "en_cours", "terminee", "annulee"],
       service_unite: ["heure", "bloc_4h", "titre"],
       studio_service_type: [
         "repetition",
@@ -4531,6 +4602,7 @@ export const Constants = {
         "mastering",
       ],
       studio_type: ["repetition", "enregistrement", "mixte"],
+      tache_statut: ["todo", "en_cours", "terminee", "annulee"],
       traitement_type: [
         "separation_pistes",
         "transposition",
