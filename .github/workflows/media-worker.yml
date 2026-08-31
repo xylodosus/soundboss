@@ -1,0 +1,47 @@
+name: media-worker
+
+# Ne se déclenche que sur le service : l'app mobile vit dans le même dépôt et
+# n'a aucune raison de reconstruire l'image à chaque commit.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "containers/media-worker/**"
+      - ".github/workflows/media-worker.yml"
+  workflow_dispatch:
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Sans cette permission, le push vers GHCR échoue en 403 alors que
+      # l'authentification a réussi — l'erreur est déroutante.
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier les tests du worker
+        working-directory: containers/media-worker
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Jeton fourni automatiquement par Actions : aucun secret à créer.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construire et publier
+        uses: docker/build-push-action@v6
+        with:
+          context: containers/media-worker
+          push: true
+          # `latest` pour que Bunny suive, le SHA pour pouvoir revenir en arrière.
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/soundboss-media-worker:latest
+            ghcr.io/${{ github.repository_owner }}/soundboss-media-worker:${{ github.sha }}
