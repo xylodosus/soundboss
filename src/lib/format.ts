@@ -126,3 +126,11 @@ export function tailleLisible(octets: number | null | undefined): string {
   const i = Math.min(unite.length - 1, Math.floor(Math.log(octets) / Math.log(1024)));
   return `${(octets / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${unite[i]}`;
 }
+
+/** Durée de lecture au format m:ss. */
+export function formatTemps(secondes: number): string {
+  if (!isFinite(secondes) || secondes < 0) return "0:00";
+  const m = Math.floor(secondes / 60);
+  const s = Math.floor(secondes % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}

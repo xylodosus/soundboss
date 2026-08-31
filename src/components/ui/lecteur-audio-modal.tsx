@@ -12,6 +12,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { urlLectureR2 } from "@/lib/r2";
+import { formatTemps } from "@/lib/format";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { useDialogue } from "@/lib/dialogue";
 import { deltaEcoute, estEcoutee } from "@/lib/ecoute";
@@ -33,13 +34,6 @@ const NB_BARRES = 40;
 /** Hauteurs pseudo-aléatoires stables (ne changent pas entre rendus). */
 function hauteurBarre(i: number): number {
   return 18 + ((i * 37 + 11) % 82);
-}
-
-function formatTemps(secondes: number): string {
-  if (!isFinite(secondes) || secondes < 0) return "0:00";
-  const m = Math.floor(secondes / 60);
-  const s = Math.floor(secondes % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 /**
