@@ -1,0 +1,7 @@
+node_modules
+test
+tmp
+vitest.config.ts
+tsconfig.json
+.gitignore
+.env.local
