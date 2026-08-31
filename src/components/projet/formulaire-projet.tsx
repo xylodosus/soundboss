@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import type { Database } from "@/lib/database.types";
 import { useCreerProjet, useModifierProjet } from "@/lib/queries/projets";
+import { champsAEffacer } from "@/lib/projet-edition";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
 import { Bouton } from "@/components/ui/bouton";
@@ -96,7 +97,14 @@ export function FormulaireProjet({
       // Un projet fourni signifie édition : sans cette distinction, le
       // formulaire créait un second projet au lieu de mettre à jour le premier.
       if (projet) {
-        await modifier.mutateAsync({ projetId: projet.id, projet: donnees, groupeId });
+        await modifier.mutateAsync({
+          projetId: projet.id,
+          projet: donnees,
+          groupeId,
+          // Sans cette liste, vider un champ serait sans effet : la RPC lit NULL
+          // comme « garde la valeur actuelle ».
+          champsAEffacer: champsAEffacer(projet, donnees),
+        });
       } else {
         await creer.mutateAsync({ groupeId, projet: donnees });
       }

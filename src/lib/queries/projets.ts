@@ -155,10 +155,12 @@ export function useModifierProjet() {
     mutationFn: async ({
       projetId,
       projet,
+      champsAEffacer,
     }: {
       projetId: string;
       projet: Partial<Projet>;
       groupeId?: string | null;
+      champsAEffacer?: string[];
     }) => {
       const { data, error } = await supabase.rpc("modifier_projet", {
         p_projet_id: projetId,
@@ -171,6 +173,7 @@ export function useModifierProjet() {
         p_date_fin: projet.date_fin ?? undefined,
         p_date_realisation: projet.date_realisation ?? undefined,
         p_lieu_evenement: projet.lieu_evenement ?? undefined,
+        p_champs_a_effacer: champsAEffacer?.length ? champsAEffacer : undefined,
       });
       if (error) throw new Error(error.message);
       reponseRpc(data);

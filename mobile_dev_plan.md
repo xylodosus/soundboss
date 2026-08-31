@@ -315,6 +315,14 @@ Le `data.url` posé par les triggers (`/groupes/<id>/chat`,
   (les boîtes de dialogue custom existent déjà).
 - Grille tarifaire claire dans l'app ; packs étudiants/promos week-end.
 
+## 4 ter. Reporté au lot D
+
+- **Téléchargement natif Android** : le bouton Télécharger ouvre aujourd'hui la
+  feuille de partage système sur les deux plateformes. Décision du 31/08 :
+  garder le partage sur iOS (où aucun dossier utilisateur n'existe) et écrire
+  réellement dans Téléchargements sur Android — via `expo-media-library` ou le
+  Storage Access Framework, donc une dépendance native de plus.
+
 ## 5. Commandes utiles
 
 ```bash
