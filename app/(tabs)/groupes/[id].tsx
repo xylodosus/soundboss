@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useGroupe } from "@/lib/queries/groupes";
@@ -30,6 +30,7 @@ export default function DetailGroupe() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: groupe, isLoading } = useGroupe(id);
+  const [photoAgrandie, setPhotoAgrandie] = useState(false);
   const [onglet, setOnglet] = useState("projets");
 
   if (isLoading || !groupe) {
@@ -95,33 +96,30 @@ export default function DetailGroupe() {
             </View>
           </View>
 
-          {/* Photo couverture */}
-          <VisuelGroupe url={groupe.photo_url} style={{ width: "100%", height: 170, borderRadius: 20, marginTop: 14 }} />
+          {/* Identité : photo compacte à gauche, nom et métadonnées à droite.
+              La couverture pleine largeur de 170 px coûtait un tiers de l'écran
+              pour une information que la vignette porte aussi bien. */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 16 }}>
+            <Pressable
+              onPress={() => setPhotoAgrandie(true)}
+              disabled={!groupe.photo_url}
+              accessibilityRole="imagebutton"
+              accessibilityLabel="Agrandir la photo du groupe"
+              hitSlop={8}
+            >
+              <VisuelGroupe
+                url={groupe.photo_url}
+                rayonsImg={36}
+                style={{ width: 72, height: 72, borderRadius: 36 }}
+              />
+            </Pressable>
 
-          <View style={{ marginTop: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Texte variante="titre2" poids="extrabold" style={{ flex: 1 }}>
-              {groupe.nom}
-            </Texte>
-            {estChef && (
-              <Pressable
-                onPress={() => router.push(`/groupes/${id}/editer`)}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: couleurs.bordure,
-                  backgroundColor: couleurs.carte,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="create-outline" size={18} color={couleurs.texte} />
-              </Pressable>
-            )}
-          </View>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Texte variante="titre3" poids="extrabold" numberOfLines={2}>
+                {groupe.nom}
+              </Texte>
 
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
             <View
               style={{
                 borderRadius: rayons.pill,
@@ -148,10 +146,32 @@ export default function DetailGroupe() {
                 {groupe.nombre_membres ?? 0} membre{(groupe.nombre_membres ?? 0) > 1 ? "s" : ""}
               </Texte>
             </View>
+              </View>
+            </View>
+
+            {estChef && (
+              <Pressable
+                onPress={() => router.push(`/groupes/${id}/editer`)}
+                accessibilityRole="button"
+                accessibilityLabel="Modifier le groupe"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: couleurs.bordure,
+                  backgroundColor: couleurs.carte,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="create-outline" size={18} color={couleurs.texte} />
+              </Pressable>
+            )}
           </View>
 
           {groupe.description && (
-            <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ marginTop: 10, lineHeight: 20 }}>
+            <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ marginTop: 16, lineHeight: 20 }}>
               {groupe.description}
             </Texte>
           )}
@@ -230,6 +250,39 @@ export default function DetailGroupe() {
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Agrandissement de la photo. Fond quasi opaque plutôt que translucide :
+          la photo est le sujet, pas un calque au-dessus de la page. */}
+      <Modal
+        visible={photoAgrandie}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoAgrandie(false)}
+        statusBarTranslucent
+      >
+        <Pressable
+          onPress={() => setPhotoAgrandie(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer la photo"
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.94)",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            gap: 24,
+          }}
+        >
+          <VisuelGroupe
+            url={groupe.photo_url}
+            rayonsImg={rayons.lg}
+            style={{ width: "100%", aspectRatio: 1, borderRadius: rayons.lg }}
+          />
+          <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+            Touche l&apos;écran pour fermer
+          </Texte>
+        </Pressable>
+      </Modal>
     </Ecran>
   );
 }
