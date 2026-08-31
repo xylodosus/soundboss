@@ -39,6 +39,7 @@ import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
 import { VignetteImage } from "@/components/ui/vignette-fichier";
 import { ModalDetailFichier, type FichierDetail } from "@/components/groupe/modal-detail-fichier";
 import { useDialogue } from "@/lib/dialogue";
+import * as Clipboard from "expo-clipboard";
 
 const TAILLE_MAX_OCTETS = 32 * 1024 * 1024; // 32 Mo par fichier dans le chat
 
@@ -941,6 +942,11 @@ export default function Chat() {
           setMenuMessage(null);
           setMessageReponse(message);
         }}
+        onCopier={async (message) => {
+          await Clipboard.setStringAsync(message.contenu ?? "");
+          setMenuMessage(null);
+          dialogue.succes("Message copié.");
+        }}
       />
 
       <ModalMentions
@@ -1180,6 +1186,7 @@ function MenuActionsMessage({
   onModifier,
   onSupprimer,
   onRepondre,
+  onCopier,
 }: {
   message: MessageChat | null;
   monId: string | null;
@@ -1188,6 +1195,7 @@ function MenuActionsMessage({
   onModifier: (message: MessageChat) => void;
   onSupprimer: (message: MessageChat) => void;
   onRepondre: (message: MessageChat) => void;
+  onCopier: (message: MessageChat) => void;
 }) {
   if (!message) return null;
 
@@ -1230,6 +1238,24 @@ function MenuActionsMessage({
           }}
           onPress={() => {}}
         >
+          {!!message.contenu && (
+            <Pressable
+              onPress={() => onCopier(message)}
+              accessibilityRole="button"
+              accessibilityLabel="Copier le message"
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 12,
+                borderRadius: rayons.md,
+              }}
+            >
+              <Ionicons name="copy-outline" size={19} color={couleurs.texte} />
+              <Texte poids="semibold">Copier</Texte>
+            </Pressable>
+          )}
           {modifiable && (
             <Pressable
               onPress={() => onModifier(message)}
