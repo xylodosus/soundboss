@@ -45,3 +45,6 @@ app-example
 
 # clés de service Firebase (jamais dans le dépôt)
 *firebase-adminsdk*.json
+
+# Skills installés localement : outillage, pas code du projet
+.claude/skills/
