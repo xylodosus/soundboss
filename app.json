@@ -94,6 +94,13 @@
             "audio"
           ]
         }
+      ],
+      [
+        "react-native-audio-api",
+        {
+          "androidForegroundService": false,
+          "androidPermissions": []
+        }
       ]
     ],
     "experiments": {

@@ -18,24 +18,41 @@
 | Découpage | **Socle d'abord** : moteur, waveform, transport |
 | Tonalité | par Fadr, au lot E4 — pas ici |
 
-## Deux risques, dont un non levé
+## Risques : ce que l'installation a appris
 
-**Levé — la dépendance aux worklets.** `react-native-audio-api` déclare
-`react-native-worklets` en `peerDependenciesMeta: { optional: true }` : npm ne
-l'installera pas d'office, le `0.5.1` épinglé par le SDK 54 ne sera pas écrasé.
-C'est le mécanisme exact qui avait fait planter les builds avec `expo-asset` ;
-il ne s'applique pas ici. **À vérifier quand même après installation.**
+**Worklets — le conflit a bien eu lieu, et il est contourné.** La lecture
+initiale de `peerDependenciesMeta: { optional: true }` était fausse : `optional`
+dispense npm d'*installer* le paquet, pas d'en *vérifier la version* quand il est
+déjà là. Or `react-native-worklets` 0.5.1 est présent, tiré par reanimated 4.1.7,
+et `react-native-audio-api` >= 0.13 exige `>= 0.6.0`. npm voulait monter worklets
+en 0.12.1, ce que reanimated (`0.5 - 0.8`) refuse. Installation impossible.
 
-**Non levé — la mémoire.** La documentation ne confirme pas que
-`decodeAudioData` puisse éviter de charger le fichier entier.
-`AudioBufferQueueSourceNode` existe mais réclame des tampons déjà décodés,
-fournis à la main. En PCM flottant 44,1 kHz stéréo, un audio de 488 s pèse
-**~172 Mo** décodé. C'est intenable sur un Android modeste.
+Contournement retenu : **épingler `react-native-audio-api` en 0.12.0**, la
+dernière version dont le `package.json` ne déclare pas ce pair. Les deux chaînes
+natives dégradent proprement en son absence —
+`isWorkletsAvailable = dir != null && validateWorkletsVersion()` côté Gradle,
+`check_if_worklets_enabled()` côté podspec : le build réussit et désactive
+seulement `WorkletNode`, `WorkletProcessingNode` et `WorkletSourceNode`, qui ne
+servent pas au labo. La seule chose que 0.12.2 ajoute côté API publique est
+`concatAudioFiles`. RN minimal exigé : 0.76 — nous sommes en 0.81.
 
-D'où la tâche 1 : **mesurer avant de construire**. Si la mesure est mauvaise,
-deux replis existent — créer l'`AudioContext` à 22 050 Hz, ce qui divise la
-mémoire par deux, ou renoncer au décodage complet et rabattre le labo sur les
-seuls contrôles que `expo-audio` sait déjà rendre.
+**Mémoire — l'API offre trois leviers, la mesure reste à faire.** L'inspection des
+types a révélé ce que la documentation ne disait pas :
+
+| Trouvaille | Portée |
+|---|---|
+| `decodeAudioData(input, sampleRate?)` accepte une **chaîne** (URL) et une fréquence cible | pas d'`ArrayBuffer` en mémoire JS, et le rééchantillonnage se demande au décodage |
+| `StreamerNode({ streamPath })` | lecture en flux, **sans décodage complet** |
+| `changePlaybackSpeed(buffer, vitesse)` | étirement temporel hors ligne |
+
+Mais `StreamerNode` étend `AudioScheduledSourceNode`, pas
+`AudioBufferBaseSourceNode` : **il n'a ni `playbackRate` ni `detune`**. Le flux
+donne donc la lecture sans les effets. Le labo a besoin des effets, donc du
+tampon décodé — et la question mémoire reste entière. D'où la tâche 1.
+
+Trouvaille utile pour la tâche 4 : `AudioBufferBaseSourceNode` expose
+`onPositionChanged` et `onPositionChangedInterval`. Le suivi de position ne
+demande aucun calcul manuel sur `currentTime`.
 
 ---
 
