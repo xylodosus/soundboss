@@ -34,6 +34,7 @@ import { useLecteurAudio } from "@/lib/audio-context";
 import { useDialogue } from "@/lib/dialogue";
 import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
 import { ModalChoix } from "@/components/ui/modal-choix";
+import { ModalChoixMultiple } from "@/components/ui/modal-choix-multiple";
 import { ModalEcoutes } from "@/components/groupe/modal-ecoutes";
 import { SqueletteListe } from "@/components/ui/etat-vide";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
@@ -59,9 +60,29 @@ export default function DetailSeance() {
   const { data: setlist = [] } = useSetlistSeance(seanceId);
   const { data: enregistrements = [] } = useEnregistrementsSeance(seanceId);
   const { data: pupitres = [] } = usePupitresGroupe(groupeId);
-  // Destinataires du prochain audio déposé : null = tout le groupe.
-  const [pupitreCible, setPupitreCible] = useState<string | null>(null);
-  const [choixPupitre, setChoixPupitre] = useState(false);
+  const nomsPupitres = new Map(pupitres.map((p) => [p.id, p]));
+  // Filtre d'affichage seulement : il ne décide de rien à l'envoi.
+  const [filtrePupitre, setFiltrePupitre] = useState<string | null>(null);
+  const [choixFiltre, setChoixFiltre] = useState(false);
+  /**
+   * Audio téléversé mais pas encore enregistré en base : l'attribution se fait
+   * juste après le dépôt, au moment où l'on sait de quel audio il s'agit.
+   */
+  const [audioEnAttente, setAudioEnAttente] = useState<{
+    url: string;
+    titre?: string | null;
+    dureeSecondes?: number | null;
+  } | null>(null);
+
+  // Un audio adressé à tout le groupe concerne aussi chaque pupitre : il reste
+  // visible sous n'importe quel filtre, sans quoi un membre filtrant sur le
+  // sien croirait n'avoir rien reçu d'autre.
+  const audiosAffiches = filtrePupitre
+    ? enregistrements.filter(
+        (e) =>
+          (e.pupitre_ids ?? []).length === 0 || (e.pupitre_ids ?? []).includes(filtrePupitre)
+      )
+    : enregistrements;
   // Audio dont on consulte le détail des écoutes. Une seule modale pour toute
   // la liste, plutôt qu'une par ligne.
   const [ecoutesAudio, setEcoutesAudio] = useState<{ id: string; titre: string | null } | null>(null);
@@ -153,12 +174,7 @@ export default function DetailSeance() {
         },
         "seances/enregistrements"
       );
-      await ajouterEnregistrement.mutateAsync({
-        seanceId,
-        url: key,
-        titre: fichier.name,
-        pupitreId: pupitreCible,
-      });
+      setAudioEnAttente({ url: key, titre: fichier.name });
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Impossible de déposer l'audio.");
     } finally {
@@ -505,29 +521,31 @@ export default function DetailSeance() {
 
         {/* Audios */}
         <Section titre="Audios">
+          {pupitres.length > 0 && (
+            <Pressable
+              onPress={() => setChoixFiltre(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Filtrer les audios par pupitre"
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 8,
+                paddingVertical: 8,
+              }}
+            >
+              <Ionicons name="filter-outline" size={16} color={couleurs.texteSecondaire} />
+              <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                Pupitre :{" "}
+                <Texte variante="micro" poids="bold" couleur={couleurs.warmGold}>
+                  {nomsPupitres.get(filtrePupitre ?? "")?.nom ?? "Tous"}
+                </Texte>
+              </Texte>
+              <Ionicons name="chevron-down" size={14} color={couleurs.texteSecondaire} />
+            </Pressable>
+          )}
           {estGestionnaire && (
             <>
-              <Pressable
-                onPress={() => setChoixPupitre(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Choisir les destinataires de l'audio"
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 8,
-                  paddingVertical: 8,
-                }}
-              >
-                <Ionicons name="people-outline" size={16} color={couleurs.texteSecondaire} />
-                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                  Destinataires :{" "}
-                  <Texte variante="micro" poids="bold" couleur={couleurs.warmGold}>
-                    {pupitres.find((p) => p.id === pupitreCible)?.nom ?? "Tout le groupe"}
-                  </Texte>
-                </Texte>
-                <Ionicons name="chevron-down" size={14} color={couleurs.texteSecondaire} />
-              </Pressable>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
               <Bouton
                 variante="secondaire"
@@ -550,12 +568,14 @@ export default function DetailSeance() {
             </>
           )}
           <View style={{ gap: 8 }}>
-            {enregistrements.length === 0 ? (
+            {audiosAffiches.length === 0 ? (
               <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                Aucun audio pour cette répétition.
+                {filtrePupitre
+                  ? "Aucun audio pour ce pupitre."
+                  : "Aucun audio pour cette répétition."}
               </Texte>
             ) : (
-              enregistrements.map((enregistrement) => (
+              audiosAffiches.map((enregistrement) => (
                 <View
                   key={enregistrement.id}
                   style={{
@@ -579,26 +599,31 @@ export default function DetailSeance() {
                         Par {enregistrement.uploader.prenom} {enregistrement.uploader.nom}
                       </Texte>
                     )}
-                    {/* Pas de badge quand l'audio s'adresse à tout le groupe :
+                    {/* Aucun badge quand l'audio s'adresse à tout le groupe :
                         c'est le cas courant, l'étiqueter alourdirait la liste. */}
-                    {enregistrement.pupitre && (
+                    {(enregistrement.pupitre_ids ?? []).length > 0 && (
                       <View
-                        style={{
-                          alignSelf: "flex-start",
-                          marginTop: 4,
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          borderRadius: rayons.pill,
-                          backgroundColor: (enregistrement.pupitre.couleur ?? couleurs.warmGold) + "26",
-                        }}
+                        style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 }}
                       >
-                        <Texte
-                          variante="micro"
-                          poids="bold"
-                          couleur={enregistrement.pupitre.couleur ?? couleurs.warmGold}
-                        >
-                          {enregistrement.pupitre.nom}
-                        </Texte>
+                        {(enregistrement.pupitre_ids ?? []).map((pid) => {
+                          const pupitre = nomsPupitres.get(pid);
+                          const teinte = pupitre?.couleur ?? couleurs.warmGold;
+                          return (
+                            <View
+                              key={pid}
+                              style={{
+                                paddingHorizontal: 8,
+                                paddingVertical: 2,
+                                borderRadius: rayons.pill,
+                                backgroundColor: teinte + "26",
+                              }}
+                            >
+                              <Texte variante="micro" poids="bold" couleur={teinte}>
+                                {pupitre?.nom ?? "Pupitre"}
+                              </Texte>
+                            </View>
+                          );
+                        })}
                       </View>
                     )}
                     {estGestionnaire && (
@@ -886,10 +911,10 @@ export default function DetailSeance() {
       />
 
       <ModalChoix
-        visible={choixPupitre}
-        titre="Destinataires de l'audio"
+        visible={choixFiltre}
+        titre="Filtrer par pupitre"
         elements={[
-          { id: "aucun", titre: "Tout le groupe", icone: "people-outline" },
+          { id: "tous", titre: "Tous les audios", icone: "albums-outline" },
           ...pupitres.map((p) => ({
             id: p.id,
             titre: p.nom,
@@ -898,10 +923,35 @@ export default function DetailSeance() {
         ]}
         messageVide="Ce groupe n'a pas encore de pupitre."
         surChoisir={(idChoisi) => {
-          setPupitreCible(idChoisi === "aucun" ? null : idChoisi);
-          setChoixPupitre(false);
+          setFiltrePupitre(idChoisi === "tous" ? null : idChoisi);
+          setChoixFiltre(false);
         }}
-        onFermer={() => setChoixPupitre(false)}
+        onFermer={() => setChoixFiltre(false)}
+      />
+
+      {/* Attribution au moment du dépôt : c'est là qu'on sait de quel audio il
+          s'agit. Ne rien cocher signifie « tout le groupe ». */}
+      <ModalChoixMultiple
+        visible={!!audioEnAttente}
+        titre="À qui s'adresse cet audio ?"
+        sousTitre="Sans sélection, il sera visible de tout le groupe."
+        libelleValider="Ajouter l'audio"
+        messageVide="Ce groupe n'a pas encore de pupitre."
+        elements={pupitres.map((p) => ({ id: p.id, titre: p.nom, couleur: p.couleur }))}
+        surValider={(ids) => {
+          const audio = audioEnAttente;
+          setAudioEnAttente(null);
+          if (!audio) return;
+          ajouterEnregistrement.mutate({ seanceId, ...audio, pupitreIds: ids });
+        }}
+        onFermer={() => {
+          // Le fichier est déjà téléversé : l'abandonner laisserait un orphelin
+          // dans R2 et perdrait l'envoi. On applique la règle affichée —
+          // aucune sélection vaut « tout le groupe ».
+          const audio = audioEnAttente;
+          setAudioEnAttente(null);
+          if (audio) ajouterEnregistrement.mutate({ seanceId, ...audio, pupitreIds: [] });
+        }}
       />
 
       <ModalEnregistrement
@@ -909,13 +959,7 @@ export default function DetailSeance() {
         onFermer={() => setModeEnregistrement(false)}
         dossier="seances/enregistrements"
         onAjouter={(url, titre, dureeSecondes) =>
-          ajouterEnregistrement.mutate({
-            seanceId,
-            url,
-            titre,
-            dureeSecondes,
-            pupitreId: pupitreCible,
-          })
+          setAudioEnAttente({ url, titre, dureeSecondes })
         }
       />
 

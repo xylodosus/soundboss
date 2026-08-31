@@ -3090,6 +3090,7 @@ export type Database = {
           id: string
           peaks_url: string | null
           pupitre_id: string | null
+          pupitre_ids: string[]
           seance_id: string
           taille_octets: number | null
           titre: string | null
@@ -3104,6 +3105,7 @@ export type Database = {
           id?: string
           peaks_url?: string | null
           pupitre_id?: string | null
+          pupitre_ids?: string[]
           seance_id: string
           taille_octets?: number | null
           titre?: string | null
@@ -3118,6 +3120,7 @@ export type Database = {
           id?: string
           peaks_url?: string | null
           pupitre_id?: string | null
+          pupitre_ids?: string[]
           seance_id?: string
           taille_octets?: number | null
           titre?: string | null
@@ -4122,6 +4125,7 @@ export type Database = {
         Args: {
           p_duree_secondes?: number
           p_pupitre_id?: string
+          p_pupitre_ids?: string[]
           p_seance_id: string
           p_titre?: string
           p_url: string
