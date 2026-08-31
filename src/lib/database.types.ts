@@ -3030,6 +3030,51 @@ export type Database = {
           },
         ]
       }
+      seance_ecoutes: {
+        Row: {
+          ecoutee: boolean
+          ecoutee_at: string | null
+          enregistrement_id: string
+          id: string
+          secondes_ecoutees: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ecoutee?: boolean
+          ecoutee_at?: string | null
+          enregistrement_id: string
+          id?: string
+          secondes_ecoutees?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ecoutee?: boolean
+          ecoutee_at?: string | null
+          enregistrement_id?: string
+          id?: string
+          secondes_ecoutees?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seance_ecoutes_enregistrement_id_fkey"
+            columns: ["enregistrement_id"]
+            isOneToOne: false
+            referencedRelation: "seance_enregistrements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seance_ecoutes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seance_enregistrements: {
         Row: {
           created_at: string | null
@@ -4172,6 +4217,10 @@ export type Database = {
           p_roles_concernes?: string[]
           p_titre?: string
         }
+        Returns: Json
+      }
+      enregistrer_ecoute: {
+        Args: { p_enregistrement_id: string; p_secondes: number }
         Returns: Json
       }
       est_admin_plateforme: { Args: never; Returns: boolean }
