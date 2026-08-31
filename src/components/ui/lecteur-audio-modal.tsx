@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image, Modal, Pressable, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
@@ -322,7 +322,14 @@ export function LecteurAudioModal({
                 opacity: enTelechargement ? 0.5 : 1,
               }}
             >
-              <Ionicons name="download-outline" size={20} color={couleurs.warmGold} />
+              {/* Une opacité réduite ne suffit pas à signaler une attente :
+                  sur un fichier de plusieurs mégaoctets en réseau lent, le
+                  bouton paraissait simplement inerte. */}
+              {enTelechargement ? (
+                <ActivityIndicator size="small" color={couleurs.warmGold} />
+              ) : (
+                <Ionicons name="download-outline" size={20} color={couleurs.warmGold} />
+              )}
             </Pressable>
             <Pressable
               onPress={fermerEnPoussantEcoute}
