@@ -8,6 +8,7 @@ import {
   useAjouterEnregistrement,
   useAjouterMorceauSetlist,
   useAjouterNote,
+  useEcoutesEnregistrement,
   useEnregistrementsSeance,
   useLierProjetSeance,
   useMettreAJourPresence,
@@ -596,11 +597,13 @@ export default function DetailSeance() {
                         </Texte>
                       </View>
                     )}
+                    {estGestionnaire && <CompteurEcoutes enregistrementId={enregistrement.id} />}
                   </View>
                   <BoutonEcouter
                     cle={enregistrement.url}
                     titre={enregistrement.titre ?? "Audio"}
                     sousTitre="Audio de la répétition"
+                    enregistrementId={enregistrement.id}
                     imageCle={seance.projet?.affiche_url ?? seance.groupe?.photo_url}
                   />
                   {estGestionnaire && (
@@ -927,21 +930,72 @@ function Section({ titre, children }: { titre: string; children: React.ReactNode
 }
 
 /** Bouton « Écouter » : ouvre le lecteur audio global. */
+/**
+ * Nombre d'auditeurs d'un audio, réservé au chef et aux admins. La RLS ne
+ * renvoie de toute façon que sa propre ligne à un simple membre : le compteur
+ * n'aurait aucun sens ailleurs.
+ */
+function CompteurEcoutes({ enregistrementId }: { enregistrementId: string }) {
+  const [deplie, setDeplie] = useState(false);
+  const { data: ecoutes = [] } = useEcoutesEnregistrement(enregistrementId, true);
+
+  if (ecoutes.length === 0) {
+    return (
+      <Texte variante="micro" couleur={couleurs.texteFaible} style={{ marginTop: 4 }}>
+        Aucune écoute
+      </Texte>
+    );
+  }
+
+  return (
+    <View style={{ marginTop: 4 }}>
+      <Pressable
+        onPress={() => setDeplie((v) => !v)}
+        accessibilityRole="button"
+        accessibilityLabel="Voir qui a écouté"
+        style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+      >
+        <Ionicons name="headset-outline" size={13} color={couleurs.warmGold} />
+        <Texte variante="micro" poids="bold" couleur={couleurs.warmGold}>
+          {ecoutes.length} écoute{ecoutes.length > 1 ? "s" : ""}
+        </Texte>
+        <Ionicons
+          name={deplie ? "chevron-up" : "chevron-down"}
+          size={12}
+          color={couleurs.texteSecondaire}
+        />
+      </Pressable>
+      {deplie && (
+        <View style={{ marginTop: 4, gap: 2 }}>
+          {ecoutes.map((e) => (
+            <Texte key={e.id} variante="micro" couleur={couleurs.texteSecondaire}>
+              {`${e.auditeur?.prenom ?? ""} ${e.auditeur?.nom ?? ""}`.trim() || "Membre"}
+            </Texte>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function BoutonEcouter({
   cle,
   titre,
   sousTitre,
   imageCle,
+  enregistrementId,
 }: {
   cle: string;
   titre: string;
   sousTitre?: string;
   imageCle?: string | null;
+  /** Audio de répétition : active le comptage des écoutes. */
+  enregistrementId?: string;
 }) {
   const { ouvrirPiste } = useLecteurAudio();
   return (
     <Pressable
-      onPress={() => ouvrirPiste({ cle, titre, sousTitre, imageCle })}
+      onPress={() => ouvrirPiste({ cle, titre, sousTitre, imageCle, enregistrementId })}
       accessibilityRole="button"
       accessibilityLabel={`Écouter ${titre}`}
       style={{

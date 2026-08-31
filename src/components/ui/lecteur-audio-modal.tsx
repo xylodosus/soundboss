@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,10 +14,14 @@ import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { urlLectureR2 } from "@/lib/r2";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { useDialogue } from "@/lib/dialogue";
+import { deltaEcoute } from "@/lib/ecoute";
+import { useEnregistrerEcoute } from "@/lib/queries/seances";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
 
 export interface PisteAudio {
+  /** Audio de répétition : active la remontée de progression d'écoute. */
+  enregistrementId?: string;
   titre: string;
   sousTitre?: string;
   url: string; // URL http(s) résolue (signée R2)
@@ -133,6 +137,53 @@ export function LecteurAudioModal({
   const dialogue = useDialogue();
   const [enTelechargement, setEnTelechargement] = useState(false);
 
+  // Cumul du temps réellement joué, pour le seuil des 30 % d'écoute.
+  // `mutate` est référentiellement stable en TanStack Query v5 : on le
+  // déstructure pour pouvoir l'inscrire honnêtement dans les dépendances,
+  // plutôt que de désactiver la règle des hooks.
+  const { mutate: pousserEcoute } = useEnregistrerEcoute();
+  const cumul = useRef(0);
+  const dernierePosition = useRef(0);
+  const dernierEnvoi = useRef(0);
+
+  const enregistrementId = piste?.enregistrementId;
+
+  // Nouvelle piste : le cumul repart de zéro.
+  useEffect(() => {
+    cumul.current = 0;
+    dernierePosition.current = 0;
+    dernierEnvoi.current = 0;
+  }, [enregistrementId]);
+
+  useEffect(() => {
+    if (!enregistrementId) return;
+    const position = statut.currentTime ?? 0;
+    if (!statut.playing) {
+      // À l'arrêt on se recale sans compter : reprendre après une pause ne
+      // doit pas créer un faux delta.
+      dernierePosition.current = position;
+      return;
+    }
+    cumul.current += deltaEcoute(dernierePosition.current, position);
+    dernierePosition.current = position;
+
+    // Un envoi toutes les 15 s suffit : la RPC garde la valeur maximale.
+    if (cumul.current - dernierEnvoi.current >= 15) {
+      dernierEnvoi.current = cumul.current;
+      pousserEcoute({ enregistrementId, secondes: Math.round(cumul.current) });
+    }
+  }, [statut.currentTime, statut.playing, enregistrementId, pousserEcoute]);
+
+  // À la fermeture, pousser le reliquat : sans ça une écoute de moins de 15 s
+  // depuis le dernier envoi serait perdue.
+  function fermerEnPoussantEcoute() {
+    if (enregistrementId && cumul.current > dernierEnvoi.current) {
+      pousserEcoute({ enregistrementId, secondes: Math.round(cumul.current) });
+      dernierEnvoi.current = cumul.current;
+    }
+    onFermer();
+  }
+
   async function telecharger() {
     if (!piste) return;
     setEnTelechargement(true);
@@ -197,7 +248,7 @@ export function LecteurAudioModal({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onFermer}
+      onRequestClose={fermerEnPoussantEcoute}
       statusBarTranslucent
     >
       <View
@@ -208,7 +259,7 @@ export function LecteurAudioModal({
         }}
       >
         {/* Tap sur le fond → fermer */}
-        <Pressable style={{ flex: 1 }} onPress={onFermer} />
+        <Pressable style={{ flex: 1 }} onPress={fermerEnPoussantEcoute} />
 
         {/* Feuille */}
         <View
@@ -273,7 +324,7 @@ export function LecteurAudioModal({
               <Ionicons name="download-outline" size={20} color={couleurs.warmGold} />
             </Pressable>
             <Pressable
-              onPress={onFermer}
+              onPress={fermerEnPoussantEcoute}
               accessibilityRole="button"
               accessibilityLabel="Fermer le lecteur"
               style={{

@@ -14,6 +14,7 @@ export const clefsSeances = {
   enregistrements: (seanceId: string) => ["seances", "enregistrements", seanceId] as const,
   notes: (seanceId: string) => ["seances", "notes", seanceId] as const,
   stats: (groupeId: string) => ["seances", "stats", groupeId] as const,
+  ecoutes: (enregistrementId: string) => ["seances", "ecoutes", enregistrementId] as const,
 };
 
 export type SeanceAvecGroupe = Seance & {
@@ -377,6 +378,56 @@ export function useAjouterEnregistrement() {
     },
     onSuccess: (_d, v) =>
       queryClient.invalidateQueries({ queryKey: clefsSeances.enregistrements(v.seanceId) }),
+  });
+}
+
+/** Pousse le cumul d'écoute. La RPC garde la valeur maximale. */
+export function useEnregistrerEcoute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { enregistrementId: string; secondes: number }) => {
+      const { data, error } = await supabase.rpc("enregistrer_ecoute", {
+        p_enregistrement_id: v.enregistrementId,
+        p_secondes: v.secondes,
+      });
+      if (error) throw new Error(error.message);
+      reponseRpc(data);
+    },
+    onSuccess: (_d, v) =>
+      queryClient.invalidateQueries({ queryKey: clefsSeances.ecoutes(v.enregistrementId) }),
+  });
+}
+
+/**
+ * Qui a écouté cet audio. La RLS filtre déjà : un simple membre ne reçoit que
+ * sa propre ligne, seul le chef ou un admin voit tout le groupe. Le drapeau
+ * `actif` évite simplement une requête inutile côté membre.
+ */
+export function useEcoutesEnregistrement(enregistrementId: string, actif: boolean) {
+  return useQuery({
+    queryKey: clefsSeances.ecoutes(enregistrementId),
+    enabled: actif && !!enregistrementId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("seance_ecoutes")
+        .select("id, ecoutee, secondes_ecoutees, ecoutee_at, auditeur:users(id, prenom, nom, avatar_url)")
+        .eq("enregistrement_id", enregistrementId)
+        .eq("ecoutee", true)
+        .order("ecoutee_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as unknown as {
+        id: string;
+        ecoutee: boolean;
+        secondes_ecoutees: number;
+        ecoutee_at: string | null;
+        auditeur: {
+          id: string;
+          prenom: string | null;
+          nom: string | null;
+          avatar_url: string | null;
+        } | null;
+      }[];
+    },
   });
 }
 

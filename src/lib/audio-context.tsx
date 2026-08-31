@@ -11,6 +11,8 @@ interface PisteDemandee {
   titre: string;
   sousTitre?: string;
   imageCle?: string | null; // couverture : photo de groupe / affiche de projet
+  /** Audio de répétition : permet au lecteur de remonter la progression d'écoute. */
+  enregistrementId?: string;
 }
 
 interface ContexteAudio {
@@ -47,6 +49,7 @@ export function FournisseurAudio({ children }: { children: React.ReactNode }) {
         sousTitre: demande.sousTitre,
         url,
         imageCle: demande.imageCle,
+        enregistrementId: demande.enregistrementId,
       });
     } finally {
       setChargement(false);
