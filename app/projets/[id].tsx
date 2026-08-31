@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -12,6 +12,7 @@ import {
   useProjet,
   useSeancesProjet,
   useSupprimerMorceau,
+  useSupprimerProjet,
 } from "@/lib/queries/projets";
 import { useDialogue } from "@/lib/dialogue";
 import { couleurs, rayons } from "@/lib/theme";
@@ -23,6 +24,7 @@ import { SqueletteListe } from "@/components/ui/etat-vide";
 import { ModalCreerSeance } from "@/components/ui/modal-creer-seance";
 import { OngletTaches } from "@/components/projet/onglet-taches";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
+import { FormulaireProjet } from "@/components/projet/formulaire-projet";
 import {
   formatDateCourte,
   libelleCategorieProjet,
@@ -38,6 +40,26 @@ export default function DetailProjet() {
 
   const { data: projet, isLoading } = useProjet(id);
   const { data: estGestionnaire = false } = useDroitsProjet(id);
+  const supprimerProjet = useSupprimerProjet();
+  const [modeEditionProjet, setModeEditionProjet] = useState(false);
+
+  async function supprimerCeProjet() {
+    // Le handler est déclaré avant le garde de chargement : projet n'y est pas
+    // encore restreint. Le bouton n'existe de toute façon qu'une fois chargé.
+    if (!projet) return;
+    const confirme = await dialogue.confirmer({
+      titre: "Supprimer ce projet ?",
+      message: "Le projet, son répertoire et ses tâches seront définitivement supprimés.",
+      danger: true,
+    });
+    if (!confirme) return;
+    try {
+      await supprimerProjet.mutateAsync({ projetId: id, groupeId: projet.groupe_id });
+      router.back();
+    } catch (e) {
+      dialogue.erreur(e instanceof Error ? e.message : "Suppression impossible.");
+    }
+  }
   const { data: morceaux = [] } = useMorceauxProjet(id);
   const { data: seances = [] } = useSeancesProjet(id);
 
@@ -117,9 +139,31 @@ export default function DetailProjet() {
           <Pressable onPress={() => router.back()} style={{ width: 40 }}>
             <Ionicons name="arrow-back" size={22} color={couleurs.texte} />
           </Pressable>
-          <Texte variante="petit" couleur={couleurs.texteSecondaire}>
+          <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
             {projet.groupe_id ? "Projet du groupe" : "Projet personnel"}
           </Texte>
+          {estGestionnaire && (
+            <>
+              <Pressable
+                onPress={() => setModeEditionProjet(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Modifier le projet"
+                hitSlop={10}
+                style={{ width: 40, alignItems: "center" }}
+              >
+                <Ionicons name="create-outline" size={20} color={couleurs.warmGold} />
+              </Pressable>
+              <Pressable
+                onPress={supprimerCeProjet}
+                accessibilityRole="button"
+                accessibilityLabel="Supprimer le projet"
+                hitSlop={10}
+                style={{ width: 40, alignItems: "center" }}
+              >
+                <Ionicons name="trash-outline" size={20} color={couleurs.danger} />
+              </Pressable>
+            </>
+          )}
         </View>
 
         {/* Header */}
@@ -359,6 +403,23 @@ export default function DetailProjet() {
         projetId={id}
         onFermer={() => setModeAjoutSeance(false)}
       />
+
+      <Modal
+        visible={modeEditionProjet}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setModeEditionProjet(false)}
+      >
+        <Ecran>
+          <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <FormulaireProjet
+              projet={projet}
+              groupeId={projet.groupe_id}
+              onAnnuler={() => setModeEditionProjet(false)}
+            />
+          </ScrollView>
+        </Ecran>
+      </Modal>
     </Ecran>
   );
 }
