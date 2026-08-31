@@ -84,7 +84,17 @@
           "projectId": "cc17c254-98b9-4cb8-b825-92d489bc115c"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "SoundBoss accède à tes photos pour les partager avec tes groupes.",
+          "savePhotosPermission": "SoundBoss enregistre les audios que tu télécharges sur ton appareil.",
+          "granularPermissions": [
+            "audio"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

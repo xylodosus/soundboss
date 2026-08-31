@@ -189,7 +189,8 @@ export function LecteurAudioModal({
     setEnTelechargement(true);
     try {
       const resultat = await telechargerEtPartager(piste.url, `${piste.titre}.m4a`, "audio/mp4");
-      if (resultat === "cache") dialogue.succes("Audio téléchargé.");
+      if (resultat === "telecharge") dialogue.succes("Audio enregistré sur ton appareil.");
+      else if (resultat === "cache") dialogue.succes("Audio téléchargé.");
     } catch {
       dialogue.erreur("Impossible de télécharger cet audio.");
     } finally {

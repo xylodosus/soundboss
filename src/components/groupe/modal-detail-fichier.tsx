@@ -63,7 +63,8 @@ export function ModalDetailFichier({
       const url = await urlLectureR2(fichier.cle);
       if (!url) throw new Error("Impossible d'obtenir le fichier.");
       const resultat = await telechargerEtPartager(url, fichier.nom, mimeDepuisType(fichier.type));
-      if (resultat === "cache") dialogue.succes("Fichier téléchargé.");
+      if (resultat === "telecharge") dialogue.succes("Fichier enregistré sur ton appareil.");
+      else if (resultat === "cache") dialogue.succes("Fichier téléchargé.");
     } catch {
       dialogue.erreur("Impossible de télécharger le fichier.");
     } finally {
