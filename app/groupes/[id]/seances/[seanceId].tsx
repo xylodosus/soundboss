@@ -20,7 +20,7 @@ import {
   useSupprimerMorceauSetlist,
   useSupprimerNote,
 } from "@/lib/queries/seances";
-import { useGroupe, useMembresGroupe } from "@/lib/queries/groupes";
+import { useGroupe, useMembresGroupe, usePupitresGroupe } from "@/lib/queries/groupes";
 import { useProjetsGroupe } from "@/lib/queries/projets";
 import { televerserFichier } from "@/lib/r2";
 import { couleurs, rayons } from "@/lib/theme";
@@ -56,6 +56,10 @@ export default function DetailSeance() {
   const { data: presences = [] } = usePresencesSeance(seanceId);
   const { data: setlist = [] } = useSetlistSeance(seanceId);
   const { data: enregistrements = [] } = useEnregistrementsSeance(seanceId);
+  const { data: pupitres = [] } = usePupitresGroupe(groupeId);
+  // Destinataires du prochain audio déposé : null = tout le groupe.
+  const [pupitreCible, setPupitreCible] = useState<string | null>(null);
+  const [choixPupitre, setChoixPupitre] = useState(false);
   const { data: notes = [] } = useNotesSeance(seanceId);
 
   const mettreAJourPresence = useMettreAJourPresence();
@@ -144,9 +148,14 @@ export default function DetailSeance() {
         },
         "seances/enregistrements"
       );
-      await ajouterEnregistrement.mutateAsync({ seanceId, url: key, titre: fichier.name });
+      await ajouterEnregistrement.mutateAsync({
+        seanceId,
+        url: key,
+        titre: fichier.name,
+        pupitreId: pupitreCible,
+      });
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Impossible de déposer l'enregistrement.");
+      setErreur(e instanceof Error ? e.message : "Impossible de déposer l'audio.");
     } finally {
       setEnvoiAudio(false);
     }
@@ -180,15 +189,15 @@ export default function DetailSeance() {
 
   async function supprimerEnregistrementSeance(id: string) {
     const ok = await dialogue.confirmer({
-      titre: "Supprimer l'enregistrement ?",
-      message: "L'enregistrement et son fichier audio seront définitivement supprimés.",
+      titre: "Supprimer cet audio ?",
+      message: "L'audio sera définitivement supprimé.",
     });
     if (!ok) return;
     try {
       await supprimerEnregistrement.mutateAsync({ seanceId, id });
-      dialogue.succes("Enregistrement supprimé.");
+      dialogue.succes("Audio supprimé.");
     } catch {
-      dialogue.erreur("Impossible de supprimer l'enregistrement.");
+      dialogue.erreur("Impossible de supprimer l'audio.");
     }
   }
 
@@ -489,9 +498,31 @@ export default function DetailSeance() {
           </View>
         </Section>
 
-        {/* Enregistrements */}
-        <Section titre="Enregistrements">
+        {/* Audios */}
+        <Section titre="Audios">
           {estGestionnaire && (
+            <>
+              <Pressable
+                onPress={() => setChoixPupitre(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Choisir les destinataires de l'audio"
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                  paddingVertical: 8,
+                }}
+              >
+                <Ionicons name="people-outline" size={16} color={couleurs.texteSecondaire} />
+                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                  Destinataires :{" "}
+                  <Texte variante="micro" poids="bold" couleur={couleurs.warmGold}>
+                    {pupitres.find((p) => p.id === pupitreCible)?.nom ?? "Tout le groupe"}
+                  </Texte>
+                </Texte>
+                <Ionicons name="chevron-down" size={14} color={couleurs.texteSecondaire} />
+              </Pressable>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
               <Bouton
                 variante="secondaire"
@@ -511,11 +542,12 @@ export default function DetailSeance() {
                 <Ionicons name="mic" size={18} color={couleurs.cream} />
               </Bouton>
             </View>
+            </>
           )}
           <View style={{ gap: 8 }}>
             {enregistrements.length === 0 ? (
               <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                Aucun enregistrement pour cette répétition.
+                Aucun audio pour cette répétition.
               </Texte>
             ) : (
               enregistrements.map((enregistrement) => (
@@ -535,18 +567,40 @@ export default function DetailSeance() {
                   <Ionicons name="musical-note-outline" size={20} color={couleurs.warmGold} />
                   <View style={{ flex: 1 }}>
                     <Texte variante="petit" poids="semibold" numberOfLines={1}>
-                      {enregistrement.titre ?? "Enregistrement"}
+                      {enregistrement.titre ?? "Audio"}
                     </Texte>
                     {enregistrement.uploader && (
                       <Texte variante="micro" couleur={couleurs.texteSecondaire}>
                         Par {enregistrement.uploader.prenom} {enregistrement.uploader.nom}
                       </Texte>
                     )}
+                    {/* Pas de badge quand l'audio s'adresse à tout le groupe :
+                        c'est le cas courant, l'étiqueter alourdirait la liste. */}
+                    {enregistrement.pupitre && (
+                      <View
+                        style={{
+                          alignSelf: "flex-start",
+                          marginTop: 4,
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: rayons.pill,
+                          backgroundColor: (enregistrement.pupitre.couleur ?? couleurs.warmGold) + "26",
+                        }}
+                      >
+                        <Texte
+                          variante="micro"
+                          poids="bold"
+                          couleur={enregistrement.pupitre.couleur ?? couleurs.warmGold}
+                        >
+                          {enregistrement.pupitre.nom}
+                        </Texte>
+                      </View>
+                    )}
                   </View>
                   <BoutonEcouter
                     cle={enregistrement.url}
-                    titre={enregistrement.titre ?? "Enregistrement"}
-                    sousTitre="Enregistrement de la répétition"
+                    titre={enregistrement.titre ?? "Audio"}
+                    sousTitre="Audio de la répétition"
                     imageCle={seance.projet?.affiche_url ?? seance.groupe?.photo_url}
                   />
                   {estGestionnaire && (
@@ -810,12 +864,37 @@ export default function DetailSeance() {
       </KeyboardAvoidingView>
       </GestureHandlerRootView>
 
+      <ModalChoix
+        visible={choixPupitre}
+        titre="Destinataires de l'audio"
+        elements={[
+          { id: "aucun", titre: "Tout le groupe", icone: "people-outline" },
+          ...pupitres.map((p) => ({
+            id: p.id,
+            titre: p.nom,
+            icone: "musical-notes-outline" as const,
+          })),
+        ]}
+        messageVide="Ce groupe n'a pas encore de pupitre."
+        surChoisir={(idChoisi) => {
+          setPupitreCible(idChoisi === "aucun" ? null : idChoisi);
+          setChoixPupitre(false);
+        }}
+        onFermer={() => setChoixPupitre(false)}
+      />
+
       <ModalEnregistrement
         visible={modeEnregistrement}
         onFermer={() => setModeEnregistrement(false)}
         dossier="seances/enregistrements"
-        onAjouter={(url, titre) =>
-          ajouterEnregistrement.mutate({ seanceId, url, titre })
+        onAjouter={(url, titre, dureeSecondes) =>
+          ajouterEnregistrement.mutate({
+            seanceId,
+            url,
+            titre,
+            dureeSecondes,
+            pupitreId: pupitreCible,
+          })
         }
       />
 

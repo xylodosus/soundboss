@@ -43,7 +43,8 @@ export function ModalEnregistrement({
   visible: boolean;
   onFermer: () => void;
   dossier: string;
-  onAjouter: (url: string, titre: string) => void;
+  /** dureeSecondes : requise pour le seuil des 30 % d'écoute. */
+  onAjouter: (url: string, titre: string, dureeSecondes?: number) => void;
 }) {
   const insets = useSafeAreaInsets();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -159,7 +160,8 @@ export function ModalEnregistrement({
         },
         dossier
       );
-      onAjouter(key, "Enregistrement du micro");
+      // durationMillis est en millisecondes ; la base attend des secondes.
+      onAjouter(key, "Audio du micro", Math.round(dureeFinale / 1000));
       onFermer();
     } catch {
       setErreur("Impossible d'envoyer l'enregistrement.");

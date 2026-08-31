@@ -342,11 +342,12 @@ export function useEnregistrementsSeance(seanceId: string) {
     queryFn: async () => {
       const { data } = await supabase
         .from("seance_enregistrements")
-        .select("*, uploader:users(id, prenom, nom)")
+        .select("*, uploader:users(id, prenom, nom), pupitre:roles_pupitres(id, nom, couleur)")
         .eq("seance_id", seanceId)
         .order("created_at", { ascending: false });
       return (data ?? []) as unknown as (Database["public"]["Tables"]["seance_enregistrements"]["Row"] & {
         uploader: { id: string; prenom: string | null; nom: string | null } | null;
+        pupitre: { id: string; nom: string; couleur: string | null } | null;
       })[];
     },
   });
@@ -355,11 +356,21 @@ export function useEnregistrementsSeance(seanceId: string) {
 export function useAjouterEnregistrement() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { seanceId: string; url: string; titre?: string | null }) => {
+    mutationFn: async (v: {
+      seanceId: string;
+      url: string;
+      titre?: string | null;
+      // Sans durée, le seuil des 30 % est incalculable et l'écoute ne peut
+      // jamais être comptabilisée : elle doit être fournie au dépôt.
+      dureeSecondes?: number | null;
+      pupitreId?: string | null;
+    }) => {
       const { data, error } = await supabase.rpc("ajouter_enregistrement_seance", {
         p_seance_id: v.seanceId,
         p_url: v.url,
         p_titre: v.titre ?? undefined,
+        p_duree_secondes: v.dureeSecondes ?? undefined,
+        p_pupitre_id: v.pupitreId ?? undefined,
       });
       if (error) throw new Error(error.message);
       reponseRpc(data);
