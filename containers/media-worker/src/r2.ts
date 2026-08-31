@@ -52,7 +52,17 @@ export async function downloadToFile(key: string, destPath: string): Promise<num
   return withRetry(`download ${key}`, async () => {
   const res = await client.fetch(objectUrl(key), { method: 'GET' });
   if (!res.ok || !res.body) {
-    throw new Error(`Téléchargement R2 échoué (${res.status}) pour ${key}`);
+    // R2 nomme précisément la cause dans un corps XML : SignatureDoesNotMatch,
+    // InvalidAccessKeyId, AccessDenied, NoSuchBucket… Un simple 403 ne dit pas
+    // si le problème vient de la clé, de la signature ou des droits — trois
+    // corrections très différentes. Sans ce détail, le diagnostic se fait à
+    // l'aveugle (constaté le 31/08, trois cycles de déploiement perdus).
+    const corps = await res.text().catch(() => '');
+    const code = corps.match(/<Code>([^<]+)<\/Code>/)?.[1];
+    throw new Error(
+      `Téléchargement R2 échoué (${res.status}${code ? ' ' + code : ''}) pour ${key}` +
+        (!code && corps ? ` — ${corps.slice(0, 200)}` : ''),
+    );
   }
 
   const declared = Number(res.headers.get('content-length') ?? 0);

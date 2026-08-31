@@ -85,4 +85,7 @@ app.post('/jobs/sweep', async (c) => {
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`media-worker à l'écoute sur :${info.port}`);
+  // Ni clé ni secret ici — seulement l'adresse visée, pour qu'un échec d'accès
+  // se diagnostique sans ouvrir la configuration de l'hébergeur.
+  console.log(`[r2] endpoint=${config.r2.endpoint} bucket=${config.r2.bucket}`);
 });
