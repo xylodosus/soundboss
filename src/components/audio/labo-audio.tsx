@@ -12,6 +12,8 @@ import {
 
 import { Texte } from "@/components/ui/texte";
 import { Waveform } from "@/components/audio/waveform";
+import { ReglageLabo } from "@/components/audio/reglage-labo";
+import { BPM_MAX, BPM_MIN, clicsDansHorizon } from "@/lib/metronome";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
 import { urlLectureR2 } from "@/lib/r2";
@@ -21,6 +23,23 @@ import { couleurs, espacement, rayons } from "@/lib/theme";
 const SAUT = 10;
 /** Cadence des remontées de position, en millisecondes (unité confirmée côté natif). */
 const INTERVALLE_POSITION = 100;
+
+const TEMPO_MIN = 0.5;
+const TEMPO_MAX = 1.5;
+const TEMPO_PAS = 0.05;
+const DEMI_TONS_MAX = 6;
+
+/**
+ * Le natif ne réinitialise la transposition que si detune est non nul :
+ * `if (detune != 0.0f) stretch_->setTransposeSemitones(detune);`. Revenir à zéro
+ * exact laisserait le stretcher calé sur la dernière valeur. Un centième de cent
+ * est inaudible et franchit le garde-fou.
+ */
+const CENT_NEUTRE = 0.01;
+
+/** Fenêtre de programmation du métronome, en secondes de tampon. */
+const HORIZON_CLICS = 0.3;
+const CADENCE_ORDONNANCEUR = 100;
 
 /**
  * Contexte et tampon partagés entre deux ouvertures de la modale.
@@ -66,6 +85,7 @@ type Piste = {
   url: string;
   peaks_url: string | null;
   duree_secondes: number | null;
+  bpm: number | null;
 };
 
 /**
@@ -95,6 +115,12 @@ export function LaboAudio({
   const [position, setPosition] = useState(0);
   const [duree, setDuree] = useState(0);
   const [enLecture, setEnLecture] = useState(false);
+  const [tempo, setTempo] = useState(1);
+  const [transposition, setTransposition] = useState(0);
+  const [boucle, setBoucle] = useState<{ a: number; b: number } | null>(null);
+  const [metronome, setMetronome] = useState(false);
+  const [bpm, setBpm] = useState(0);
+  const [phase, setPhase] = useState(0);
 
   const gainRef = useRef<GainNode | null>(null);
   const tamponRef = useRef<AudioBuffer | null>(null);
@@ -106,6 +132,16 @@ export function LaboAudio({
   // stop() déclenche onEnded comme la fin naturelle. Sans ce drapeau, mettre en
   // pause remettrait la lecture à zéro.
   const arretVolontaireRef = useRef(false);
+  // Miroirs des réglages : demarrer() doit rester stable pour ne pas recréer le
+  // nœud à chaque rendu, mais doit lire les valeurs courantes.
+  const tempoRef = useRef(1);
+  const transpositionRef = useRef(0);
+  const boucleRef = useRef<{ a: number; b: number } | null>(null);
+  const correctionActiveRef = useRef(false);
+  const dernierClicRef = useRef(-1);
+  tempoRef.current = tempo;
+  transpositionRef.current = transposition;
+  boucleRef.current = boucle;
 
   const libererSource = useCallback(() => {
     const source = sourceRef.current;
@@ -132,8 +168,23 @@ export function LaboAudio({
       libererSource();
       arretVolontaireRef.current = false;
 
-      const source = contexte.createBufferSource();
+      // La correction de hauteur n'est activée que si elle sert : à 1x sans
+      // transposition, le signal ne traverse pas le stretcher, donc ni coût
+      // processeur ni artefact sur une écoute normale.
+      const correction = tempoRef.current !== 1 || transpositionRef.current !== 0;
+      const source = contexte.createBufferSource({ pitchCorrection: correction });
+      correctionActiveRef.current = correction;
       source.buffer = tampon;
+      source.playbackRate.value = tempoRef.current;
+      source.detune.value =
+        transpositionRef.current === 0 ? CENT_NEUTRE : transpositionRef.current * 100;
+      const bornes = boucleRef.current;
+      if (bornes) {
+        source.loop = true;
+        source.loopStart = bornes.a;
+        source.loopEnd = bornes.b;
+      }
+      dernierClicRef.current = -1;
       source.onPositionChangedInterval = INTERVALLE_POSITION;
       // value est la position en secondes dans le tampon, pas un nombre d'images.
       source.onPositionChanged = ({ value }) => {
@@ -173,6 +224,12 @@ export function LaboAudio({
     setPosition(0);
     positionRef.current = 0;
     setEnLecture(false);
+    setTempo(1);
+    setTransposition(0);
+    setBoucle(null);
+    setMetronome(false);
+    setPhase(0);
+    setBpm(piste.bpm ?? 0);
 
     (async () => {
       try {
@@ -248,6 +305,56 @@ export function LaboAudio({
     setDuree(0);
   }, [visible, libererSource]);
 
+  // Changement de tempo ou de transposition en cours de lecture. Tant qu'on
+  // reste du même côté du neutre, écrire dans les paramètres suffit : pas de
+  // recréation, donc pas de coupure. Franchir la frontière impose un nœud neuf,
+  // puisque pitchCorrection se fixe à la construction.
+  useEffect(() => {
+    const source = sourceRef.current;
+    if (!source) return;
+    const correction = tempo !== 1 || transposition !== 0;
+    if (correction !== correctionActiveRef.current) {
+      demarrer(positionRef.current);
+      return;
+    }
+    source.playbackRate.value = tempo;
+    source.detune.value = transposition === 0 ? CENT_NEUTRE : transposition * 100;
+    dernierClicRef.current = -1;
+  }, [tempo, transposition, demarrer]);
+
+  useEffect(() => {
+    const source = sourceRef.current;
+    if (!source) return;
+    if (boucle) {
+      source.loop = true;
+      source.loopStart = boucle.a;
+      source.loopEnd = boucle.b;
+    } else {
+      source.loop = false;
+    }
+  }, [boucle]);
+
+  // Ordonnanceur du métronome : programme les clics un peu à l'avance, car les
+  // rendez-vous audio se prennent sur l'horloge du contexte, pas sur celle de JS.
+  useEffect(() => {
+    if (!metronome || etat !== "pret" || !enLecture) return;
+    const contexte = contextePartage;
+    if (!contexte) return;
+
+    const minuteur = setInterval(() => {
+      const pos = positionRef.current;
+      for (const instant of clicsDansHorizon(pos, phase, bpm, HORIZON_CLICS)) {
+        if (instant <= dernierClicRef.current) continue;
+        // Le tempo est au dénominateur : à 0,8x, une seconde de morceau dure
+        // 1,25 seconde réelle.
+        programmerClic(contexte, contexte.currentTime + (instant - pos) / tempoRef.current);
+        dernierClicRef.current = instant;
+      }
+    }, CADENCE_ORDONNANCEUR);
+
+    return () => clearInterval(minuteur);
+  }, [metronome, etat, enLecture, phase, bpm]);
+
   function basculer() {
     if (etat !== "pret") return;
     if (enLecture) {
@@ -263,6 +370,7 @@ export function LaboAudio({
     const cible = Math.min(Math.max(0, secondes), duree);
     positionRef.current = cible;
     setPosition(cible);
+    dernierClicRef.current = -1;
     if (enLecture) demarrer(cible);
   }
 
@@ -337,6 +445,11 @@ export function LaboAudio({
                 pics={pics}
                 progression={duree > 0 ? position / duree : 0}
                 surDeplacer={(ratio) => allerA(ratio * duree)}
+                boucle={
+                  boucle && duree > 0
+                    ? { debut: boucle.a / duree, fin: boucle.b / duree }
+                    : null
+                }
               />
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>
@@ -386,6 +499,94 @@ export function LaboAudio({
                   onPress={() => allerA(positionRef.current + SAUT)}
                 />
               </View>
+
+              <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
+
+              <ReglageLabo
+                libelle="Tempo"
+                valeurAffichee={`${tempo.toFixed(2)}x`}
+                auNeutre={tempo === 1}
+                onMoins={() => setTempo((v) => arrondir(Math.max(TEMPO_MIN, v - TEMPO_PAS)))}
+                onPlus={() => setTempo((v) => arrondir(Math.min(TEMPO_MAX, v + TEMPO_PAS)))}
+                onNeutre={() => setTempo(1)}
+              />
+
+              <ReglageLabo
+                libelle="Tonalité"
+                valeurAffichee={
+                  transposition === 0
+                    ? "0"
+                    : `${transposition > 0 ? "+" : ""}${transposition} ${
+                        Math.abs(transposition) > 1 ? "tons" : "ton"
+                      }`
+                }
+                auNeutre={transposition === 0}
+                onMoins={() => setTransposition((v) => Math.max(-DEMI_TONS_MAX, v - 1))}
+                onPlus={() => setTransposition((v) => Math.min(DEMI_TONS_MAX, v + 1))}
+                onNeutre={() => setTransposition(0)}
+              />
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                  Boucle
+                </Texte>
+                <Puce
+                  libelle="A"
+                  actif={!!boucle}
+                  onPress={() =>
+                    setBoucle((b) => ({
+                      a: positionRef.current,
+                      // Sans borne de fin, la boucle n'a pas de sens : on prend
+                      // la fin du morceau tant que B n'est pas posé.
+                      b: b && b.b > positionRef.current ? b.b : duree,
+                    }))
+                  }
+                />
+                <Puce
+                  libelle="B"
+                  actif={!!boucle}
+                  onPress={() =>
+                    setBoucle((b) =>
+                      // Poser B avant A n'aurait pas de sens : on ignore.
+                      b && positionRef.current > b.a ? { a: b.a, b: positionRef.current } : b
+                    )
+                  }
+                />
+                <Puce libelle="Effacer" actif={false} onPress={() => setBoucle(null)} />
+              </View>
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                  Métronome
+                </Texte>
+                <Puce
+                  libelle={metronome ? "Actif" : "Inactif"}
+                  actif={metronome}
+                  onPress={() => {
+                    if (!metronome && bpm === 0) setBpm(100);
+                    setMetronome((v) => !v);
+                  }}
+                />
+                <Puce
+                  libelle="Caler"
+                  actif={false}
+                  onPress={() => {
+                    setPhase(positionRef.current);
+                    dernierClicRef.current = -1;
+                  }}
+                />
+              </View>
+
+              {metronome && (
+                <ReglageLabo
+                  libelle="Battements par minute"
+                  valeurAffichee={`${bpm}`}
+                  auNeutre={bpm === (piste?.bpm ?? 100)}
+                  onMoins={() => setBpm((v) => Math.max(BPM_MIN, v - 1))}
+                  onPlus={() => setBpm((v) => Math.min(BPM_MAX, v + 1))}
+                  onNeutre={() => setBpm(piste?.bpm ?? 100)}
+                />
+              )}
             </>
           )}
         </View>
@@ -413,4 +614,54 @@ function BoutonTransport({
       <Ionicons name={icone} size={24} color={couleurs.texte} />
     </Pressable>
   );
+}
+
+/** Les pas de 0,05 accumulent des erreurs binaires : 1,0499999 s'afficherait mal. */
+function arrondir(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
+function Puce({
+  libelle,
+  actif,
+  onPress,
+}: {
+  libelle: string;
+  actif: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={libelle}
+      style={{
+        minHeight: 44,
+        justifyContent: "center",
+        paddingHorizontal: espacement.lg,
+        borderRadius: rayons.pill,
+        backgroundColor: actif ? couleurs.warmGold15 : couleurs.surfaceCarte,
+      }}
+    >
+      <Texte variante="petit" poids="semibold" couleur={actif ? couleurs.warmGold : couleurs.texte}>
+        {libelle}
+      </Texte>
+    </Pressable>
+  );
+}
+
+/** Un clic bref : sinusoïde percussive branchée en direct sur la sortie. */
+function programmerClic(contexte: AudioContext, quand: number) {
+  if (quand < contexte.currentTime) return;
+  const oscillateur = contexte.createOscillator();
+  const enveloppe = contexte.createGain();
+  oscillateur.frequency.value = 1200;
+  enveloppe.gain.setValueAtTime(0.3, quand);
+  enveloppe.gain.exponentialRampToValueAtTime(0.001, quand + 0.05);
+  oscillateur.connect(enveloppe);
+  // Branché sur la destination et non sur le gain du morceau : l'égaliseur du
+  // lot E3 s'insérera sur ce gain, et il n'a rien à faire au clic.
+  enveloppe.connect(contexte.destination);
+  oscillateur.start(quand);
+  oscillateur.stop(quand + 0.06);
 }

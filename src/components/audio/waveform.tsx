@@ -19,9 +19,11 @@ type Props = {
   surDeplacer: (ratio: number) => void;
   /** Appelé au premier contact, pour suspendre la lecture pendant le glissement. */
   surDebutGeste?: () => void;
+  /** Zone de boucle A/B, en ratios de 0 à 1. */
+  boucle?: { debut: number; fin: number } | null;
 };
 
-export function Waveform({ pics, progression, surDeplacer, surDebutGeste }: Props) {
+export function Waveform({ pics, progression, surDeplacer, surDebutGeste, boucle }: Props) {
   const [largeur, setLargeur] = useState(0);
 
   // Le PanResponder est mémorisé une fois pour toutes ; ses callbacks lisent la
@@ -67,6 +69,19 @@ export function Waveform({ pics, progression, surDeplacer, surDebutGeste }: Prop
 
   return (
     <View style={styles.zone} onLayout={surLayout} {...panResponder.panHandlers}>
+      {/* Voir ce qu'on boucle vaut mieux que lire deux nombres. */}
+      {boucle && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.zoneBoucle,
+            {
+              left: `${clamp(boucle.debut) * 100}%`,
+              width: `${Math.max(0, clamp(boucle.fin) - clamp(boucle.debut)) * 100}%`,
+            },
+          ]}
+        />
+      )}
       {barres.length === 0 ? (
         // Audio pas encore analysé par le conteneur, ou analyse échouée : une
         // barre de progression simple vaut mieux qu'un vide inexpliqué.
@@ -100,6 +115,13 @@ function clamp(v: number): number {
 
 const styles = StyleSheet.create({
   zone: { height: HAUTEUR_ZONE, justifyContent: "center" },
+  zoneBoucle: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    backgroundColor: couleurs.warmGold10,
+    borderRadius: rayons.sm,
+  },
   barres: {
     flexDirection: "row",
     alignItems: "center",

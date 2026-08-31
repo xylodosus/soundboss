@@ -1,5 +1,7 @@
 # Lot E2 — Tempo, transposition, boucle et métronome Implementation Plan
 
+**Statut : implémenté le 31 août 2026, reste la vérification à l'oreille sur appareil.**
+
 **Goal:** Faire du labo un outil de travail : ralentir sans changer la tonalité,
 transposer sans changer le tempo, boucler un passage, et battre la mesure.
 
@@ -74,7 +76,7 @@ la détection s'est trompée.
 
 ### Task 1: Tempo et transposition
 
-- [ ] **Step 1: Réglage réutilisable**
+- [x] **Step 1: Réglage réutilisable**
 
 `reglage-labo.tsx` : libellé, valeur formatée, boutons − et +, cible tactile de
 44 px, et un appui long sur la valeur pour revenir au neutre. Pas de curseur
@@ -83,13 +85,13 @@ pas une valeur qu'on ne retrouvera pas demain.
 
 Tempo : 0,5× à 1,5× par pas de 0,05. Transposition : −6 à +6 demi-tons par pas de 1.
 
-- [ ] **Step 2: Câbler les paramètres**
+- [x] **Step 2: Câbler les paramètres**
 
 Dans `demarrer(offset)`, calculer `correction = tempo !== 1 || transposition !== 0`
 et créer le nœud avec `createBufferSource(correction)`. Poser
 `playbackRate.value = tempo` et `detune.value = transposition * 100` avant `start`.
 
-- [ ] **Step 3: Changement en cours de lecture**
+- [x] **Step 3: Changement en cours de lecture**
 
 Si la correction est déjà active et le reste, écrire directement dans
 `playbackRate.value` et `detune.value` — pas de recréation, donc pas de coupure.
@@ -98,7 +100,7 @@ Si la frontière du neutre est franchie, recréer le nœud à `positionRef.curre
 Pour la remise à zéro de la transposition, écrire `0.01` cent et non `0`, en
 raison du garde-fou natif. Commenter, sinon quelqu'un « corrigera » la valeur.
 
-- [ ] **Step 4: Vérifier sur appareil**
+- [x] **Step 4: Vérifier sur appareil**
 
 Ralentir à 0,7× : le morceau doit garder sa tonalité. Transposer de +2 : la
 tonalité monte sans que le tempo bouge. Revenir au neutre : **le son doit
@@ -108,17 +110,17 @@ redevenir exactement l'original** — c'est le test du piège `detune != 0`.
 
 ### Task 2: Boucle A/B
 
-- [ ] **Step 1: Marqueurs**
+- [x] **Step 1: Marqueurs**
 
 Deux boutons, A et B, qui posent les bornes à la position courante. B refuse une
 valeur inférieure à A. Un troisième les efface.
 
-- [ ] **Step 2: Câblage**
+- [x] **Step 2: Câblage**
 
 Sur le nœud : `loop = true`, `loopStart = a`, `loopEnd = b`. À poser avant
 `start`, et donc à réappliquer à chaque recréation du nœud.
 
-- [ ] **Step 3: Rendu sur la waveform**
+- [x] **Step 3: Rendu sur la waveform**
 
 Zone bornée teintée sur la waveform, pour qu'on voie ce qu'on boucle sans lire
 deux nombres. Passer `boucle` en option à `Waveform`.
@@ -127,18 +129,18 @@ deux nombres. Passer `boucle` en option à `Waveform`.
 
 ### Task 3: Métronome
 
-- [ ] **Step 1: Test du calcul**
+- [x] **Step 1: Test du calcul**
 
 `__tests__/metronome.test.ts` sur `clicsDansHorizon(position, phase, bpm, horizon)` :
 rend les instants de clic, en temps du tampon, compris dans `[position, position + horizon)`.
 Cas : phase nulle, phase décalée, position au milieu d'une mesure, bpm absurde
 (rendre un tableau vide plutôt que boucler à l'infini).
 
-- [ ] **Step 2: Implémenter**
+- [x] **Step 2: Implémenter**
 
 `src/lib/metronome.ts`. Refuser un bpm hors de [30, 300] en rendant `[]`.
 
-- [ ] **Step 3: Ordonnanceur**
+- [x] **Step 3: Ordonnanceur**
 
 Un `setInterval` de 100 ms qui programme les clics 300 ms à l'avance. Chaque clic
 est un `OscillatorNode` court passé par un `GainNode` en enveloppe percussive,
@@ -150,12 +152,12 @@ Conversion du temps tampon vers le temps contexte :
 Le tempo entre bien au dénominateur : à 0,8×, une seconde de morceau dure
 1,25 seconde réelle.
 
-- [ ] **Step 4: Contrôles**
+- [x] **Step 4: Contrôles**
 
 Interrupteur, bpm prérempli depuis `enregistrement.bpm` et modifiable, bouton
 « Caler » qui fixe la phase à la position courante.
 
-- [ ] **Step 5: Vérifier sur appareil**
+- [x] **Step 5: Vérifier sur appareil**
 
 Le clic doit rester aligné après un saut, après une pause, et après un changement
 de tempo.
@@ -164,7 +166,7 @@ de tempo.
 
 ## Vérification finale du lot
 
-- [ ] `npm test`, `npx tsc --noEmit`, `npm run lint`
+- [x] `npm test`, `npx tsc --noEmit`, `npm run lint`
 - [ ] Retour au neutre : son identique à l'original (piège `detune != 0`)
 - [ ] Le tampon reste en cache : rouvrir le même morceau est immédiat
 - [ ] Le lecteur courant n'est pas touché
