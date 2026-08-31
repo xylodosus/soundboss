@@ -19,10 +19,22 @@ export const config = {
     accessKeyId: required('R2_ACCESS_KEY_ID'),
     secretAccessKey: required('R2_SECRET_ACCESS_KEY'),
     bucket: required('R2_BUCKET_NAME'),
-    /** `.eu` : le bucket est en juridiction Union européenne. Sans ce
-     *  sous-domaine, on viserait un autre bucket (homonyme, juridiction par
-     *  défaut) sans erreur visible. */
-    endpoint: `https://${required('R2_ACCOUNT_ID')}.eu.r2.cloudflarestorage.com`,
+    /**
+     * Endpoint S3 de R2. Le défaut vise la **juridiction par défaut**, comme le
+     * font les edge functions du projet — et non `.eu`, qui n'est requis que
+     * pour un bucket créé explicitement en juridiction Union européenne.
+     *
+     * La distinction est piégeuse : un bucket dont l'*emplacement* est en
+     * Europe reste dans la juridiction par défaut. Forcer `.eu` visait alors un
+     * bucket homonyme inexistant, et chaque téléchargement échouait en 404 sans
+     * que rien ne signale l'erreur d'adresse (constaté le 31/08).
+     *
+     * Renseigner R2_ENDPOINT pour surcharger, avec la même valeur que celle des
+     * edge functions.
+     */
+    endpoint:
+      process.env.R2_ENDPOINT ??
+      `https://${required('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
   },
 
   supabase: {

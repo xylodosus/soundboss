@@ -45,6 +45,11 @@ Optionnelles :
 
 ```
 PORT                              80 (convention Bunny Magic Containers)
+R2_ENDPOINT                       endpoint S3 complet. Défaut : juridiction par
+                                  défaut (sans `.eu`), comme les edge functions.
+                                  Ne renseigner `.eu` que pour un bucket créé en
+                                  juridiction Union européenne — l'emplacement
+                                  géographique ne suffit pas à l'exiger.
 MAX_FILE_BYTES                    1500000000 — au-delà, le job est refusé
 DELETE_SOURCE_AFTER_PROCESSING    false — garder le fichier source
 ENABLE_WAVEFORM                   true
