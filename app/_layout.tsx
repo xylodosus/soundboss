@@ -12,6 +12,7 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
+import { FournisseurReseau } from "@/lib/reseau";
 import { FournisseurSession } from "@/lib/session";
 import { FournisseurAudio } from "@/lib/audio-context";
 import { FournisseurDialogue } from "@/lib/dialogue";
@@ -54,40 +55,42 @@ export default function LayoutRacine() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <FournisseurSession>
-        {/* FournisseurDialogue enveloppe FournisseurAudio : ce dernier rend
-            LecteurAudioModal, qui appelle useDialogue() pour le téléchargement.
-            Inverser les deux fait lever « useDialogue doit être utilisé sous
-            <FournisseurDialogue> » au premier rendu. */}
-        <FournisseurDialogue>
-          <FournisseurAudio>
-            <FournisseurPush>
-              <StatusBar style="light" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: couleurs.fond },
-                }}
-              >
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="wallet" options={{ headerShown: false }} />
-                <Stack.Screen name="studios" options={{ headerShown: false }} />
-                <Stack.Screen name="studios/[id]" options={{ headerShown: false }} />
-                <Stack.Screen name="studios/[id]/reserver" options={{ headerShown: false }} />
-                <Stack.Screen name="studios/mes-reservations" options={{ headerShown: false }} />
-                <Stack.Screen name="groupes/[id]/seances/[seanceId]" options={{ headerShown: false }} />
-                <Stack.Screen name="groupes/[id]/chat" options={{ headerShown: false }} />
-                <Stack.Screen name="projets/[id]" options={{ headerShown: false }} />
-                <Stack.Screen name="profil/parametres" options={{ headerShown: false }} />
-                <Stack.Screen name="profil/notifications" options={{ headerShown: false }} />
-                <Stack.Screen name="profil/jobs-ia" options={{ headerShown: false }} />
-              </Stack>
-            </FournisseurPush>
-          </FournisseurAudio>
-        </FournisseurDialogue>
-      </FournisseurSession>
+      <FournisseurReseau>
+        <FournisseurSession>
+          {/* FournisseurDialogue enveloppe FournisseurAudio : ce dernier rend
+              LecteurAudioModal, qui appelle useDialogue() pour le téléchargement.
+              Inverser les deux fait lever « useDialogue doit être utilisé sous
+              <FournisseurDialogue> » au premier rendu. */}
+          <FournisseurDialogue>
+            <FournisseurAudio>
+              <FournisseurPush>
+                <StatusBar style="light" />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: couleurs.fond },
+                  }}
+                >
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="wallet" options={{ headerShown: false }} />
+                  <Stack.Screen name="studios" options={{ headerShown: false }} />
+                  <Stack.Screen name="studios/[id]" options={{ headerShown: false }} />
+                  <Stack.Screen name="studios/[id]/reserver" options={{ headerShown: false }} />
+                  <Stack.Screen name="studios/mes-reservations" options={{ headerShown: false }} />
+                  <Stack.Screen name="groupes/[id]/seances/[seanceId]" options={{ headerShown: false }} />
+                  <Stack.Screen name="groupes/[id]/chat" options={{ headerShown: false }} />
+                  <Stack.Screen name="projets/[id]" options={{ headerShown: false }} />
+                  <Stack.Screen name="profil/parametres" options={{ headerShown: false }} />
+                  <Stack.Screen name="profil/notifications" options={{ headerShown: false }} />
+                  <Stack.Screen name="profil/jobs-ia" options={{ headerShown: false }} />
+                </Stack>
+              </FournisseurPush>
+            </FournisseurAudio>
+          </FournisseurDialogue>
+        </FournisseurSession>
+      </FournisseurReseau>
     </QueryClientProvider>
   );
 }

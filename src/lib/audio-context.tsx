@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { setAudioModeAsync } from "expo-audio";
 import { urlLectureR2 } from "@/lib/r2";
 import {
@@ -28,9 +28,13 @@ export function FournisseurAudio({ children }: { children: React.ReactNode }) {
   const [piste, setPiste] = useState<PisteAudio | null>(null);
   const [chargement, setChargement] = useState(false);
 
-  // Lecture en mode silencieux iOS (coupure physique)
-  useMemo(() => {
-    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+  // Lecture en mode silencieux iOS (coupure physique) et poursuite en
+  // arrière-plan : l'app doit continuer à jouer écran verrouillé.
+  useEffect(() => {
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+    }).catch(() => {});
   }, []);
 
   const ouvrirPiste = useCallback(async (demande: PisteDemandee) => {
