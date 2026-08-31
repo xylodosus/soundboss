@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, View } from "react-native";
-import { useRouter, type Href } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -66,8 +66,6 @@ export default function Profil() {
           <Ligne icone="settings-outline" label="Paramètres" onAppui={() => router.push("/profil/parametres")} />
           <Ligne icone="sparkles-outline" label="Mes jobs IA" onAppui={() => router.push("/profil/jobs-ia")} />
           <Ligne icone="calendar-outline" label="Mes réservations de studios" onAppui={() => router.push("/studios/mes-reservations")} />
-          {/* TEMPORAIRE — entrée de la sonde du labo audio, à retirer avec app/labo-sonde.tsx */}
-          <Ligne icone="flask-outline" label="Sonde labo audio" onAppui={() => router.push("/labo-sonde" as Href)} />
           <Ligne icone="log-out-outline" label="Se déconnecter" couleur={couleurs.danger} onAppui={deconnexion} />
         </View>
 

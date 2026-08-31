@@ -323,6 +323,35 @@ Le `data.url` posé par les triggers (`/groupes/<id>/chat`,
   réellement dans Téléchargements sur Android — via `expo-media-library` ou le
   Storage Access Framework, donc une dépendance native de plus.
 
+## 4 quater. Labo audio — mesure de faisabilité (31 août 2026)
+
+Mesuré sur **Pocophone F1 (2018)**, build preview, `react-native-audio-api@0.12.0`,
+sur `06 – Special Moments.mp3` : 307 s annoncés en base, 11,7 Mo sur disque.
+
+| Voie | Temps | Mémoire | Résultat |
+|---|---|---|---|
+| `decodeAudioData(url)` natif | 5292 / 5905 / 5673 ms | 103,2 Mo | 306,8 s, 2 canaux, 44 100 Hz |
+| `decodeAudioData(url, 22050)` | 5427 / 6474 ms | 51,6 Mo | 306,8 s, 2 canaux, 22 050 Hz |
+| `StreamerNode({ streamPath })` | — | — | **muet, écourté, ferme l'app** |
+
+Trois enseignements :
+
+1. **Le décodage complet tient**, y compris trois fois de suite sur un appareil
+   de 2018. Écart de durée avec la base : 0,2 s — rien n'est tronqué.
+2. **Rééchantillonner ne fait pas gagner de temps.** L'hypothèse de départ était
+   qu'un contexte à 22 050 Hz décoderait plus vite ; c'est l'inverse, le
+   rééchantillonnage coûte au moins ce qu'il économise. Le levier ne sert qu'à
+   diviser la mémoire par deux, et reste disponible si des appareils à 2 Go
+   remontent des fermetures.
+3. **`StreamerNode` est inexploitable en 0.12.0** avec une URL R2 signée. Peu
+   importe : n'étendant pas `AudioBufferBaseSourceNode`, il n'a ni `playbackRate`
+   ni `detune`, donc il n'aurait jamais porté le labo.
+
+Décision : **tampon décodé à la fréquence native, un seul vivant à la fois**.
+Le vrai coût n'est pas la mémoire mais les ~5,5 s d'attente à l'ouverture, qui
+imposent un état de chargement explicite et interdisent de faire du labo le
+geste d'écoute par défaut.
+
 ## 5. Commandes utiles
 
 ```bash
