@@ -152,7 +152,14 @@ export function useCreerProjet() {
 export function useModifierProjet() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ projetId, projet }: { projetId: string; projet: Partial<Projet> }) => {
+    mutationFn: async ({
+      projetId,
+      projet,
+    }: {
+      projetId: string;
+      projet: Partial<Projet>;
+      groupeId?: string | null;
+    }) => {
       const { data, error } = await supabase.rpc("modifier_projet", {
         p_projet_id: projetId,
         p_nom: projet.nom ?? undefined,
@@ -168,7 +175,16 @@ export function useModifierProjet() {
       if (error) throw new Error(error.message);
       reponseRpc(data);
     },
-    onSuccess: (_d, v) => queryClient.invalidateQueries({ queryKey: clefsProjets.detail(v.projetId) }),
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: clefsProjets.detail(v.projetId) });
+      // La liste doit refléter le nouveau titre : sans ça, la fiche est à jour
+      // mais la liste affiche encore l'ancien nom.
+      if (v.groupeId) {
+        queryClient.invalidateQueries({ queryKey: clefsProjets.listeGroupe(v.groupeId) });
+      } else {
+        queryClient.invalidateQueries({ queryKey: clefsProjets.listePerso });
+      }
+    },
   });
 }
 

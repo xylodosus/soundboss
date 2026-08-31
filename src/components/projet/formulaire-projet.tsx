@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import type { Database } from "@/lib/database.types";
-import { useCreerProjet } from "@/lib/queries/projets";
+import { useCreerProjet, useModifierProjet } from "@/lib/queries/projets";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
 import { Bouton } from "@/components/ui/bouton";
@@ -42,6 +42,7 @@ export function FormulaireProjet({
   onAnnuler: () => void;
 }) {
   const creer = useCreerProjet();
+  const modifier = useModifierProjet();
 
   const [nom, setNom] = useState(projet?.nom ?? "");
   const [categorie, setCategorie] = useState<"evenement" | "production">(
@@ -80,20 +81,25 @@ export function FormulaireProjet({
     }
 
     try {
-      await creer.mutateAsync({
-        groupeId,
-        projet: {
-          nom: nom.trim(),
-          categorie,
-          type_evenement: categorie === "evenement" ? (typeEvenement as never) : null,
-          type_production: categorie === "production" ? (typeProduction as never) : null,
-          description: description.trim() || null,
-          date_debut: dateDebut ? chaineDepuisDate(dateDebut) : null,
-          date_fin: dateFin ? chaineDepuisDate(dateFin) : null,
-          date_realisation: dateRealisation ? chaineDepuisDate(dateRealisation) : null,
-          lieu_evenement: lieu.trim() || null,
-        },
-      });
+      const donnees = {
+        nom: nom.trim(),
+        categorie,
+        type_evenement: categorie === "evenement" ? (typeEvenement as never) : null,
+        type_production: categorie === "production" ? (typeProduction as never) : null,
+        description: description.trim() || null,
+        date_debut: dateDebut ? chaineDepuisDate(dateDebut) : null,
+        date_fin: dateFin ? chaineDepuisDate(dateFin) : null,
+        date_realisation: dateRealisation ? chaineDepuisDate(dateRealisation) : null,
+        lieu_evenement: lieu.trim() || null,
+      };
+
+      // Un projet fourni signifie édition : sans cette distinction, le
+      // formulaire créait un second projet au lieu de mettre à jour le premier.
+      if (projet) {
+        await modifier.mutateAsync({ projetId: projet.id, projet: donnees, groupeId });
+      } else {
+        await creer.mutateAsync({ groupeId, projet: donnees });
+      }
       onAnnuler();
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Impossible d'enregistrer le projet.");
@@ -228,7 +234,11 @@ export function FormulaireProjet({
       )}
 
       <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
-        <Bouton titre="Enregistrer" chargement={creer.isPending} onPress={soumettre} />
+        <Bouton
+          titre="Enregistrer"
+          chargement={creer.isPending || modifier.isPending}
+          onPress={soumettre}
+        />
         <Bouton variante="secondaire" titre="Annuler" onPress={onAnnuler} />
       </View>
     </View>
