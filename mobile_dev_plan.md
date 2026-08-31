@@ -347,10 +347,19 @@ Trois enseignements :
    importe : n'étendant pas `AudioBufferBaseSourceNode`, il n'a ni `playbackRate`
    ni `detune`, donc il n'aurait jamais porté le labo.
 
-Décision : **tampon décodé à la fréquence native, un seul vivant à la fois**.
-Le vrai coût n'est pas la mémoire mais les ~5,5 s d'attente à l'ouverture, qui
-imposent un état de chargement explicite et interdisent de faire du labo le
-geste d'écoute par défaut.
+**Correctif du 31 août, après essai à l'oreille :** décoder à la fréquence du
+*fichier* fait jouer trop vite. `getComputedPlaybackRateValue` ne renvoie que
+`playbackRate * detune`, sans terme de rapport de fréquences : l'index de lecture
+avance d'un échantillon du tampon par image de sortie du contexte. Un fichier à
+44 100 Hz dans un contexte à 48 000 Hz sortait donc 1,088x trop vite, soit un
+demi-ton et demi trop haut. Il faut décoder à `contexte.sampleRate`.
+
+Décision : **tampon décodé à la fréquence du contexte, un seul vivant à la fois**,
+gardé en cache d'une ouverture à l'autre pour éviter de repayer les cinq secondes,
+et relâché à l'ouverture d'un autre morceau ou au passage en arrière-plan.
+Le vrai coût n'est pas la mémoire mais les ~5,5 s d'attente à la première
+ouverture, qui imposent un état de chargement explicite et interdisent de faire
+du labo le geste d'écoute par défaut.
 
 ## 5. Commandes utiles
 

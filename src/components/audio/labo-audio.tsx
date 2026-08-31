@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, View } from "react-native";
+import { ActivityIndicator, AppState, Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -21,6 +21,42 @@ import { couleurs, espacement, rayons } from "@/lib/theme";
 const SAUT = 10;
 /** Cadence des remontées de position, en millisecondes (unité confirmée côté natif). */
 const INTERVALLE_POSITION = 100;
+
+/**
+ * Contexte et tampon partagés entre deux ouvertures de la modale.
+ *
+ * Le décodage coûte cinq secondes : le refaire à chaque réouverture du même
+ * morceau était insupportable à l'usage. Une seule entrée est gardée, donc le
+ * plafond mémoire reste celui d'un morceau (~103 Mo) ; elle est relâchée quand
+ * on ouvre un autre morceau, ou quand l'application passe en arrière-plan.
+ */
+let contextePartage: AudioContext | null = null;
+let cache: { id: string; tampon: AudioBuffer; pics: number[] } | null = null;
+let abonnementArrierePlan: { remove: () => void } | null = null;
+/** Vrai tant que la modale est affichée : on ne coupe pas le contexte sous les pieds. */
+let laboOuvert = false;
+
+function obtenirContexte(): AudioContext {
+  if (!contextePartage) contextePartage = new AudioContext();
+  return contextePartage;
+}
+
+function libererCache() {
+  cache = null;
+  contextePartage?.close();
+  contextePartage = null;
+  abonnementArrierePlan?.remove();
+  abonnementArrierePlan = null;
+}
+
+function surveillerArrierePlan() {
+  if (abonnementArrierePlan) return;
+  abonnementArrierePlan = AppState.addEventListener("change", (etat) => {
+    // Le labo n'a pas vocation à jouer en arrière-plan — c'est le rôle du
+    // lecteur courant. Quitter l'app rend donc les 103 Mo.
+    if (etat === "background" && !laboOuvert) libererCache();
+  });
+}
 
 type Etat = "chargement" | "pret" | "erreur";
 
@@ -60,7 +96,6 @@ export function LaboAudio({
   const [duree, setDuree] = useState(0);
   const [enLecture, setEnLecture] = useState(false);
 
-  const contexteRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const tamponRef = useRef<AudioBuffer | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -89,7 +124,7 @@ export function LaboAudio({
 
   const demarrer = useCallback(
     (offset: number) => {
-      const contexte = contexteRef.current;
+      const contexte = contextePartage;
       const gain = gainRef.current;
       const tampon = tamponRef.current;
       if (!contexte || !gain || !tampon) return;
@@ -119,6 +154,13 @@ export function LaboAudio({
     [libererSource]
   );
 
+  useEffect(() => {
+    laboOuvert = visible;
+    return () => {
+      laboOuvert = false;
+    };
+  }, [visible]);
+
   // Chargement : URL signée, pics, puis décodage. Le décodage est long (~5,5 s
   // sur cinq minutes), d'où un état explicite plutôt qu'un écran figé.
   useEffect(() => {
@@ -134,36 +176,52 @@ export function LaboAudio({
 
     (async () => {
       try {
-        const contexte = new AudioContext();
+        const contexte = obtenirContexte();
         const gain = contexte.createGain();
         // Le gain ne sert à rien tel quel : il est câblé dès maintenant pour que
         // l'égaliseur du lot E3 s'insère entre la source et lui sans refonte.
         gain.connect(contexte.destination);
         if (annule) {
-          contexte.close();
+          gain.disconnect();
           return;
         }
-        contexteRef.current = contexte;
         gainRef.current = gain;
 
-        // Les pics d'abord : la waveform peut s'afficher avant la fin du décodage.
+        if (cache?.id === piste.id) {
+          tamponRef.current = cache.tampon;
+          setPics(cache.pics);
+          setDuree(cache.tampon.duration);
+          setEtat("pret");
+          return;
+        }
+
+        // Un autre morceau : l'entrée précédente n'a plus lieu d'être.
+        cache = null;
+
+        let lus: number[] = [];
         if (piste.peaks_url) {
           const urlPics = await urlLectureR2(piste.peaks_url);
           if (urlPics) {
             const reponse = await fetch(urlPics);
-            if (reponse.ok) {
-              const lus = parsePics(await reponse.text());
-              if (!annule && lus) setPics(lus);
-            }
+            if (reponse.ok) lus = parsePics(await reponse.text()) ?? [];
           }
         }
+        if (!annule && lus.length > 0) setPics(lus);
 
         const url = await urlLectureR2(piste.url);
         if (!url) throw new Error("Lien de lecture indisponible.");
-        const tampon = await decodeAudioData(url);
+
+        // Décoder à la fréquence du contexte, et non à celle du fichier :
+        // l'index de lecture natif avance d'un échantillon du tampon par image
+        // de sortie, sans corriger l'écart. Un fichier à 44 100 Hz joué dans un
+        // contexte à 48 000 Hz sortait 1,088x trop vite, soit un demi-ton et
+        // demi trop haut.
+        const tampon = await decodeAudioData(url, contexte.sampleRate);
         if (annule) return;
 
         tamponRef.current = tampon;
+        cache = { id: piste.id, tampon, pics: lus };
+        surveillerArrierePlan();
         setDuree(tampon.duration);
         setEtat("pret");
       } catch (e) {
@@ -178,14 +236,15 @@ export function LaboAudio({
     };
   }, [visible, piste]);
 
-  // Libération à la fermeture : c'est le seul endroit qui rend les ~103 Mo.
+  // À la fermeture on démonte le graphe, mais on garde le tampon décodé : c'est
+  // tout l'intérêt du cache. Il part avec libererCache(), à l'ouverture d'un
+  // autre morceau ou au passage en arrière-plan.
   useEffect(() => {
     if (visible) return;
     libererSource();
-    tamponRef.current = null;
+    gainRef.current?.disconnect();
     gainRef.current = null;
-    contexteRef.current?.close();
-    contexteRef.current = null;
+    tamponRef.current = null;
     setDuree(0);
   }, [visible, libererSource]);
 
