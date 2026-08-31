@@ -1,6 +1,9 @@
 import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSession } from "@/lib/session";
+import { useReseau } from "@/lib/reseau";
+import { decisionGarde } from "@/lib/garde-session";
+import { EcranHorsLigne } from "@/components/ui/ecran-hors-ligne";
 import { useQuery } from "@tanstack/react-query";
 import { couleurs, police } from "@/lib/theme";
 import { obtenirProfilComplet, profilEstComplet } from "@/lib/queries/profil";
@@ -28,6 +31,7 @@ const ONGLETS_MASQUES = [
 
 export default function LayoutTabs() {
   const { session, pret } = useSession();
+  const { enLigne } = useReseau();
 
   // Profil du compte courant (clé scopée par utilisateur : pas de fuite
   // de cache entre deux comptes sur le même appareil).
@@ -37,8 +41,10 @@ export default function LayoutTabs() {
     enabled: !!session,
   });
 
-  if (!pret) return null;
-  if (!session) return <Redirect href="/connexion" />;
+  const decision = decisionGarde({ pret, aUneSession: !!session, enLigne });
+  if (decision === "attendre") return null;
+  if (decision === "hors-ligne") return <EcranHorsLigne />;
+  if (decision === "connexion") return <Redirect href="/connexion" />;
   if (profil === undefined) return null; // chargement
   if (!profilEstComplet(profil)) return <Redirect href="/onboarding" />;
 
