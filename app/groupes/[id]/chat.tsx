@@ -880,13 +880,18 @@ export default function Chat() {
             placeholderTextColor={couleurs.texteFaible}
             value={texte}
             onChangeText={setTexte}
-            onSubmitEditing={envoyerTexte}
+            multiline
+            submitBehavior="newline"
+            textAlignVertical="top"
             style={{
               flex: 1,
               minHeight: 44,
+              maxHeight: 120,
               borderRadius: 22,
               backgroundColor: couleurs.surfaceCarte,
               paddingHorizontal: 16,
+              paddingTop: Platform.OS === "ios" ? 12 : 8,
+              paddingBottom: Platform.OS === "ios" ? 12 : 8,
               color: couleurs.texte,
               fontFamily: police.regular,
               fontSize: 15,
