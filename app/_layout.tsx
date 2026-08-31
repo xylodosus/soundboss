@@ -57,8 +57,12 @@ export default function LayoutRacine() {
     <QueryClientProvider client={queryClient}>
       <FournisseurReseau>
         <FournisseurSession>
-          <FournisseurAudio>
-            <FournisseurDialogue>
+          {/* FournisseurDialogue enveloppe FournisseurAudio : ce dernier rend
+              LecteurAudioModal, qui appelle useDialogue() pour le téléchargement.
+              Inverser les deux fait lever « useDialogue doit être utilisé sous
+              <FournisseurDialogue> » au premier rendu. */}
+          <FournisseurDialogue>
+            <FournisseurAudio>
               <FournisseurPush>
                 <StatusBar style="light" />
                 <Stack
@@ -83,8 +87,8 @@ export default function LayoutRacine() {
                   <Stack.Screen name="profil/jobs-ia" options={{ headerShown: false }} />
                 </Stack>
               </FournisseurPush>
-            </FournisseurDialogue>
-          </FournisseurAudio>
+            </FournisseurAudio>
+          </FournisseurDialogue>
         </FournisseurSession>
       </FournisseurReseau>
     </QueryClientProvider>
