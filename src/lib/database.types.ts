@@ -3077,31 +3077,43 @@ export type Database = {
       }
       seance_enregistrements: {
         Row: {
+          analyzed_at: string | null
+          bpm: number | null
           created_at: string | null
           duree_secondes: number | null
           id: string
+          peaks_url: string | null
           pupitre_id: string | null
           seance_id: string
+          taille_octets: number | null
           titre: string | null
           uploaded_by: string | null
           url: string
         }
         Insert: {
+          analyzed_at?: string | null
+          bpm?: number | null
           created_at?: string | null
           duree_secondes?: number | null
           id?: string
+          peaks_url?: string | null
           pupitre_id?: string | null
           seance_id: string
+          taille_octets?: number | null
           titre?: string | null
           uploaded_by?: string | null
           url: string
         }
         Update: {
+          analyzed_at?: string | null
+          bpm?: number | null
           created_at?: string | null
           duree_secondes?: number | null
           id?: string
+          peaks_url?: string | null
           pupitre_id?: string | null
           seance_id?: string
+          taille_octets?: number | null
           titre?: string | null
           uploaded_by?: string | null
           url?: string
