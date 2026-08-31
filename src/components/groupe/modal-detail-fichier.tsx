@@ -4,11 +4,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import { useLecteurAudio } from "@/lib/audio-context";
 import { useDialogue } from "@/lib/dialogue";
 import { urlLectureR2 } from "@/lib/r2";
+import { telechargerEtPartager } from "@/lib/telechargement";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
 import { Bouton } from "@/components/ui/bouton";
@@ -63,16 +62,8 @@ export function ModalDetailFichier({
     try {
       const url = await urlLectureR2(fichier.cle);
       if (!url) throw new Error("Impossible d'obtenir le fichier.");
-      const destination = new File(Paths.cache, `soundboss-${Date.now()}-${fichier.nom}`);
-      await File.downloadFileAsync(url, destination);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(destination.uri, {
-          mimeType: mimeDepuisType(fichier.type),
-          dialogTitle: fichier.nom,
-        });
-      } else {
-        dialogue.succes("Fichier téléchargé.");
-      }
+      const resultat = await telechargerEtPartager(url, fichier.nom, mimeDepuisType(fichier.type));
+      if (resultat === "cache") dialogue.succes("Fichier téléchargé.");
     } catch {
       dialogue.erreur("Impossible de télécharger le fichier.");
     } finally {

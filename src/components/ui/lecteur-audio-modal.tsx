@@ -12,6 +12,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { urlLectureR2 } from "@/lib/r2";
+import { telechargerEtPartager } from "@/lib/telechargement";
+import { useDialogue } from "@/lib/dialogue";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
 
@@ -128,6 +130,21 @@ export function LecteurAudioModal({
   const statut = useAudioPlayerStatus(player);
   const [sonCoupe, setSonCoupe] = useState(false);
   const [imageResolue, setImageResolue] = useState<string | null>(null);
+  const dialogue = useDialogue();
+  const [enTelechargement, setEnTelechargement] = useState(false);
+
+  async function telecharger() {
+    if (!piste) return;
+    setEnTelechargement(true);
+    try {
+      const resultat = await telechargerEtPartager(piste.url, `${piste.titre}.m4a`, "audio/mp4");
+      if (resultat === "cache") dialogue.succes("Audio téléchargé.");
+    } catch {
+      dialogue.erreur("Impossible de télécharger cet audio.");
+    } finally {
+      setEnTelechargement(false);
+    }
+  }
 
   // Résout l'image de couverture (clé R2 → URL signée)
   useEffect(() => {
@@ -236,6 +253,25 @@ export function LecteurAudioModal({
                 </Texte>
               )}
             </View>
+            <Pressable
+              onPress={telecharger}
+              disabled={enTelechargement || !piste}
+              accessibilityRole="button"
+              accessibilityLabel="Télécharger l'audio"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: couleurs.surfaceCarte,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.06)",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: enTelechargement ? 0.5 : 1,
+              }}
+            >
+              <Ionicons name="download-outline" size={20} color={couleurs.warmGold} />
+            </Pressable>
             <Pressable
               onPress={onFermer}
               accessibilityRole="button"
