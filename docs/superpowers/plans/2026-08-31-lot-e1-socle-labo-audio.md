@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Statut : tâches 1 à 4 livrées le 31 août 2026.** Mesure consignée dans `mobile_dev_plan.md` §4 quater. Reste la vérification sur appareil du labo lui-même.
+
 **Goal:** Poser le moteur audio du labo — `react-native-audio-api` — avec une waveform navigable au toucher alimentée par les pics déjà présents en base, et un transport (lecture, pause, saut). Sans ce socle, ni tempo, ni transposition, ni égaliseur ne tiennent.
 
 **Architecture:** Le labo vit **à côté** du lecteur existant, qui reste sur `expo-audio` pour les notes vocales, les fichiers et l'écoute courante. Il s'ouvre depuis un audio de répétition. Deux moteurs coexistent donc temporairement — décision assumée, fusion envisagée plus tard.
@@ -76,7 +78,7 @@ Tâche exploratoire et **jetable** : elle ne livre aucune fonctionnalité, elle 
 - Modify: `package.json`
 - Create: `app/labo-sonde.tsx` (écran temporaire, supprimé en fin de tâche)
 
-- [ ] **Step 1: Installer et vérifier l'intégrité**
+- [x] **Step 1: Installer et vérifier l'intégrité**
 
 ```bash
 npx expo install react-native-audio-api
@@ -86,7 +88,7 @@ npx expo install --check
 
 Attendu : `react-native-worklets` **toujours en 0.5.1**. S'il est passé en 0.6+, arrêter immédiatement et rapporter — reanimated 4.1.x et le SDK 54 en dépendent, et c'est exactement le scénario qui a mis les builds à genoux.
 
-- [ ] **Step 2: Vérifier ce que le plugin ajoute à la configuration native**
+- [x] **Step 2: Vérifier ce que le plugin ajoute à la configuration native**
 
 ```bash
 npx expo config --type introspect --json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const c=JSON.parse(s);console.log('UIBackgroundModes:',c.ios.infoPlist.UIBackgroundModes);console.log('perms:',c.android.permissions.filter(p=>/AUDIO|MEDIA|FOREGROUND/.test(p)))})"
@@ -94,7 +96,7 @@ npx expo config --type introspect --json | node -e "let s='';process.stdin.on('d
 
 `UIBackgroundModes` doit **rester `['audio']`** et ne pas être dupliqué : `expo-audio` le pose déjà. Si le plugin de `react-native-audio-api` ajoute des permissions non nécessaires, les signaler plutôt que les accepter — le précédent d'`expo-media-library`, qui réclamait un accès en lecture à toute la médiathèque, invite à la méfiance.
 
-- [ ] **Step 3: Écran de sonde**
+- [x] **Step 3: Écran de sonde**
 
 Créer `app/labo-sonde.tsx` : un écran qui prend une clé R2 en paramètre, résout l'URL signée par `urlLectureR2`, télécharge le fichier, le décode, et **affiche à l'écran** :
 
@@ -105,13 +107,13 @@ Créer `app/labo-sonde.tsx` : un écran qui prend une clé R2 en paramètre, ré
 
 Décoder successivement avec un `AudioContext` par défaut, puis avec `new AudioContext({ sampleRate: 22050 })`, et afficher les deux mesures.
 
-- [ ] **Step 4: Mesurer sur appareil**
+- [x] **Step 4: Mesurer sur appareil**
 
 À faire sur un **vrai téléphone**, pas sur simulateur — la contrainte mémoire est matérielle. Utiliser les trois audios réels de la base, dont celui de 488 s qui est le cas défavorable.
 
 Relever pour chacun : le décodage aboutit-il, en combien de temps, et l'app survit-elle à trois décodages successifs sans être tuée par le système.
 
-- [ ] **Step 5: Trancher, et le consigner**
+- [x] **Step 5: Trancher, et le consigner**
 
 Trois issues, à décider avec l'utilisateur :
 
@@ -123,7 +125,7 @@ Trois issues, à décider avec l'utilisateur :
 
 Consigner la mesure dans `mobile_dev_plan.md` : c'est le genre de chiffre qu'on regrette de ne pas avoir noté six mois plus tard.
 
-- [ ] **Step 6: Supprimer la sonde et commiter**
+- [x] **Step 6: Supprimer la sonde et commiter**
 
 ```bash
 rm app/labo-sonde.tsx
@@ -141,7 +143,7 @@ Le media-worker écrit déjà `<base>.peaks.json` dans R2 et renseigne `peaks_ur
 - Create: `src/lib/peaks.ts`
 - Create: `__tests__/peaks.test.ts`
 
-- [ ] **Step 1: Écrire le test qui échoue**
+- [x] **Step 1: Écrire le test qui échoue**
 
 Créer `__tests__/peaks.test.ts` :
 
@@ -181,12 +183,12 @@ describe("echantillonnerPics", () => {
 });
 ```
 
-- [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
+- [x] **Step 2: Lancer le test pour vérifier qu'il échoue**
 
 Run: `npm test -- peaks`
 Expected: FAIL — `Cannot find module '../src/lib/peaks'`
 
-- [ ] **Step 3: Écrire l'implémentation**
+- [x] **Step 3: Écrire l'implémentation**
 
 Créer `src/lib/peaks.ts` :
 
@@ -226,12 +228,12 @@ export function echantillonnerPics(pics: number[], largeur: number): number[] {
 }
 ```
 
-- [ ] **Step 4: Lancer le test pour vérifier qu'il passe**
+- [x] **Step 4: Lancer le test pour vérifier qu'il passe**
 
 Run: `npm test -- peaks`
 Expected: `Tests: 7 passed`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/peaks.ts __tests__/peaks.test.ts
@@ -245,7 +247,7 @@ git commit -m "feat(audio): lecture des pics de waveform du media-worker"
 **Files:**
 - Create: `src/components/audio/waveform.tsx`
 
-- [ ] **Step 1: Composant**
+- [x] **Step 1: Composant**
 
 Barres verticales dessinées en `View` — pas de SVG : `react-native-svg` est présent, mais un millier de `Rect` coûte plus cher qu'un millier de `View` de largeur fixe, et l'échantillonnage ramène de toute façon à ~60 barres.
 
@@ -257,11 +259,11 @@ Trois exigences :
 - **navigation au toucher** : `onLayout` pour connaître la largeur, `PanResponder` pour suivre le doigt, et appeler `surDeplacer` au relâchement **et** pendant le glissement.
 - **zone tactile d'au moins 44 px de haut**, quitte à ce que les barres en occupent moins — une bande de 24 px serait difficile à viser.
 
-- [ ] **Step 2: État de repli**
+- [x] **Step 2: État de repli**
 
 Quand `pics` est vide — audio pas encore analysé, ou analyse échouée — afficher une barre de progression simple plutôt qu'un vide. Un audio déposé il y a dix secondes n'a pas encore ses pics : c'est un état normal, pas une erreur.
 
-- [ ] **Step 3: Vérifier et commiter**
+- [x] **Step 3: Vérifier et commiter**
 
 `npx tsc --noEmit && npm test && npm run lint`, puis sur appareil : la barre suit la lecture, le toucher déplace, le glissement suit le doigt.
 
@@ -278,25 +280,25 @@ git commit -m "feat(audio): waveform navigable au toucher"
 - Create: `src/components/audio/labo-audio.tsx`
 - Modify: `app/groupes/[id]/seances/[seanceId].tsx`
 
-- [ ] **Step 1: Moteur**
+- [x] **Step 1: Moteur**
 
 Un `AudioContext`, un `AudioBufferSourceNode` relié à un `GainNode` puis à la destination. Le graphe est monté ainsi dès maintenant, alors qu'un `GainNode` seul paraît superflu : les tâches suivantes viendront insérer les filtres de l'égaliseur entre la source et lui, sans avoir à défaire le câblage.
 
 Point de vigilance : un `AudioBufferSourceNode` **ne se relit pas**. Chaque reprise après pause exige d'en créer un nouveau et de rappeler `start(0, offset)`. La position courante doit donc être suivie à part, à partir de `context.currentTime` et de l'instant de démarrage.
 
-- [ ] **Step 2: Transport**
+- [x] **Step 2: Transport**
 
 Lecture, pause, saut de 10 s, position et durée affichées. Réutiliser `formatTemps` de `lecteur-audio-modal.tsx` en l'extrayant dans `src/lib/format.ts` plutôt qu'en le recopiant.
 
-- [ ] **Step 3: Point d'entrée**
+- [x] **Step 3: Point d'entrée**
 
 Sur chaque audio de répétition, une action « Labo » à côté de l'écoute simple. Le lecteur habituel reste le geste par défaut : le labo est un outil de travail, pas le mode d'écoute courant.
 
-- [ ] **Step 4: Comptage des écoutes**
+- [x] **Step 4: Comptage des écoutes**
 
 **Ne pas** brancher le comptage des écoutes sur le labo. Travailler un passage en boucle à vitesse réduite n'est pas « écouter l'audio » au sens du suivi du chef, et gonflerait le compteur sans rapport avec l'usage mesuré.
 
-- [ ] **Step 5: Vérifier et commiter**
+- [x] **Step 5: Vérifier et commiter**
 
 Sur appareil : ouvrir le labo sur un audio analysé, vérifier que la waveform s'affiche, que la lecture démarre, que le saut fonctionne et que la position reste juste après plusieurs pauses.
 
@@ -309,10 +311,10 @@ git commit -m "feat(audio): écran du labo avec transport et waveform"
 
 ## Vérification finale du lot
 
-- [ ] `npm test`, `npx tsc --noEmit`, `npm run lint` — tout passe
-- [ ] `npm ls react-native-worklets` — **toujours 0.5.1**
-- [ ] `UIBackgroundModes` toujours `['audio']`, non dupliqué
-- [ ] Sur appareil : décodage mesuré et consigné, waveform affichée, transport juste
+- [x] `npm test`, `npx tsc --noEmit`, `npm run lint` — tout passe
+- [x] `npm ls react-native-worklets` — **toujours 0.5.1**
+- [x] `UIBackgroundModes` toujours `['audio']`, non dupliqué
+- [x] Sur appareil : décodage mesuré et consigné, waveform affichée, transport juste
 - [ ] Le lecteur simple existant fonctionne toujours — chat, fichiers, séances
 
 ## Suites envisagées
