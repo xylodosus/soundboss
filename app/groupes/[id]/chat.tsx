@@ -33,6 +33,7 @@ import { Ecran } from "@/components/ui/ecran";
 import { Avatar } from "@/components/ui/avatar";
 import { Texte } from "@/components/ui/texte";
 import { formatJour, memeJour } from "@/lib/format";
+import { debutDeSerie, nomAuteur } from "@/lib/chat-affichage";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
@@ -430,7 +431,7 @@ export default function Chat() {
             const moi = message.user_id === monId;
             const precedent = messages[index - 1];
             const nouveauJour = !precedent || !memeJour(precedent.created_at, message.created_at);
-            const afficherAvatar = moi || nouveauJour;
+            const afficherEntete = !moi && debutDeSerie(message, precedent ?? null, nouveauJour);
 
             return (
               <Swipeable
@@ -486,13 +487,17 @@ export default function Chat() {
                     justifyContent: moi ? "flex-end" : "flex-start",
                   }}
                 >
-                  {!moi && afficherAvatar && (
-                    <Avatar
-                      prenom={message.user?.prenom}
-                      nom={message.user?.nom}
-                      url={message.user?.avatar_url}
-                      taille={30}
-                    />
+                  {!moi && (
+                    <View style={{ width: 30 }}>
+                      {afficherEntete && (
+                        <Avatar
+                          prenom={message.user?.prenom}
+                          nom={message.user?.nom}
+                          url={message.user?.avatar_url}
+                          taille={30}
+                        />
+                      )}
+                    </View>
                   )}
                   <Pressable
                     onLongPress={() => setMenuMessage(message)}
@@ -510,6 +515,17 @@ export default function Chat() {
                       overflow: "hidden",
                     }}
                   >
+                    {afficherEntete && (
+                      <Texte
+                        variante="micro"
+                        poids="bold"
+                        couleur={couleurs.warmGold}
+                        numberOfLines={1}
+                        style={{ marginBottom: 4 }}
+                      >
+                        {nomAuteur(message.user)}
+                      </Texte>
+                    )}
                     {message.parent && (
                       <View
                         style={{
