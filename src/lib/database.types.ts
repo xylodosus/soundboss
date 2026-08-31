@@ -3032,28 +3032,34 @@ export type Database = {
       }
       seance_ecoutes: {
         Row: {
+          derniere_validation_at: string | null
           ecoutee: boolean
           ecoutee_at: string | null
           enregistrement_id: string
           id: string
+          nombre_ecoutes: number
           secondes_ecoutees: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          derniere_validation_at?: string | null
           ecoutee?: boolean
           ecoutee_at?: string | null
           enregistrement_id: string
           id?: string
+          nombre_ecoutes?: number
           secondes_ecoutees?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          derniere_validation_at?: string | null
           ecoutee?: boolean
           ecoutee_at?: string | null
           enregistrement_id?: string
           id?: string
+          nombre_ecoutes?: number
           secondes_ecoutees?: number
           updated_at?: string
           user_id?: string
@@ -4356,6 +4362,7 @@ export type Database = {
       }
       supprimer_note_seance: { Args: { p_note_id: string }; Returns: Json }
       supprimer_projet: { Args: { p_projet_id: string }; Returns: Json }
+      valider_ecoute: { Args: { p_enregistrement_id: string }; Returns: Json }
     }
     Enums: {
       ai_creation_statut: "privee" | "publique" | "archivee"

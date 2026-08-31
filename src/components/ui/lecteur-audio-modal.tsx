@@ -14,8 +14,8 @@ import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { urlLectureR2 } from "@/lib/r2";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { useDialogue } from "@/lib/dialogue";
-import { deltaEcoute } from "@/lib/ecoute";
-import { useEnregistrerEcoute } from "@/lib/queries/seances";
+import { deltaEcoute, estEcoutee } from "@/lib/ecoute";
+import { useEnregistrerEcoute, useValiderEcoute } from "@/lib/queries/seances";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
 
@@ -142,6 +142,9 @@ export function LecteurAudioModal({
   // déstructure pour pouvoir l'inscrire honnêtement dans les dépendances,
   // plutôt que de désactiver la règle des hooks.
   const { mutate: pousserEcoute } = useEnregistrerEcoute();
+  const { mutate: validerEcoute } = useValiderEcoute();
+  // Une écoute est comptabilisée une seule fois par session de lecture.
+  const dejaValide = useRef(false);
   const cumul = useRef(0);
   const dernierePosition = useRef(0);
   const dernierEnvoi = useRef(0);
@@ -153,6 +156,7 @@ export function LecteurAudioModal({
     cumul.current = 0;
     dernierePosition.current = 0;
     dernierEnvoi.current = 0;
+    dejaValide.current = false;
   }, [enregistrementId]);
 
   useEffect(() => {
@@ -172,7 +176,20 @@ export function LecteurAudioModal({
       dernierEnvoi.current = cumul.current;
       pousserEcoute({ enregistrementId, secondes: Math.round(cumul.current) });
     }
-  }, [statut.currentTime, statut.playing, enregistrementId, pousserEcoute]);
+
+    // Franchissement des 30 % : l'écoute compte, une fois pour cette session.
+    if (!dejaValide.current && estEcoutee(cumul.current, statut.duration ?? null)) {
+      dejaValide.current = true;
+      validerEcoute(enregistrementId);
+    }
+  }, [
+    statut.currentTime,
+    statut.playing,
+    statut.duration,
+    enregistrementId,
+    pousserEcoute,
+    validerEcoute,
+  ]);
 
   // À la fermeture, pousser le reliquat : sans ça une écoute de moins de 15 s
   // depuis le dernier envoi serait perdue.

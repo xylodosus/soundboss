@@ -399,6 +399,25 @@ export function useEnregistrerEcoute() {
 }
 
 /**
+ * Comptabilise une écoute : appelée quand une session de lecture franchit 30 %
+ * de la durée. Distincte d'useEnregistrerEcoute, qui accumule les secondes.
+ */
+export function useValiderEcoute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (enregistrementId: string) => {
+      const { data, error } = await supabase.rpc("valider_ecoute", {
+        p_enregistrement_id: enregistrementId,
+      });
+      if (error) throw new Error(error.message);
+      reponseRpc(data);
+    },
+    onSuccess: (_d, enregistrementId) =>
+      queryClient.invalidateQueries({ queryKey: clefsSeances.ecoutes(enregistrementId) }),
+  });
+}
+
+/**
  * Qui a écouté cet audio. La RLS filtre déjà : un simple membre ne reçoit que
  * sa propre ligne, seul le chef ou un admin voit tout le groupe. Le drapeau
  * `actif` évite simplement une requête inutile côté membre.
@@ -410,14 +429,15 @@ export function useEcoutesEnregistrement(enregistrementId: string, actif: boolea
     queryFn: async () => {
       const { data, error } = await supabase
         .from("seance_ecoutes")
-        .select("id, ecoutee, secondes_ecoutees, ecoutee_at, auditeur:users(id, prenom, nom, avatar_url)")
+        .select("id, ecoutee, nombre_ecoutes, secondes_ecoutees, ecoutee_at, auditeur:users(id, prenom, nom, avatar_url)")
         .eq("enregistrement_id", enregistrementId)
         .eq("ecoutee", true)
-        .order("ecoutee_at", { ascending: false });
+        .order("nombre_ecoutes", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []) as unknown as {
         id: string;
         ecoutee: boolean;
+        nombre_ecoutes: number;
         secondes_ecoutees: number;
         ecoutee_at: string | null;
         auditeur: {

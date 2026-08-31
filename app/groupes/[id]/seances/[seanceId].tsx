@@ -34,6 +34,7 @@ import { useLecteurAudio } from "@/lib/audio-context";
 import { useDialogue } from "@/lib/dialogue";
 import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
 import { ModalChoix } from "@/components/ui/modal-choix";
+import { ModalEcoutes } from "@/components/groupe/modal-ecoutes";
 import { SqueletteListe } from "@/components/ui/etat-vide";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
 import { formatDateCourte, libelleCategorieProjet, libelleStatutSeance } from "@/lib/format";
@@ -61,6 +62,9 @@ export default function DetailSeance() {
   // Destinataires du prochain audio déposé : null = tout le groupe.
   const [pupitreCible, setPupitreCible] = useState<string | null>(null);
   const [choixPupitre, setChoixPupitre] = useState(false);
+  // Audio dont on consulte le détail des écoutes. Une seule modale pour toute
+  // la liste, plutôt qu'une par ligne.
+  const [ecoutesAudio, setEcoutesAudio] = useState<{ id: string; titre: string | null } | null>(null);
   const { data: notes = [] } = useNotesSeance(seanceId);
 
   const mettreAJourPresence = useMettreAJourPresence();
@@ -597,7 +601,14 @@ export default function DetailSeance() {
                         </Texte>
                       </View>
                     )}
-                    {estGestionnaire && <CompteurEcoutes enregistrementId={enregistrement.id} />}
+                    {estGestionnaire && (
+                      <CompteurEcoutes
+                        enregistrementId={enregistrement.id}
+                        onOuvrir={() =>
+                          setEcoutesAudio({ id: enregistrement.id, titre: enregistrement.titre })
+                        }
+                      />
+                    )}
                   </View>
                   <BoutonEcouter
                     cle={enregistrement.url}
@@ -867,6 +878,13 @@ export default function DetailSeance() {
       </KeyboardAvoidingView>
       </GestureHandlerRootView>
 
+      <ModalEcoutes
+        enregistrementId={ecoutesAudio?.id ?? null}
+        titreAudio={ecoutesAudio?.titre}
+        visible={!!ecoutesAudio}
+        onFermer={() => setEcoutesAudio(null)}
+      />
+
       <ModalChoix
         visible={choixPupitre}
         titre="Destinataires de l'audio"
@@ -935,11 +953,17 @@ function Section({ titre, children }: { titre: string; children: React.ReactNode
  * renvoie de toute façon que sa propre ligne à un simple membre : le compteur
  * n'aurait aucun sens ailleurs.
  */
-function CompteurEcoutes({ enregistrementId }: { enregistrementId: string }) {
-  const [deplie, setDeplie] = useState(false);
+function CompteurEcoutes({
+  enregistrementId,
+  onOuvrir,
+}: {
+  enregistrementId: string;
+  onOuvrir: () => void;
+}) {
   const { data: ecoutes = [] } = useEcoutesEnregistrement(enregistrementId, true);
+  const total = ecoutes.reduce((somme, e) => somme + (e.nombre_ecoutes ?? 0), 0);
 
-  if (ecoutes.length === 0) {
+  if (total === 0) {
     return (
       <Texte variante="micro" couleur={couleurs.texteFaible} style={{ marginTop: 4 }}>
         Aucune écoute
@@ -948,33 +972,19 @@ function CompteurEcoutes({ enregistrementId }: { enregistrementId: string }) {
   }
 
   return (
-    <View style={{ marginTop: 4 }}>
-      <Pressable
-        onPress={() => setDeplie((v) => !v)}
-        accessibilityRole="button"
-        accessibilityLabel="Voir qui a écouté"
-        style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-      >
-        <Ionicons name="headset-outline" size={13} color={couleurs.warmGold} />
-        <Texte variante="micro" poids="bold" couleur={couleurs.warmGold}>
-          {ecoutes.length} écoute{ecoutes.length > 1 ? "s" : ""}
-        </Texte>
-        <Ionicons
-          name={deplie ? "chevron-up" : "chevron-down"}
-          size={12}
-          color={couleurs.texteSecondaire}
-        />
-      </Pressable>
-      {deplie && (
-        <View style={{ marginTop: 4, gap: 2 }}>
-          {ecoutes.map((e) => (
-            <Texte key={e.id} variante="micro" couleur={couleurs.texteSecondaire}>
-              {`${e.auditeur?.prenom ?? ""} ${e.auditeur?.nom ?? ""}`.trim() || "Membre"}
-            </Texte>
-          ))}
-        </View>
-      )}
-    </View>
+    <Pressable
+      onPress={onOuvrir}
+      accessibilityRole="button"
+      accessibilityLabel="Voir le détail des écoutes"
+      hitSlop={8}
+      style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}
+    >
+      <Ionicons name="headset-outline" size={13} color={couleurs.warmGold} />
+      <Texte variante="micro" poids="bold" couleur={couleurs.warmGold}>
+        {total} écoute{total > 1 ? "s" : ""}
+      </Texte>
+      <Ionicons name="chevron-forward" size={12} color={couleurs.texteSecondaire} />
+    </Pressable>
   );
 }
 
