@@ -2,7 +2,7 @@ import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSession } from "@/lib/session";
 import { useReseau } from "@/lib/reseau";
-import { decisionGarde } from "@/lib/garde-session";
+import { decisionGarde, type EtatProfil } from "@/lib/garde-session";
 import { EcranHorsLigne } from "@/components/ui/ecran-hors-ligne";
 import { useQuery } from "@tanstack/react-query";
 import { couleurs, police } from "@/lib/theme";
@@ -35,18 +35,32 @@ export default function LayoutTabs() {
 
   // Profil du compte courant (clé scopée par utilisateur : pas de fuite
   // de cache entre deux comptes sur le même appareil).
-  const { data: profil } = useQuery({
+  const { data: profil, isError: profilEnEchec } = useQuery({
     queryKey: ["profil-existant", session?.user.id],
     queryFn: obtenirProfilComplet,
     enabled: !!session,
   });
 
-  const decision = decisionGarde({ pret, aUneSession: !!session, enLigne });
+  // « Illisible » et « incomplet » sont deux états distincts : les confondre
+  // renvoyait à l'onboarding un utilisateur simplement hors ligne.
+  const etatProfil: EtatProfil = profilEnEchec
+    ? "echec"
+    : profil === undefined
+      ? "inconnu"
+      : profilEstComplet(profil)
+        ? "complet"
+        : "incomplet";
+
+  const decision = decisionGarde({
+    pret,
+    aUneSession: !!session,
+    enLigne,
+    profil: etatProfil,
+  });
   if (decision === "attendre") return null;
   if (decision === "hors-ligne") return <EcranHorsLigne />;
   if (decision === "connexion") return <Redirect href="/connexion" />;
-  if (profil === undefined) return null; // chargement
-  if (!profilEstComplet(profil)) return <Redirect href="/onboarding" />;
+  if (decision === "onboarding") return <Redirect href="/onboarding" />;
 
   return (
     <Tabs

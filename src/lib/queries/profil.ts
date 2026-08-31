@@ -177,9 +177,18 @@ export function useJobsIA() {
 
 /** Récupération du profil pour la garde d'authentification. */
 export async function obtenirProfilComplet(): Promise<Utilisateur | null> {
-  const userId = (await supabase.auth.getUser()).data.user?.id;
+  // getSession() lit SecureStore sans appel réseau, contrairement à getUser()
+  // qui interroge le serveur et échoue donc hors ligne.
+  const userId = (await supabase.auth.getSession()).data.session?.user.id;
   if (!userId) return null;
-  const { data } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+  // Remonter l'erreur au lieu de l'avaler : un échec réseau passait auparavant
+  // pour un profil absent, et renvoyait l'utilisateur au choix du pays.
+  if (error) throw new Error(error.message);
   return (data ?? null) as Utilisateur | null;
 }
 
