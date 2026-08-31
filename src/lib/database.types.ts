@@ -3035,6 +3035,7 @@ export type Database = {
           created_at: string | null
           duree_secondes: number | null
           id: string
+          pupitre_id: string | null
           seance_id: string
           titre: string | null
           uploaded_by: string | null
@@ -3044,6 +3045,7 @@ export type Database = {
           created_at?: string | null
           duree_secondes?: number | null
           id?: string
+          pupitre_id?: string | null
           seance_id: string
           titre?: string | null
           uploaded_by?: string | null
@@ -3053,12 +3055,20 @@ export type Database = {
           created_at?: string | null
           duree_secondes?: number | null
           id?: string
+          pupitre_id?: string | null
           seance_id?: string
           titre?: string | null
           uploaded_by?: string | null
           url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "seance_enregistrements_pupitre_id_fkey"
+            columns: ["pupitre_id"]
+            isOneToOne: false
+            referencedRelation: "roles_pupitres"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "seance_enregistrements_seance_id_fkey"
             columns: ["seance_id"]
@@ -4048,6 +4058,7 @@ export type Database = {
       ajouter_enregistrement_seance: {
         Args: {
           p_duree_secondes?: number
+          p_pupitre_id?: string
           p_seance_id: string
           p_titre?: string
           p_url: string
