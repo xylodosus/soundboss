@@ -159,6 +159,10 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
       analyzed_at: new Date().toISOString(),
       peaks_url: peaksPath ?? null,
       bpm,
+      // Taille du fichier FINAL, retraité ou non. Le code d'origine ne la
+      // renseignait qu'après réencodage : elle restait donc nulle pour tout
+      // fichier déjà dans un bon conteneur, c'est-à-dire la majorité.
+      taille_octets: (await stat(finalPath)).size,
     };
     // On écrase une durée existante dès que la mesure fait autorité : elle vient
     // alors d'un vrai conteneur, là où la valeur en base pouvait provenir d'une
@@ -168,10 +172,6 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
     }
     if (processing) {
       patch.url = finalKey;
-      // La taille change avec le réencodage — parfois du simple au tiers. Sans
-      // cette ligne la base conservait celle de la SOURCE, faussant l'affichage
-      // du poids d'un média et le calcul de l'espace occupé.
-      patch.taille_octets = (await stat(finalPath)).size;
     }
 
     await patchMedia(mediaId, patch);
