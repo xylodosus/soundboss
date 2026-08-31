@@ -1,7 +1,12 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { useMembresGroupe, useMettreAJourMembre, useNommerAdmin } from "@/lib/queries/groupes";
+import {
+  useMembresGroupe,
+  useMettreAJourMembre,
+  useNommerAdmin,
+  usePupitresGroupe,
+} from "@/lib/queries/groupes";
 import { useDialogue } from "@/lib/dialogue";
 import { couleurs, rayons } from "@/lib/theme";
 import { Avatar } from "@/components/ui/avatar";
@@ -9,6 +14,8 @@ import { Texte } from "@/components/ui/texte";
 import { SqueletteListe } from "@/components/ui/etat-vide";
 import { useQueryClient } from "@tanstack/react-query";
 import { InvitationGroupe } from "@/components/groupe/invitation-groupe";
+import { ModalChoix } from "@/components/ui/modal-choix";
+import { nomAuteur } from "@/lib/chat-affichage";
 
 export function OngletMembres({
   groupeId,
@@ -27,6 +34,36 @@ export function OngletMembres({
   const queryClient = useQueryClient();
   const dialogue = useDialogue();
   const [action, setAction] = useState<string | null>(null);
+  const { data: pupitres = [] } = usePupitresGroupe(groupeId);
+  // Identifiant du membre dont le menu est ouvert, puis de celui à qui l'on
+  // attribue un pupitre : deux modales successives, jamais simultanées.
+  const [menuMembreId, setMenuMembreId] = useState<string | null>(null);
+  const [pupitreMembreId, setPupitreMembreId] = useState<string | null>(null);
+
+  function basculerAdmin(membre: (typeof actifs)[number]) {
+    setAction(membre.id);
+    nommerAdmin.mutate(
+      { membreId: membre.id, estAdmin: !membre.est_admin },
+      {
+        onSettled: () => setAction(null),
+        onSuccess: () =>
+          queryClient.invalidateQueries({ queryKey: ["groupes", "membres", groupeId] }),
+        onError: () => dialogue.erreur("Impossible de modifier les droits de ce membre."),
+      }
+    );
+  }
+
+  /** role_id porte le pupitre ; null détache le membre de tout pupitre. */
+  function attribuerPupitre(membreId: string, roleId: string | null) {
+    setAction(membreId);
+    mettreAJourMembre.mutate(
+      { membreId, groupeId, modifications: { role_id: roleId } },
+      {
+        onSettled: () => setAction(null),
+        onError: () => dialogue.erreur("Impossible d'attribuer ce pupitre."),
+      }
+    );
+  }
 
   async function exclureMembre(membre: (typeof actifs)[number]) {
     const nom = `${membre.user?.prenom ?? ""} ${membre.user?.nom ?? ""}`.trim();
@@ -140,58 +177,76 @@ export function OngletMembres({
             </View>
 
             {estGestionnaire && !estChef && (
-              <View style={{ flexDirection: "row", gap: 4 }}>
-                {!estAdmin && (
-                  <View
-                    onTouchEnd={() => {
-                      setAction(membre.id);
-                      nommerAdmin.mutate(
-                        { membreId: membre.id, estAdmin: true },
-                        {
-                          onSettled: () => setAction(null),
-                          onSuccess: () => queryClient.invalidateQueries({ queryKey: ["groupes", "membres", groupeId] }),
-                        }
-                      );
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Nommer administrateur"
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: "rgba(251,191,36,0.3)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      opacity: enAction ? 0.5 : 1,
-                    }}
-                  >
-                    <Ionicons name="shield-outline" size={16} color={couleurs.warmGold} />
-                  </View>
-                )}
-                <View
-                  onTouchEnd={() => exclureMembre(membre)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Exclure du groupe"
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: "rgba(224,82,74,0.3)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    opacity: enAction ? 0.5 : 1,
-                  }}
-                >
-                  <Ionicons name="person-remove-outline" size={16} color={couleurs.danger} />
-                </View>
-              </View>
+              <Pressable
+                onPress={() => setMenuMembreId(membre.id)}
+                disabled={enAction}
+                accessibilityRole="button"
+                accessibilityLabel={`Actions pour ${nomAuteur(membre.user)}`}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: enAction ? 0.5 : 1,
+                }}
+              >
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={18}
+                  color={couleurs.texteSecondaire}
+                />
+              </Pressable>
             )}
           </View>
         );
       })}
       </View>
+
+      <ModalChoix
+        visible={!!menuMembreId}
+        titre={nomAuteur(actifs.find((m) => m.id === menuMembreId)?.user)}
+        elements={[
+          { id: "pupitre", titre: "Attribuer un pupitre", icone: "musical-notes-outline" },
+          {
+            id: "admin",
+            titre: actifs.find((m) => m.id === menuMembreId)?.est_admin
+              ? "Retirer les droits d'administrateur"
+              : "Nommer administrateur",
+            icone: "shield-outline",
+          },
+          { id: "exclure", titre: "Exclure du groupe", icone: "person-remove-outline" },
+        ]}
+        surChoisir={(choix) => {
+          const membre = actifs.find((m) => m.id === menuMembreId);
+          setMenuMembreId(null);
+          if (!membre) return;
+          if (choix === "pupitre") setPupitreMembreId(membre.id);
+          else if (choix === "admin") basculerAdmin(membre);
+          else if (choix === "exclure") exclureMembre(membre);
+        }}
+        onFermer={() => setMenuMembreId(null)}
+      />
+
+      <ModalChoix
+        visible={!!pupitreMembreId}
+        titre="Attribuer un pupitre"
+        messageVide="Ce groupe n'a pas encore de pupitre."
+        elements={[
+          { id: "aucun", titre: "Aucun pupitre", icone: "close-circle-outline" },
+          ...pupitres.map((p) => ({
+            id: p.id,
+            titre: p.nom,
+            icone: "musical-notes-outline" as const,
+          })),
+        ]}
+        surChoisir={(choix) => {
+          const membreId = pupitreMembreId;
+          setPupitreMembreId(null);
+          if (membreId) attribuerPupitre(membreId, choix === "aucun" ? null : choix);
+        }}
+        onFermer={() => setPupitreMembreId(null)}
+      />
     </View>
   );
 }
