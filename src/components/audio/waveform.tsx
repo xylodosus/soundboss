@@ -21,9 +21,18 @@ type Props = {
   surDebutGeste?: () => void;
   /** Zone de boucle A/B, en ratios de 0 à 1. */
   boucle?: { debut: number; fin: number } | null;
+  /** Déplacement d'une borne de boucle au doigt. */
+  surDeplacerBorne?: (borne: "debut" | "fin", ratio: number) => void;
 };
 
-export function Waveform({ pics, progression, surDeplacer, surDebutGeste, boucle }: Props) {
+export function Waveform({
+  pics,
+  progression,
+  surDeplacer,
+  surDebutGeste,
+  boucle,
+  surDeplacerBorne,
+}: Props) {
   const [largeur, setLargeur] = useState(0);
 
   // Le PanResponder est mémorisé une fois pour toutes ; ses callbacks lisent la
@@ -82,6 +91,22 @@ export function Waveform({ pics, progression, surDeplacer, surDebutGeste, boucle
           ]}
         />
       )}
+      {boucle && surDeplacerBorne && (
+        <>
+          <PoigneeBoucle
+            ratio={clamp(boucle.debut)}
+            largeurRef={largeurRef}
+            label="Début de la boucle"
+            surDeplacer={(r) => surDeplacerBorne("debut", r)}
+          />
+          <PoigneeBoucle
+            ratio={clamp(boucle.fin)}
+            largeurRef={largeurRef}
+            label="Fin de la boucle"
+            surDeplacer={(r) => surDeplacerBorne("fin", r)}
+          />
+        </>
+      )}
       {barres.length === 0 ? (
         // Audio pas encore analysé par le conteneur, ou analyse échouée : une
         // barre de progression simple vaut mieux qu'un vide inexpliqué.
@@ -109,6 +134,60 @@ export function Waveform({ pics, progression, surDeplacer, surDebutGeste, boucle
   );
 }
 
+/**
+ * Borne de boucle déplaçable.
+ *
+ * Le déplacement se calcule sur `gesture.dx` depuis le ratio de départ, et non
+ * sur une coordonnée absolue : `locationX` serait relatif à la poignée, large de
+ * quelques pixels, donc inexploitable.
+ */
+function PoigneeBoucle({
+  ratio,
+  largeurRef,
+  label,
+  surDeplacer,
+}: {
+  ratio: number;
+  largeurRef: { current: number };
+  label: string;
+  surDeplacer: (ratio: number) => void;
+}) {
+  const ratioRef = useRef(ratio);
+  ratioRef.current = ratio;
+  const departRef = useRef(ratio);
+  const surDeplacerRef = useRef(surDeplacer);
+  surDeplacerRef.current = surDeplacer;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        // Réclamer le geste dès le contact : sans cela, la waveform parente
+        // l'attraperait et déplacerait la lecture au lieu de la borne.
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          departRef.current = ratioRef.current;
+        },
+        onPanResponderMove: (_e, gesture) => {
+          const l = largeurRef.current;
+          if (l > 0) surDeplacerRef.current(clamp(departRef.current + gesture.dx / l));
+        },
+      }),
+    [largeurRef]
+  );
+
+  return (
+    <View
+      {...panResponder.panHandlers}
+      accessibilityRole="adjustable"
+      accessibilityLabel={label}
+      style={[styles.poignee, { left: `${ratio * 100}%` }]}
+    >
+      <View style={styles.poigneeBarre} />
+    </View>
+  );
+}
+
 function clamp(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
@@ -129,6 +208,23 @@ const styles = StyleSheet.create({
     gap: ECART_BARRE,
   },
   barre: { width: LARGEUR_BARRE, borderRadius: rayons.pill },
+  // Cible tactile de 44 px, centrée sur la borne : la barre visible n'en fait
+  // que trois, mais on ne vise pas trois pixels avec un pouce.
+  poignee: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 44,
+    marginLeft: -22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  poigneeBarre: {
+    width: 3,
+    height: HAUTEUR_BARRE_MAX + 8,
+    borderRadius: rayons.pill,
+    backgroundColor: couleurs.warmGold,
+  },
   piste: { height: 4, borderRadius: rayons.pill, backgroundColor: couleurs.bordure, overflow: "hidden" },
   pisteLue: { height: "100%", backgroundColor: couleurs.warmGold },
 });

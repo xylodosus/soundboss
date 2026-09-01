@@ -18,6 +18,7 @@ export function ReglageLabo({
   onMoins,
   onPlus,
   onNeutre,
+  onValeur,
 }: {
   libelle: string;
   valeurAffichee: string;
@@ -25,6 +26,8 @@ export function ReglageLabo({
   onMoins: () => void;
   onPlus: () => void;
   onNeutre: () => void;
+  /** Appui court sur la valeur — ouvre un choix quand il y en a un. */
+  onValeur?: () => void;
 }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.md }}>
@@ -35,9 +38,10 @@ export function ReglageLabo({
       {/* L'appui long ramène au neutre : plus rapide que dix appuis, et sans
           bouton supplémentaire dans une barre déjà chargée. */}
       <Pressable
+        onPress={onValeur}
         onLongPress={onNeutre}
         accessibilityRole="button"
-        accessibilityLabel={`${libelle} : ${valeurAffichee}. Appui long pour revenir à la normale.`}
+        accessibilityLabel={`${libelle} : ${valeurAffichee}.${onValeur ? " Appuyer pour choisir." : ""} Appui long pour revenir à la normale.`}
         style={{ minWidth: 72, minHeight: 44, justifyContent: "center", alignItems: "center" }}
       >
         <Texte

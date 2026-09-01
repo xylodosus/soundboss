@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, AppState, Modal, Pressable, View } from "react-native";
+import { ActivityIndicator, AppState, Modal, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -14,6 +14,13 @@ import { Texte } from "@/components/ui/texte";
 import { Waveform } from "@/components/audio/waveform";
 import { ReglageLabo } from "@/components/audio/reglage-labo";
 import { BPM_MAX, BPM_MIN, clicsDansHorizon } from "@/lib/metronome";
+import {
+  demiTonsEntre,
+  libelleTonalite,
+  tonalitesDuMode,
+  transposer,
+} from "@/lib/tonalite";
+import { ModalChoix } from "@/components/ui/modal-choix";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
 import { urlLectureR2 } from "@/lib/r2";
@@ -119,8 +126,12 @@ export function LaboAudio({
   const [transposition, setTransposition] = useState(0);
   const [boucle, setBoucle] = useState<{ a: number; b: number } | null>(null);
   const [metronome, setMetronome] = useState(false);
-  const [bpm, setBpm] = useState(0);
+  // Un seul tempo de référence, en temps du tampon : il sert à afficher le tempo
+  // du morceau, à en dériver le tempo joué, et à battre la mesure.
+  const [bpmOrigine, setBpmOrigine] = useState(0);
   const [phase, setPhase] = useState(0);
+  const [tonaliteOrigine, setTonaliteOrigine] = useState<string | null>(null);
+  const [choix, setChoix] = useState<"origine" | "cible" | null>(null);
 
   const gainRef = useRef<GainNode | null>(null);
   const tamponRef = useRef<AudioBuffer | null>(null);
@@ -229,7 +240,9 @@ export function LaboAudio({
     setBoucle(null);
     setMetronome(false);
     setPhase(0);
-    setBpm(piste.bpm ?? 0);
+    setBpmOrigine(piste.bpm ?? 0);
+    // La tonalité n'est pas encore détectée par le conteneur : elle se déclare.
+    setTonaliteOrigine(null);
 
     (async () => {
       try {
@@ -343,7 +356,7 @@ export function LaboAudio({
 
     const minuteur = setInterval(() => {
       const pos = positionRef.current;
-      for (const instant of clicsDansHorizon(pos, phase, bpm, HORIZON_CLICS)) {
+      for (const instant of clicsDansHorizon(pos, phase, bpmOrigine, HORIZON_CLICS)) {
         if (instant <= dernierClicRef.current) continue;
         // Le tempo est au dénominateur : à 0,8x, une seconde de morceau dure
         // 1,25 seconde réelle.
@@ -353,7 +366,7 @@ export function LaboAudio({
     }, CADENCE_ORDONNANCEUR);
 
     return () => clearInterval(minuteur);
-  }, [metronome, etat, enLecture, phase, bpm]);
+  }, [metronome, etat, enLecture, phase, bpmOrigine]);
 
   function basculer() {
     if (etat !== "pret") return;
@@ -363,6 +376,19 @@ export function LaboAudio({
     } else {
       demarrer(positionRef.current);
     }
+  }
+
+  function deplacerBorne(borne: "debut" | "fin", secondes: number) {
+    setBoucle((b) => {
+      if (!b) return b;
+      const cible = Math.min(Math.max(0, secondes), duree);
+      // Les bornes ne se croisent pas : un quart de seconde les sépare au moins,
+      // sinon la boucle deviendrait un bourdonnement.
+      const ecart = 0.25;
+      return borne === "debut"
+        ? { a: Math.min(cible, b.b - ecart), b: b.b }
+        : { a: b.a, b: Math.max(cible, b.a + ecart) };
+    });
   }
 
   function allerA(secondes: number) {
@@ -440,7 +466,11 @@ export function LaboAudio({
           )}
 
           {etat === "pret" && (
-            <>
+            <ScrollView
+              style={{ maxHeight: 440 }}
+              contentContainerStyle={{ gap: espacement.lg }}
+              showsVerticalScrollIndicator={false}
+            >
               <Waveform
                 pics={pics}
                 progression={duree > 0 ? position / duree : 0}
@@ -450,6 +480,7 @@ export function LaboAudio({
                     ? { debut: boucle.a / duree, fin: boucle.b / duree }
                     : null
                 }
+                surDeplacerBorne={(borne, ratio) => deplacerBorne(borne, ratio * duree)}
               />
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>
@@ -504,27 +535,51 @@ export function LaboAudio({
 
               <ReglageLabo
                 libelle="Tempo"
-                valeurAffichee={`${tempo.toFixed(2)}x`}
+                valeurAffichee={
+                  bpmOrigine > 0 ? `${Math.round(bpmOrigine * tempo)} BPM` : `${tempo.toFixed(2)}x`
+                }
                 auNeutre={tempo === 1}
-                onMoins={() => setTempo((v) => arrondir(Math.max(TEMPO_MIN, v - TEMPO_PAS)))}
-                onPlus={() => setTempo((v) => arrondir(Math.min(TEMPO_MAX, v + TEMPO_PAS)))}
+                onMoins={() => setTempo((v) => pasTempo(v, -1, bpmOrigine))}
+                onPlus={() => setTempo((v) => pasTempo(v, 1, bpmOrigine))}
                 onNeutre={() => setTempo(1)}
+              />
+
+              <ReglageLabo
+                libelle="Tempo du morceau"
+                valeurAffichee={bpmOrigine > 0 ? `${bpmOrigine} BPM` : "inconnu"}
+                auNeutre={bpmOrigine === (piste?.bpm ?? 0)}
+                onMoins={() => setBpmOrigine((v) => Math.max(BPM_MIN, (v || 100) - 1))}
+                onPlus={() => setBpmOrigine((v) => Math.min(BPM_MAX, (v || 100) + 1))}
+                onNeutre={() => setBpmOrigine(piste?.bpm ?? 0)}
               />
 
               <ReglageLabo
                 libelle="Tonalité"
                 valeurAffichee={
-                  transposition === 0
-                    ? "0"
-                    : `${transposition > 0 ? "+" : ""}${transposition} ${
-                        Math.abs(transposition) > 1 ? "tons" : "ton"
-                      }`
+                  tonaliteOrigine
+                    ? libelleTonalite(transposer(tonaliteOrigine, transposition))
+                    : demiTons(transposition)
                 }
                 auNeutre={transposition === 0}
                 onMoins={() => setTransposition((v) => Math.max(-DEMI_TONS_MAX, v - 1))}
                 onPlus={() => setTransposition((v) => Math.min(DEMI_TONS_MAX, v + 1))}
                 onNeutre={() => setTransposition(0)}
+                onValeur={tonaliteOrigine ? () => setChoix("cible") : undefined}
               />
+
+              {/* Le conteneur ne détecte pas encore la tonalité : tant qu'elle
+                  n'est pas déclarée, seuls les demi-tons ont un sens. */}
+              <Pressable
+                onPress={() => setChoix("origine")}
+                accessibilityRole="button"
+                style={{ minHeight: 44, justifyContent: "center" }}
+              >
+                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                  {tonaliteOrigine
+                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)} — appuyer pour corriger`
+                    : "Indiquer la tonalité d'origine pour choisir par nom"}
+                </Texte>
+              </Pressable>
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
                 <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
@@ -563,7 +618,7 @@ export function LaboAudio({
                   libelle={metronome ? "Actif" : "Inactif"}
                   actif={metronome}
                   onPress={() => {
-                    if (!metronome && bpm === 0) setBpm(100);
+                    if (!metronome && bpmOrigine === 0) setBpmOrigine(100);
                     setMetronome((v) => !v);
                   }}
                 />
@@ -576,20 +631,33 @@ export function LaboAudio({
                   }}
                 />
               </View>
-
-              {metronome && (
-                <ReglageLabo
-                  libelle="Battements par minute"
-                  valeurAffichee={`${bpm}`}
-                  auNeutre={bpm === (piste?.bpm ?? 100)}
-                  onMoins={() => setBpm((v) => Math.max(BPM_MIN, v - 1))}
-                  onPlus={() => setBpm((v) => Math.min(BPM_MAX, v + 1))}
-                  onNeutre={() => setBpm(piste?.bpm ?? 100)}
-                />
-              )}
-            </>
+            </ScrollView>
           )}
         </View>
+
+        <ModalChoix
+          visible={choix !== null}
+          titre={choix === "origine" ? "Tonalité d'origine" : "Transposer vers"}
+          elements={tonalitesDuMode(choix === "cible" ? tonaliteOrigine : null).map((t) => ({
+            id: t.id,
+            titre: `${t.note} ${t.mode}`,
+            sousTitre:
+              choix === "cible" && tonaliteOrigine
+                ? demiTons(demiTonsEntre(tonaliteOrigine, t.id))
+                : undefined,
+          }))}
+          surChoisir={(id) => {
+            if (choix === "origine") {
+              // On déclare la tonalité du morceau, pas celle qu'on entend après
+              // transposition : la transposition courante n'y touche pas.
+              setTonaliteOrigine(id);
+            } else {
+              setTransposition(demiTonsEntre(tonaliteOrigine, id));
+            }
+            setChoix(null);
+          }}
+          onFermer={() => setChoix(null)}
+        />
       </View>
     </Modal>
   );
@@ -619,6 +687,23 @@ function BoutonTransport({
 /** Les pas de 0,05 accumulent des erreurs binaires : 1,0499999 s'afficherait mal. */
 function arrondir(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+/**
+ * Un cran de tempo. Quand le tempo du morceau est connu, on raisonne en
+ * battements par minute — c'est l'unité du musicien ; sinon en multiplicateur.
+ */
+function pasTempo(tempo: number, sens: number, bpmOrigine: number): number {
+  if (bpmOrigine > 0) {
+    const cible = Math.round(bpmOrigine * tempo) + sens;
+    return arrondir(Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, cible / bpmOrigine)));
+  }
+  return arrondir(Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, tempo + sens * TEMPO_PAS)));
+}
+
+function demiTons(n: number): string {
+  if (n === 0) return "0";
+  return `${n > 0 ? "+" : ""}${n} ${Math.abs(n) > 1 ? "tons" : "ton"}`;
 }
 
 function Puce({
