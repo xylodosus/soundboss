@@ -19,6 +19,7 @@ import { detectContainer, needsRemux, withExtension } from './container.ts';
 import { downloadToFile, uploadFromFile, uploadBuffer, deleteObject } from './r2.ts';
 import { getMedia, patchMedia } from './db.ts';
 import { detectTempo } from './bpm.ts';
+import { detectTonalite } from './tonalite.ts';
 import { probeDurationSeconds, remuxAdtsToM4a } from './ffmpeg.ts';
 import { measureLoudness, shouldNormalize, normalizeLoudness } from './loudness.ts';
 import { computeWaveformPeaks, serializePeaks } from './waveform.ts';
@@ -31,6 +32,7 @@ export interface AnalyzeResult {
   durationSeconds?: number | null;
   loudnessLufs?: number | null;
   processing?: 'remux' | 'loudnorm' | null;
+  tonalite?: string | null;
   newPath?: string;
   peaksPath?: string;
 }
@@ -149,9 +151,13 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
       await uploadBuffer(peaksPath, serializePeaks(peaks), 'application/json');
     }
 
-    // --- Tempo ---
-    // Mesuré sur le fichier final, comme la durée et les pics.
+    // --- Tempo et tonalité ---
+    // Mesurés sur le fichier final, comme la durée et les pics.
     const bpm = await detectTempo(finalPath);
+    // Proposition, non verdict : les profils de Krumhansl-Schmuckler confondent
+    // volontiers une tonalité avec sa relative mineure. Le labo laisse corriger,
+    // et la confiance enregistrée dit s'il faut se méfier.
+    const tonalite = await detectTonalite(finalPath);
 
     // --- Écriture en base ---
     // Pas de colonne metadata dans ce schéma : chaque information a sa colonne.
@@ -159,6 +165,8 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
       analyzed_at: new Date().toISOString(),
       peaks_url: peaksPath ?? null,
       bpm,
+      tonalite: tonalite?.id ?? null,
+      tonalite_confiance: tonalite?.confiance ?? null,
       // Taille du fichier FINAL, retraité ou non. Le code d'origine ne la
       // renseignait qu'après réencodage : elle restait donc nulle pour tout
       // fichier déjà dans un bon conteneur, c'est-à-dire la majorité.
@@ -187,6 +195,7 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
       durationSeconds,
       loudnessLufs,
       processing,
+      tonalite: tonalite?.id ?? null,
       newPath: processing ? finalKey : undefined,
       peaksPath,
     };

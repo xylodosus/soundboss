@@ -3094,6 +3094,8 @@ export type Database = {
           seance_id: string
           taille_octets: number | null
           titre: string | null
+          tonalite: string | null
+          tonalite_confiance: number | null
           uploaded_by: string | null
           url: string
         }
@@ -3109,6 +3111,8 @@ export type Database = {
           seance_id: string
           taille_octets?: number | null
           titre?: string | null
+          tonalite?: string | null
+          tonalite_confiance?: number | null
           uploaded_by?: string | null
           url: string
         }
@@ -3124,6 +3128,8 @@ export type Database = {
           seance_id?: string
           taille_octets?: number | null
           titre?: string | null
+          tonalite?: string | null
+          tonalite_confiance?: number | null
           uploaded_by?: string | null
           url?: string
         }

@@ -93,6 +93,8 @@ type Piste = {
   peaks_url: string | null;
   duree_secondes: number | null;
   bpm: number | null;
+  tonalite: string | null;
+  tonalite_confiance: number | null;
 };
 
 /**
@@ -241,8 +243,9 @@ export function LaboAudio({
     setMetronome(false);
     setPhase(0);
     setBpmOrigine(piste.bpm ?? 0);
-    // La tonalité n'est pas encore détectée par le conteneur : elle se déclare.
-    setTonaliteOrigine(null);
+    // Proposition du conteneur, corrigeable : les profils de Krumhansl-Schmuckler
+    // confondent volontiers une tonalité avec sa relative mineure.
+    setTonaliteOrigine(piste.tonalite);
 
     (async () => {
       try {
@@ -377,6 +380,13 @@ export function LaboAudio({
       demarrer(positionRef.current);
     }
   }
+
+  // En dessous de ce seuil, la meilleure corrélation ne se détachait pas de la
+  // deuxième : le plus souvent une confusion avec la relative mineure.
+  const detectionDouteuse =
+    !!piste?.tonalite &&
+    tonaliteOrigine === piste.tonalite &&
+    (piste.tonalite_confiance ?? 0) < 0.05;
 
   function deplacerBorne(borne: "debut" | "fin", secondes: number) {
     setBoucle((b) => {
@@ -576,7 +586,9 @@ export function LaboAudio({
               >
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>
                   {tonaliteOrigine
-                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)} — appuyer pour corriger`
+                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)}${
+                        detectionDouteuse ? " (détection incertaine)" : ""
+                      } — appuyer pour corriger`
                     : "Indiquer la tonalité d'origine pour choisir par nom"}
                 </Texte>
               </Pressable>
