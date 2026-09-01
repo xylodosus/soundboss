@@ -44,6 +44,13 @@ const DEMI_TONS_MAX = 6;
  */
 const CENT_NEUTRE = 0.01;
 
+/**
+ * Au-delà, on rend la main plutôt que de laisser tourner un sablier sans fin.
+ * Cinq minutes de musique se décodent en cinq à six secondes ; passé une
+ * minute et demie, quelque chose est cassé, pas lent.
+ */
+const DELAI_DECODAGE = 90_000;
+
 /** Fenêtre de programmation du métronome, en secondes de tampon. */
 const HORIZON_CLICS = 0.3;
 const CADENCE_ORDONNANCEUR = 100;
@@ -59,6 +66,15 @@ const CADENCE_ORDONNANCEUR = 100;
 let contextePartage: AudioContext | null = null;
 let cache: { id: string; tampon: AudioBuffer; pics: number[] } | null = null;
 let abonnementArrierePlan: { remove: () => void } | null = null;
+/**
+ * Décodage en vol, partagé entre les ouvertures.
+ *
+ * Le décodage natif ne s'annule pas : fermer la modale pendant qu'il travaille
+ * ne l'arrête pas. Sans ce partage, rouvrir le morceau en lançait un second en
+ * concurrence du premier — deux fois cent mégaoctets sur le même appareil, et
+ * les deux finissaient par se bloquer. C'est ce que décrivait le sablier sans fin.
+ */
+let decodageEnVol: { id: string; promesse: Promise<AudioBuffer> } | null = null;
 /** Vrai tant que la modale est affichée : on ne coupe pas le contexte sous les pieds. */
 let laboOuvert = false;
 
@@ -134,6 +150,7 @@ export function LaboAudio({
   const [phase, setPhase] = useState(0);
   const [tonaliteOrigine, setTonaliteOrigine] = useState<string | null>(null);
   const [choix, setChoix] = useState<"origine" | "cible" | null>(null);
+  const [tentative, setTentative] = useState(0);
 
   const gainRef = useRef<GainNode | null>(null);
   const tamponRef = useRef<AudioBuffer | null>(null);
@@ -289,7 +306,25 @@ export function LaboAudio({
         // de sortie, sans corriger l'écart. Un fichier à 44 100 Hz joué dans un
         // contexte à 48 000 Hz sortait 1,088x trop vite, soit un demi-ton et
         // demi trop haut.
-        const tampon = await decodeAudioData(url, contexte.sampleRate);
+        if (!decodageEnVol || decodageEnVol.id !== piste.id) {
+          const promesse = decodeAudioData(url, contexte.sampleRate);
+          // Sans consommateur, un rejet remonterait en avertissement global.
+          promesse.catch(() => undefined);
+          decodageEnVol = { id: piste.id, promesse };
+        }
+        const enVol = decodageEnVol;
+
+        let tampon: AudioBuffer;
+        try {
+          tampon = await avecDelai(enVol.promesse, DELAI_DECODAGE);
+        } catch (e) {
+          // Sur expiration, la promesse est CONSERVÉE : le décodage natif
+          // continue, et un nouvel essai le rattrapera au lieu d'en lancer un
+          // second à côté. Sur un vrai échec, en revanche, elle ne servira plus.
+          if (!(e instanceof DelaiExpire) && decodageEnVol === enVol) decodageEnVol = null;
+          throw e;
+        }
+        if (decodageEnVol === enVol) decodageEnVol = null;
         if (annule) return;
 
         tamponRef.current = tampon;
@@ -307,7 +342,7 @@ export function LaboAudio({
     return () => {
       annule = true;
     };
-  }, [visible, piste]);
+  }, [visible, piste, tentative]);
 
   // À la fermeture on démonte le graphe, mais on garde le tampon décodé : c'est
   // tout l'intérêt du cache. Il part avec libererCache(), à l'ouverture d'un
@@ -381,13 +416,6 @@ export function LaboAudio({
     }
   }
 
-  // En dessous de ce seuil, la meilleure corrélation ne se détachait pas de la
-  // deuxième : le plus souvent une confusion avec la relative mineure.
-  const detectionDouteuse =
-    !!piste?.tonalite &&
-    tonaliteOrigine === piste.tonalite &&
-    (piste.tonalite_confiance ?? 0) < 0.05;
-
   function deplacerBorne(borne: "debut" | "fin", secondes: number) {
     setBoucle((b) => {
       if (!b) return b;
@@ -413,19 +441,16 @@ export function LaboAudio({
   return (
     <Modal
       visible={visible}
-      transparent
       animationType="slide"
       onRequestClose={onFermer}
       statusBarTranslucent
     >
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" }}>
-        <Pressable style={{ flex: 1 }} onPress={onFermer} accessibilityLabel="Fermer le labo" />
+      <View style={{ flex: 1, backgroundColor: couleurs.fond }}>
         <View
           style={{
-            backgroundColor: couleurs.carte,
-            borderTopLeftRadius: rayons.xl,
-            borderTopRightRadius: rayons.xl,
-            padding: espacement.xl,
+            flex: 1,
+            paddingTop: espacement.lg + insets.top,
+            paddingHorizontal: espacement.xl,
             paddingBottom: espacement.xl + insets.bottom,
             gap: espacement.lg,
           }}
@@ -472,12 +497,19 @@ export function LaboAudio({
                   {message}
                 </Texte>
               )}
+              <View style={{ flexDirection: "row" }}>
+                <Puce
+                  libelle="Réessayer"
+                  actif
+                  onPress={() => setTentative((n) => n + 1)}
+                />
+              </View>
             </View>
           )}
 
           {etat === "pret" && (
             <ScrollView
-              style={{ maxHeight: 440 }}
+              style={{ flex: 1 }}
               contentContainerStyle={{ gap: espacement.lg }}
               showsVerticalScrollIndicator={false}
             >
@@ -586,9 +618,7 @@ export function LaboAudio({
               >
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>
                   {tonaliteOrigine
-                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)}${
-                        detectionDouteuse ? " (détection incertaine)" : ""
-                      } — appuyer pour corriger`
+                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)} — appuyer pour corriger`
                     : "Indiquer la tonalité d'origine pour choisir par nom"}
                 </Texte>
               </Pressable>
@@ -694,6 +724,32 @@ function BoutonTransport({
       <Ionicons name={icone} size={24} color={couleurs.texte} />
     </Pressable>
   );
+}
+
+/** Distingue une attente trop longue d'un vrai échec : les deux ne se rattrapent pas pareil. */
+class DelaiExpire extends Error {
+  constructor() {
+    super("Le décodage prend anormalement longtemps. Réessaie dans un instant.");
+    this.name = "DelaiExpire";
+  }
+}
+
+/** Rejette si la promesse n'a pas abouti à temps. Le travail natif continue en
+ *  coulisses — on ne sait pas l'interrompre — mais l'écran cesse d'attendre. */
+function avecDelai<T>(promesse: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resoudre, rejeter) => {
+    const minuteur = setTimeout(() => rejeter(new DelaiExpire()), ms);
+    promesse.then(
+      (v) => {
+        clearTimeout(minuteur);
+        resoudre(v);
+      },
+      (e) => {
+        clearTimeout(minuteur);
+        rejeter(e);
+      }
+    );
+  });
 }
 
 /** Les pas de 0,05 accumulent des erreurs binaires : 1,0499999 s'afficherait mal. */

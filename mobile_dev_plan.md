@@ -361,6 +361,34 @@ Le vrai coût n'est pas la mémoire mais les ~5,5 s d'attente à la première
 ouverture, qui imposent un état de chargement explicite et interdisent de faire
 du labo le geste d'écoute par défaut.
 
+## 4 quinquies. Détection de tonalité — confrontation à l'oreille (1er sept. 2026)
+
+Profils de Krumhansl-Schmuckler dans le conteneur, comparés au relevé du chef
+de groupe.
+
+| Morceau | Réel | Détecté | Confiance | |
+|---|---|---|---|---|
+| HOSANNA reprise | Sol majeur | Sol majeur | 0,062 | exact |
+| DEBOUT | Mi majeur | Mi majeur | 0,062 | exact |
+| ABBA | Ré majeur | Ré majeur | 0,097 | exact |
+| JE VEUX VIVRE | Do puis Do# majeur | Sol# majeur | 0,090 | faux |
+| Audio du micro (7 s) | Sol mineur | Sol majeur | 0,216 | mode faux |
+
+**Trois exactes sur quatre vrais morceaux.** Le raté module en cours de route :
+aucune détection à réponse unique ne peut avoir raison sur une pièce qui change
+de tonalité, et Sol# est la dominante de Do#, pas une valeur au hasard.
+
+Tempo : 96/96, 130/132, 124/126, 170/173 — moins de 2 % d'écart.
+
+**La confiance, en revanche, ne prédit rien.** Les deux valeurs les plus basses
+correspondent à des réponses justes, la plus haute à une fausse. Le bandeau
+« détection incertaine » sous 0,05 aurait donc désigné les bonnes réponses et
+laissé passer les mauvaises : il a été retiré. La colonne reste alimentée, mais
+aucune décision ne s'y appuie tant qu'elle n'est pas calibrée sur plus de
+matière.
+
+Décision : **on garde la détection maison**, Fadr réservé aux stems.
+
 ## 5. Commandes utiles
 
 ```bash
