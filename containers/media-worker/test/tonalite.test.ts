@@ -20,20 +20,27 @@ function rotation(profil: readonly number[], demiTons: number): number[] {
 
 describe('chromaDepuisSignal', () => {
   it('range un la 440 dans la classe La', () => {
-    const chroma = chromaDepuisSignal(sinusoide([440], 2), FE);
+    const chroma = chromaDepuisSignal(sinusoide([440], 30), FE);
     let meilleur = 0;
     for (let i = 1; i < 12; i++) if (chroma[i] > chroma[meilleur]) meilleur = i;
     expect(NOTES[meilleur]).toBe('La');
   });
 
   it('retrouve les trois notes d’un accord de do majeur', () => {
-    const chroma = chromaDepuisSignal(sinusoide([261.63, 329.63, 392.0], 2), FE);
+    const chroma = chromaDepuisSignal(sinusoide([261.63, 329.63, 392.0], 30), FE);
     const classes = [...chroma.keys()].sort((a, b) => chroma[b] - chroma[a]).slice(0, 3).sort();
     expect(classes).toEqual([0, 4, 7]);
   });
 
   it('rend un chroma nul sur un signal trop court pour une seule fenêtre', () => {
     const chroma = chromaDepuisSignal(new Float32Array(100), FE);
+    expect(chroma.every((v) => v === 0)).toBe(true);
+  });
+
+  it('refuse d’analyser un extrait de quelques secondes', () => {
+    // Une note vocale n'a pas de tonalité, et en proposer une avec assurance
+    // est pire que de se taire.
+    const chroma = chromaDepuisSignal(sinusoide([440], 7), FE);
     expect(chroma.every((v) => v === 0)).toBe(true);
   });
 });

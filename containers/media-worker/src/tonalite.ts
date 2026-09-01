@@ -41,6 +41,17 @@ const MIDI_MAX = 95;
 /** En deçà, la corrélation ne distingue plus rien du bruit. */
 const CONFIANCE_MIN = 0.02;
 
+/**
+ * Nombre minimal de fenêtres, soit une vingtaine de secondes.
+ *
+ * Sans ce plancher, une note vocale de sept secondes obtenait la confiance la
+ * plus haute du lot — non parce que sa tonalité était nette, mais parce que
+ * trop peu de matière laissait trop peu de quoi contredire la première
+ * hypothèse. L'écart au second se creuse quand le signal est pauvre : la
+ * métrique récompensait le vide.
+ */
+const FENETRES_MIN = 60;
+
 export interface TonaliteDetectee {
   id: string;
   confiance: number;
@@ -53,7 +64,7 @@ function frequenceMidi(midi: number): number {
 /** Cumul de l'énergie par classe de hauteur sur tout le signal. */
 export function chromaDepuisSignal(signal: Float32Array, frequence: number): Float64Array {
   const chroma = new Float64Array(12);
-  if (signal.length < TAILLE_FENETRE) return chroma;
+  if (signal.length < TAILLE_FENETRE + SAUT * (FENETRES_MIN - 1)) return chroma;
 
   // Fenêtre de Hann : sans elle, les discontinuités aux bords étalent chaque
   // partiel sur tout le spectre et le chromagramme se transforme en bouillie.
