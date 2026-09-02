@@ -21,10 +21,30 @@ le client, et une dépense qui ne doit jamais filer.
 
 Puis `GET /assets/{id}` pour lire `metaData.stemType`, et
 `GET /assets/download/{id}/hq` qui rend `{ url }`. Scrutation recommandée
-**toutes les 5 secondes**. La tâche produit cinq stems — voix, batterie, basse,
-mélodies, instrumental — plus des MIDI et une détection de tonalité et de tempo.
+**toutes les 5 secondes**.
 
-Abonnement **Fadr Plus, 10 $/mois**, incluant 10 $ d'usage API mensuel.
+**La séparation est hiérarchique**, et c'est le fait structurant de ce lot :
+`/assets/analyze/stem` accepte un `stemType` qui désigne le *type de découpe*,
+et on réinjecte un stem obtenu pour le séparer encore.
+
+| `stemType` | Entrée attendue | Produit |
+|---|---|---|
+| `main` | le morceau entier | voix, basse, batterie, mélodies, instrumental (5) |
+| `vocal-stem` | le stem de voix | voix principale, chœurs (2) |
+| `melodic-stem` | le stem de mélodies | piano, guitare électrique, guitare acoustique, cordes, vents, autres (6) |
+| `drum-stem` | le stem de batterie | grosse caisse, caisse claire, autres (3) |
+
+Seize stems en enchaînant les quatre, dont treize feuilles. La documentation
+n'énumère pas la totalité des `metaData.stemType` produits : le code doit donc
+traiter un type inconnu sans échouer, plutôt que de valider contre une liste
+figée qui se révélerait incomplète.
+
+`main` fournit en outre les MIDI et une détection de tonalité et de tempo, sans
+supplément.
+
+Abonnement **Fadr Plus, 10 $/mois**, incluant 10 $ d'usage API mensuel. Chaque
+tâche est facturée : découper les quatre niveaux sur chaque morceau consommerait
+ce forfait bien plus vite que la découpe principale seule.
 
 **Kie.ai / Suno** (`https://api.kie.ai`, `Authorization: Bearer <clé>`) :
 `POST /api/v1/generate` avec `{ prompt, customMode, instrumental, model, callBackUrl }`,
@@ -42,17 +62,28 @@ donc dans le **conteneur média**, qui a déjà R2, Supabase, une adresse HTTPS
 publique et l'habitude des travaux longs. Le rappel de Kie.ai a d'ailleurs
 besoin de cette adresse publique — l'app n'en a aucune.
 
-**Cinq stems ne tiennent pas en mémoire.** Un morceau de cinq minutes décodé
-pèse 103 Mo (mesuré au lot E1, Pocophone F1). Cinq stems joués ensemble, c'est
-515 Mo : intenable, et tout l'intérêt des stems est de les jouer **ensemble**
-pour en couper un.
+**Les stems ne tiennent pas tous en mémoire.** Un morceau de cinq minutes
+décodé pèse 103 Mo (mesuré au lot E1, Pocophone F1). Cinq stems joués ensemble
+feraient 515 Mo, seize en feraient 1,6 Go. Or tout l'intérêt des stems est de les
+jouer **ensemble** pour en couper un.
 
-Le conteneur les réencodera donc en **mono à 22 050 Hz** avant de les déposer
-dans R2. Un stem tombe alors à ~26 Mo décodé, et les cinq à ~130 Mo — l'ordre de
-grandeur d'un seul morceau aujourd'hui. La perte est réelle et assumée : isoler
+Deux réponses, cumulées.
+
+Le conteneur réencode chaque stem en **mono à 22 050 Hz** avant de le déposer
+dans R2 : un stem tombe à ~26 Mo décodé. La perte est réelle et assumée — isoler
 une ligne de basse ou couper la voix pour travailler un pupitre ne demande ni
 stéréo ni bande passante complète. C'est un outil de répétition, pas un
 mastering.
+
+Et le labo ne charge **que les stems demandés**, avec un plafond mesuré sur
+appareil avant d'être fixé. Même à 26 Mo pièce, seize stems restent hors de
+portée : le stockage peut tout garder, la lecture non.
+
+**La découpe se fait par niveaux, à la demande.** `main` par défaut — cinq
+stems, une seule tâche facturée, ce qui couvre l'usage courant. Affiner la
+batterie ou les mélodies devient une action explicite sur le stem concerné, avec
+son coût et son attente propres. Découper systématiquement les quatre niveaux
+serait payer pour des pistes que personne n'écoutera.
 
 **La dépense doit être bornée avant le premier appel.** Rien n'empêche
 aujourd'hui un testeur de lancer trente séparations dans l'après-midi. Ce n'est
@@ -88,17 +119,19 @@ travailler. E5 est indépendant et ne sert aucune fonctionnalité existante.
 ### E4 — Stems
 
 - [ ] **Migration** : table `enregistrement_stems` (id, enregistrement_id, type,
-      url R2, taille), colonnes de suivi sur `seance_enregistrements`
-      (`stems_statut`, `stems_tache_id`, `stems_erreur`), et table
-      `quotas_ia` (utilisateur, jour, service, compteur).
+      **stem parent** — la hiérarchie doit être représentée, un `kick` descend
+      d'un `drums` —, url R2, taille), colonnes de suivi sur
+      `seance_enregistrements` (`stems_statut`, `stems_tache_id`, `stems_erreur`),
+      et table `quotas_ia` (utilisateur, jour, service, compteur).
 - [ ] **`containers/media-worker/src/fadr.ts`** : client typé des cinq requêtes,
-      avec tests sur le parsing des réponses et la logique de scrutation.
+      paramétré par `stemType`, avec tests sur le parsing des réponses, la
+      logique de scrutation et le **traitement d'un `stemType` inconnu**.
 - [ ] **`POST /jobs/stems`** dans le conteneur : télécharge depuis R2, pousse
       vers Fadr, scrute toutes les 5 s, récupère chaque stem, le réencode en
       mono 22 050 Hz, le dépose dans R2, écrit en base.
-- [ ] **RPC `demander_stems`** en `SECURITY DEFINER` : vérifie le quota, marque
-      l'enregistrement, appelle le conteneur par `pg_net` comme le fait déjà
-      `trg_audio_depose`.
+- [ ] **RPC `demander_stems`** en `SECURITY DEFINER`, prenant le `stemType` et
+      le stem source éventuel : vérifie le quota, marque l'enregistrement,
+      appelle le conteneur par `pg_net` comme le fait déjà `trg_audio_depose`.
 - [ ] **Labo** : chargement des stems au lieu du mixage, une piste par stem avec
       volume et coupure, lecture synchronisée sur un seul point de départ.
 - [ ] **Comparer** la tonalité et le tempo rendus par Fadr à ceux de notre
@@ -121,5 +154,6 @@ travailler. E5 est indépendant et ne sert aucune fonctionnalité existante.
 
 - [ ] Une clé absente laisse la fonctionnalité inerte, sans erreur ni plantage
 - [ ] Le quota refuse la demande au-delà du seuil, et le dit
-- [ ] Cinq stems chargés ensemble tiennent sur le Pocophone F1
+- [ ] Le plafond de stems chargés simultanément est **mesuré** sur le Pocophone
+      F1 avant d'être inscrit dans le code, comme la sonde du lot E1
 - [ ] Aucune clé n'apparaît dans le dépôt, ni dans un bundle client
