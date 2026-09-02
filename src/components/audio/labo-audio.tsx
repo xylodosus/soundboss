@@ -151,6 +151,7 @@ export function LaboAudio({
   const [tonaliteOrigine, setTonaliteOrigine] = useState<string | null>(null);
   const [choix, setChoix] = useState<"origine" | "cible" | null>(null);
   const [tentative, setTentative] = useState(0);
+  const [corrigerTempo, setCorrigerTempo] = useState(false);
 
   const gainRef = useRef<GainNode | null>(null);
   const tamponRef = useRef<AudioBuffer | null>(null);
@@ -260,6 +261,7 @@ export function LaboAudio({
     setMetronome(false);
     setPhase(0);
     setBpmOrigine(piste.bpm ?? 0);
+    setCorrigerTempo(false);
     // Proposition du conteneur, corrigeable : les profils de Krumhansl-Schmuckler
     // confondent volontiers une tonalité avec sa relative mineure.
     setTonaliteOrigine(piste.tonalite);
@@ -586,14 +588,47 @@ export function LaboAudio({
                 onNeutre={() => setTempo(1)}
               />
 
-              <ReglageLabo
-                libelle="Tempo du morceau"
-                valeurAffichee={bpmOrigine > 0 ? `${bpmOrigine} BPM` : "inconnu"}
-                auNeutre={bpmOrigine === (piste?.bpm ?? 0)}
-                onMoins={() => setBpmOrigine((v) => Math.max(BPM_MIN, (v || 100) - 1))}
-                onPlus={() => setBpmOrigine((v) => Math.min(BPM_MAX, (v || 100) + 1))}
-                onNeutre={() => setBpmOrigine(piste?.bpm ?? 0)}
-              />
+              {/* Valeur de référence, pas un réglage de lecture : au même niveau
+                  que « Tempo » elle affichait le même nombre avec les mêmes
+                  boutons, et rien ne les distinguait. */}
+              <Pressable
+                onPress={() => setCorrigerTempo((v) => !v)}
+                accessibilityRole="button"
+                style={{ minHeight: 44, justifyContent: "center" }}
+              >
+                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                  {bpmOrigine > 0
+                    ? `Tempo du morceau : ${bpmOrigine} BPM — appuyer pour corriger`
+                    : "Tempo du morceau inconnu — appuyer pour l'indiquer"}
+                </Texte>
+              </Pressable>
+
+              {corrigerTempo && (
+                <View style={{ gap: espacement.sm }}>
+                  <ReglageLabo
+                    libelle="Corriger"
+                    valeurAffichee={bpmOrigine > 0 ? `${bpmOrigine} BPM` : "—"}
+                    auNeutre={bpmOrigine === (piste?.bpm ?? 0)}
+                    onMoins={() => setBpmOrigine((v) => Math.max(BPM_MIN, (v || 100) - 1))}
+                    onPlus={() => setBpmOrigine((v) => Math.min(BPM_MAX, (v || 100) + 1))}
+                    onNeutre={() => setBpmOrigine(piste?.bpm ?? 0)}
+                  />
+                  {/* La détection se trompe surtout d'une octave rythmique :
+                      ABBA se lit 170 ou 85 selon ce qu'on appelle le temps. */}
+                  <View style={{ flexDirection: "row", gap: espacement.sm }}>
+                    <Puce
+                      libelle="Moitié"
+                      actif={false}
+                      onPress={() => setBpmOrigine((v) => Math.max(BPM_MIN, Math.round(v / 2)))}
+                    />
+                    <Puce
+                      libelle="Double"
+                      actif={false}
+                      onPress={() => setBpmOrigine((v) => Math.min(BPM_MAX, v * 2))}
+                    />
+                  </View>
+                </View>
+              )}
 
               <ReglageLabo
                 libelle="Tonalité"
