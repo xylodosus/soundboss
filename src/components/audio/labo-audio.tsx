@@ -163,6 +163,8 @@ export function LaboAudio({
   // stop() déclenche onEnded comme la fin naturelle. Sans ce drapeau, mettre en
   // pause remettrait la lecture à zéro.
   const arretVolontaireRef = useRef(false);
+  // La lecture est suspendue le temps du glissement puis reprise au relâchement.
+  const reprendreApresGesteRef = useRef(false);
   // Miroirs des réglages : demarrer() doit rester stable pour ne pas recréer le
   // nœud à chaque rendu, mais doit lire les valeurs courantes.
   const tempoRef = useRef(1);
@@ -418,26 +420,54 @@ export function LaboAudio({
     }
   }
 
-  function deplacerBorne(borne: "debut" | "fin", secondes: number) {
-    setBoucle((b) => {
-      if (!b) return b;
-      const cible = Math.min(Math.max(0, secondes), duree);
-      // Les bornes ne se croisent pas : un quart de seconde les sépare au moins,
-      // sinon la boucle deviendrait un bourdonnement.
-      const ecart = 0.25;
-      return borne === "debut"
-        ? { a: Math.min(cible, b.b - ecart), b: b.b }
-        : { a: b.a, b: Math.max(cible, b.a + ecart) };
-    });
+  function deplacerBorne(borne: "debut" | "fin", secondes: number, definitif = true) {
+    if (!boucle) return;
+    const cible = Math.min(Math.max(0, secondes), duree);
+    // Les bornes ne se croisent pas : un quart de seconde les sépare au moins,
+    // sinon la boucle deviendrait un bourdonnement.
+    const ecart = 0.25;
+    const bornes =
+      borne === "debut"
+        ? { a: Math.min(cible, boucle.b - ecart), b: boucle.b }
+        : { a: boucle.a, b: Math.max(cible, boucle.a + ecart) };
+    setBoucle(bornes);
+
+    if (!definitif) return;
+    // Rétrécir la boucle en laissant la tête de lecture dehors laisse l'index
+    // natif hors des bornes, et la lecture sort du tampon. On la ramène dedans
+    // au relâchement — et allerA reprend la lecture suspendue par le geste.
+    allerA(Math.min(Math.max(positionRef.current, bornes.a), bornes.b));
   }
 
-  function allerA(secondes: number) {
+  /** Suspend la lecture au premier contact : on ne scrute pas en jouant. */
+  function suspendrePourGeste() {
+    if (etat !== "pret" || !enLecture) return;
+    reprendreApresGesteRef.current = true;
+    libererSource();
+    setEnLecture(false);
+  }
+
+  /**
+   * `definitif` distingue le glissement du relâchement.
+   *
+   * Pendant le glissement on n'actualise que l'affichage : relancer la lecture
+   * à chaque événement recréait le nœud audio des dizaines de fois par seconde,
+   * avec un étireur temporel alloué à chaque fois quand la correction de
+   * hauteur est active. C'est ce qui fermait l'application.
+   */
+  function allerA(secondes: number, definitif = true) {
     if (etat !== "pret") return;
     const cible = Math.min(Math.max(0, secondes), duree);
     positionRef.current = cible;
     setPosition(cible);
     dernierClicRef.current = -1;
-    if (enLecture) demarrer(cible);
+    if (!definitif) return;
+    if (reprendreApresGesteRef.current) {
+      reprendreApresGesteRef.current = false;
+      demarrer(cible);
+    } else if (enLecture) {
+      demarrer(cible);
+    }
   }
 
   return (
@@ -518,13 +548,16 @@ export function LaboAudio({
               <Waveform
                 pics={pics}
                 progression={duree > 0 ? position / duree : 0}
-                surDeplacer={(ratio) => allerA(ratio * duree)}
+                surDeplacer={(ratio, definitif) => allerA(ratio * duree, definitif)}
+                surDebutGeste={suspendrePourGeste}
                 boucle={
                   boucle && duree > 0
                     ? { debut: boucle.a / duree, fin: boucle.b / duree }
                     : null
                 }
-                surDeplacerBorne={(borne, ratio) => deplacerBorne(borne, ratio * duree)}
+                surDeplacerBorne={(borne, ratio, definitif) =>
+                  deplacerBorne(borne, ratio * duree, definitif)
+                }
               />
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>

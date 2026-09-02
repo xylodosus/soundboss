@@ -16,13 +16,14 @@ type Props = {
   pics: number[];
   /** Position de lecture, de 0 à 1. */
   progression: number;
-  surDeplacer: (ratio: number) => void;
+  /** `definitif` est faux pendant le glissement : n'actualiser que l'affichage. */
+  surDeplacer: (ratio: number, definitif: boolean) => void;
   /** Appelé au premier contact, pour suspendre la lecture pendant le glissement. */
   surDebutGeste?: () => void;
   /** Zone de boucle A/B, en ratios de 0 à 1. */
   boucle?: { debut: number; fin: number } | null;
   /** Déplacement d'une borne de boucle au doigt. */
-  surDeplacerBorne?: (borne: "debut" | "fin", ratio: number) => void;
+  surDeplacerBorne?: (borne: "debut" | "fin", ratio: number, definitif: boolean) => void;
 };
 
 export function Waveform({
@@ -52,17 +53,19 @@ export function Waveform({
         onPanResponderGrant: (e) => {
           surDebutRef.current?.();
           const l = largeurRef.current;
-          if (l > 0) surDeplacerRef.current(clamp(e.nativeEvent.locationX / l));
+          if (l > 0) surDeplacerRef.current(clamp(e.nativeEvent.locationX / l), false);
         },
         onPanResponderMove: (e) => {
           // locationX est déjà relatif à la vue responsable : la position du
-          // doigt suffit, pas besoin du cumul gesture.dx.
+          // doigt suffit, pas besoin du cumul gesture.dx. Et surtout on ne
+          // valide pas : relancer la lecture à chaque événement recréait le
+          // nœud audio soixante fois par seconde.
           const l = largeurRef.current;
-          if (l > 0) surDeplacerRef.current(clamp(e.nativeEvent.locationX / l));
+          if (l > 0) surDeplacerRef.current(clamp(e.nativeEvent.locationX / l), false);
         },
         onPanResponderRelease: (e) => {
           const l = largeurRef.current;
-          if (l > 0) surDeplacerRef.current(clamp(e.nativeEvent.locationX / l));
+          if (l > 0) surDeplacerRef.current(clamp(e.nativeEvent.locationX / l), true);
         },
       }),
     []
@@ -91,30 +94,14 @@ export function Waveform({
           ]}
         />
       )}
-      {boucle && surDeplacerBorne && (
-        <>
-          <PoigneeBoucle
-            ratio={clamp(boucle.debut)}
-            largeurRef={largeurRef}
-            label="Début de la boucle"
-            surDeplacer={(r) => surDeplacerBorne("debut", r)}
-          />
-          <PoigneeBoucle
-            ratio={clamp(boucle.fin)}
-            largeurRef={largeurRef}
-            label="Fin de la boucle"
-            surDeplacer={(r) => surDeplacerBorne("fin", r)}
-          />
-        </>
-      )}
       {barres.length === 0 ? (
         // Audio pas encore analysé par le conteneur, ou analyse échouée : une
         // barre de progression simple vaut mieux qu'un vide inexpliqué.
-        <View style={styles.piste}>
+        <View style={styles.piste} pointerEvents="none">
           <View style={[styles.pisteLue, { width: `${clamp(progression) * 100}%` }]} />
         </View>
       ) : (
-        <View style={styles.barres}>
+        <View style={styles.barres} pointerEvents="none">
           {barres.map((valeur, i) => {
             const lue = i / barres.length <= progression;
             const hauteur = HAUTEUR_BARRE_MIN + (valeur / 255) * (HAUTEUR_BARRE_MAX - HAUTEUR_BARRE_MIN);
@@ -129,6 +116,24 @@ export function Waveform({
             );
           })}
         </View>
+      )}
+      {boucle && surDeplacerBorne && (
+        <>
+          <PoigneeBoucle
+            ratio={clamp(boucle.debut)}
+            largeurRef={largeurRef}
+            label="Début de la boucle"
+            surDebutGeste={surDebutGeste}
+            surDeplacer={(r, d) => surDeplacerBorne("debut", r, d)}
+          />
+          <PoigneeBoucle
+            ratio={clamp(boucle.fin)}
+            largeurRef={largeurRef}
+            label="Fin de la boucle"
+            surDebutGeste={surDebutGeste}
+            surDeplacer={(r, d) => surDeplacerBorne("fin", r, d)}
+          />
+        </>
       )}
     </View>
   );
@@ -146,17 +151,22 @@ function PoigneeBoucle({
   largeurRef,
   label,
   surDeplacer,
+  surDebutGeste,
 }: {
   ratio: number;
   largeurRef: { current: number };
   label: string;
-  surDeplacer: (ratio: number) => void;
+  /** `definitif` est faux pendant le glissement : n'actualiser que l'affichage. */
+  surDeplacer: (ratio: number, definitif: boolean) => void;
+  surDebutGeste?: () => void;
 }) {
   const ratioRef = useRef(ratio);
   ratioRef.current = ratio;
   const departRef = useRef(ratio);
   const surDeplacerRef = useRef(surDeplacer);
   surDeplacerRef.current = surDeplacer;
+  const surDebutRef = useRef(surDebutGeste);
+  surDebutRef.current = surDebutGeste;
 
   const panResponder = useMemo(
     () =>
@@ -167,10 +177,15 @@ function PoigneeBoucle({
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
           departRef.current = ratioRef.current;
+          surDebutRef.current?.();
         },
         onPanResponderMove: (_e, gesture) => {
           const l = largeurRef.current;
-          if (l > 0) surDeplacerRef.current(clamp(departRef.current + gesture.dx / l));
+          if (l > 0) surDeplacerRef.current(clamp(departRef.current + gesture.dx / l), false);
+        },
+        onPanResponderRelease: (_e, gesture) => {
+          const l = largeurRef.current;
+          if (l > 0) surDeplacerRef.current(clamp(departRef.current + gesture.dx / l), true);
         },
       }),
     [largeurRef]
