@@ -592,7 +592,9 @@ export function LaboAudio({
           {etat === "pret" && (
             <ScrollView
               style={{ flex: 1 }}
-              contentContainerStyle={{ gap: espacement.lg }}
+              // Le gap ne s'applique qu'entre les enfants : sans cette marge, le
+              // dernier réglage collerait au bord bas de la feuille.
+              contentContainerStyle={{ gap: espacement.lg, paddingBottom: 50 }}
               showsVerticalScrollIndicator={false}
             >
               <Waveform
