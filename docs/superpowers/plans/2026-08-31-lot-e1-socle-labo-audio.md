@@ -322,6 +322,6 @@ git commit -m "feat(audio): écran du labo avec transport et waveform"
 | Lot | Contenu | Dépend de |
 |---|---|---|
 | E2 | Tempo (`playbackRate` + `pitchCorrection`), transposition (`detune`), métronome, boucle A/B | E1 |
-| E3 | Égaliseur graphique (`BiquadFilterNode`, types lowshelf/peaking/highshelf, gain −40 à +40 dB) | E1 |
+| ~~E3~~ | ~~Égaliseur graphique~~ — livré le 2 septembre 2026 : cinq bandes, ±12 dB | E1 |
 | E4 | Stems et tonalité via Fadr | indépendant |
 | E5 | Génération musicale via Kie.ai / Suno | indépendant |

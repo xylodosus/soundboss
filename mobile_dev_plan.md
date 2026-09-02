@@ -389,6 +389,32 @@ matière.
 
 Décision : **on garde la détection maison**, Fadr réservé aux stems.
 
+## 4 sexies. Lot E3 — égaliseur graphique (2 sept. 2026)
+
+Cinq bandes insérées entre la source et le gain de sortie :
+
+| Bande | Fréquence | Type |
+|---|---|---|
+| Graves | 60 Hz | `lowshelf` |
+| Bas-médiums | 250 Hz | `peaking` (Q = 1) |
+| Médiums | 1 kHz | `peaking` (Q = 1) |
+| Aigus | 4 kHz | `peaking` (Q = 1) |
+| Brillance | 12 kHz | `highshelf` |
+
+Gain limité à ±12 dB alors que le natif accepte ±40 : au-delà, un égaliseur ne
+corrige plus, il détruit.
+
+Les extrêmes sont en plateau et non en cloche — relever la brillance doit
+relever tout ce qui est au-dessus de 12 kHz, pas creuser une bosse autour.
+
+La chaîne reste montée même à plat : un biquad coûte quelques multiplications
+par échantillon, bien moins que de recâbler le graphe à chaque réglage. Le gain
+s'écrit à chaud, donc aucune coupure — contrairement au tempo, qui peut franchir
+la frontière de `pitchCorrection` et impose alors un nœud neuf.
+
+Le clic du métronome reste branché sur la destination : il traverse la boucle de
+travail sans être filtré avec elle.
+
 ## 5. Commandes utiles
 
 ```bash

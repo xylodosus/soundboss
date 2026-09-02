@@ -7,6 +7,7 @@ import {
   decodeAudioData,
   type AudioBuffer,
   type AudioBufferSourceNode,
+  type BiquadFilterNode,
   type GainNode,
 } from "react-native-audio-api";
 
@@ -50,6 +51,26 @@ const CENT_NEUTRE = 0.01;
  * minute et demie, quelque chose est cassé, pas lent.
  */
 const DELAI_DECODAGE = 90_000;
+
+/**
+ * Cinq bandes, et les fréquences classiques d'un égaliseur graphique.
+ *
+ * Les extrêmes sont en `lowshelf` et `highshelf` — un plateau, pas une cloche :
+ * relever la brillance doit relever tout ce qui est au-dessus de 12 kHz, pas
+ * seulement une bosse autour. Q ne concerne que les bandes en cloche.
+ */
+const BANDES: { libelle: string; frequence: number; type: "lowshelf" | "peaking" | "highshelf" }[] = [
+  { libelle: "Graves", frequence: 60, type: "lowshelf" },
+  { libelle: "Bas-médiums", frequence: 250, type: "peaking" },
+  { libelle: "Médiums", frequence: 1000, type: "peaking" },
+  { libelle: "Aigus", frequence: 4000, type: "peaking" },
+  { libelle: "Brillance", frequence: 12000, type: "highshelf" },
+];
+
+/** Le natif accepte ±40 dB : inutilisable en pratique, on s'en tient à ±12. */
+const GAIN_MAX = 12;
+/** Largeur des cloches. 1 couvre environ une octave, assez large pour être musical. */
+const Q_CLOCHE = 1;
 
 /** Fenêtre de programmation du métronome, en secondes de tampon. */
 const HORIZON_CLICS = 0.3;
@@ -152,8 +173,11 @@ export function LaboAudio({
   const [choix, setChoix] = useState<"origine" | "cible" | null>(null);
   const [tentative, setTentative] = useState(0);
   const [corrigerTempo, setCorrigerTempo] = useState(false);
+  const [egaliseur, setEgaliseur] = useState<number[]>(() => BANDES.map(() => 0));
+  const [ouvrirEgaliseur, setOuvrirEgaliseur] = useState(false);
 
   const gainRef = useRef<GainNode | null>(null);
+  const filtresRef = useRef<BiquadFilterNode[]>([]);
   const tamponRef = useRef<AudioBuffer | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   // Un AudioBufferSourceNode ne se relit pas : chaque reprise en crée un neuf,
@@ -230,7 +254,7 @@ export function LaboAudio({
         positionRef.current = 0;
         setPosition(0);
       };
-      source.connect(gain);
+      source.connect(filtresRef.current[0] ?? gain);
       source.start(0, offset);
       sourceRef.current = source;
       setEnLecture(true);
@@ -264,6 +288,8 @@ export function LaboAudio({
     setPhase(0);
     setBpmOrigine(piste.bpm ?? 0);
     setCorrigerTempo(false);
+    setEgaliseur(BANDES.map(() => 0));
+    setOuvrirEgaliseur(false);
     // Proposition du conteneur, corrigeable : les profils de Krumhansl-Schmuckler
     // confondent volontiers une tonalité avec sa relative mineure.
     setTonaliteOrigine(piste.tonalite);
@@ -272,14 +298,28 @@ export function LaboAudio({
       try {
         const contexte = obtenirContexte();
         const gain = contexte.createGain();
-        // Le gain ne sert à rien tel quel : il est câblé dès maintenant pour que
-        // l'égaliseur du lot E3 s'insère entre la source et lui sans refonte.
         gain.connect(contexte.destination);
+
+        // source → filtre1 → … → filtre5 → gain → sortie. Les filtres restent
+        // montés même à plat : un biquad coûte quelques multiplications par
+        // échantillon, bien moins que de recâbler le graphe à chaque réglage.
+        const filtres = BANDES.map((bande) => {
+          const f = contexte.createBiquadFilter();
+          f.type = bande.type;
+          f.frequency.value = bande.frequence;
+          if (bande.type === "peaking") f.Q.value = Q_CLOCHE;
+          f.gain.value = 0;
+          return f;
+        });
+        filtres.forEach((f, i) => f.connect(i + 1 < filtres.length ? filtres[i + 1] : gain));
+
         if (annule) {
+          filtres.forEach((f) => f.disconnect());
           gain.disconnect();
           return;
         }
         gainRef.current = gain;
+        filtresRef.current = filtres;
 
         if (cache?.id === piste.id) {
           tamponRef.current = cache.tampon;
@@ -354,6 +394,8 @@ export function LaboAudio({
   useEffect(() => {
     if (visible) return;
     libererSource();
+    filtresRef.current.forEach((f) => f.disconnect());
+    filtresRef.current = [];
     gainRef.current?.disconnect();
     gainRef.current = null;
     tamponRef.current = null;
@@ -376,6 +418,15 @@ export function LaboAudio({
     source.detune.value = transposition === 0 ? CENT_NEUTRE : transposition * 100;
     dernierClicRef.current = -1;
   }, [tempo, transposition, demarrer]);
+
+  // Le gain d'un biquad s'écrit à chaud : aucun nœud à recréer, donc aucune
+  // coupure — contrairement au tempo, qui peut franchir la frontière de la
+  // correction de hauteur.
+  useEffect(() => {
+    filtresRef.current.forEach((f, i) => {
+      f.gain.value = egaliseur[i] ?? 0;
+    });
+  }, [egaliseur, etat]);
 
   useEffect(() => {
     const source = sourceRef.current;
@@ -719,6 +770,55 @@ export function LaboAudio({
                 />
                 <Puce libelle="Effacer" actif={false} onPress={() => setBoucle(null)} />
               </View>
+
+              {/* Replié par défaut : cinq rangées de plus déborderaient une
+                  modale qui en compte déjà autant. */}
+              <Pressable
+                onPress={() => setOuvrirEgaliseur((v) => !v)}
+                accessibilityRole="button"
+                style={{ minHeight: 44, justifyContent: "center" }}
+              >
+                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                  {`Égaliseur${
+                    egaliseur.some((g) => g !== 0) ? " (actif)" : ""
+                  } — appuyer pour ${ouvrirEgaliseur ? "replier" : "régler"}`}
+                </Texte>
+              </Pressable>
+
+              {ouvrirEgaliseur && (
+                <View style={{ gap: espacement.sm }}>
+                  {BANDES.map((bande, i) => (
+                    <ReglageLabo
+                      key={bande.libelle}
+                      libelle={`${bande.libelle} · ${
+                        bande.frequence >= 1000
+                          ? `${bande.frequence / 1000} kHz`
+                          : `${bande.frequence} Hz`
+                      }`}
+                      valeurAffichee={`${egaliseur[i] > 0 ? "+" : ""}${egaliseur[i]} dB`}
+                      auNeutre={egaliseur[i] === 0}
+                      onMoins={() =>
+                        setEgaliseur((g) =>
+                          g.map((v, j) => (j === i ? Math.max(-GAIN_MAX, v - 1) : v))
+                        )
+                      }
+                      onPlus={() =>
+                        setEgaliseur((g) =>
+                          g.map((v, j) => (j === i ? Math.min(GAIN_MAX, v + 1) : v))
+                        )
+                      }
+                      onNeutre={() => setEgaliseur((g) => g.map((v, j) => (j === i ? 0 : v)))}
+                    />
+                  ))}
+                  <View style={{ flexDirection: "row" }}>
+                    <Puce
+                      libelle="Remettre à plat"
+                      actif={false}
+                      onPress={() => setEgaliseur(BANDES.map(() => 0))}
+                    />
+                  </View>
+                </View>
+              )}
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
                 <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
