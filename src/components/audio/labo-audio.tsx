@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Modal, Pressable, ScrollView, View } from "react-native";
+import Slider from "@react-native-community/slider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -14,6 +15,14 @@ import {
 import { Texte } from "@/components/ui/texte";
 import { Waveform } from "@/components/audio/waveform";
 import { ReglageLabo } from "@/components/audio/reglage-labo";
+import { Egaliseur } from "@/components/audio/egaliseur";
+import {
+  BANDES,
+  GAIN_MAX,
+  POST_GAIN_MAX,
+  Q_CLOCHE,
+  gainLineaire,
+} from "@/lib/egaliseur";
 import { BPM_MAX, BPM_MIN, clicsDansHorizon } from "@/lib/metronome";
 import {
   demiTonsEntre,
@@ -51,26 +60,6 @@ const CENT_NEUTRE = 0.01;
  * minute et demie, quelque chose est cassé, pas lent.
  */
 const DELAI_DECODAGE = 90_000;
-
-/**
- * Cinq bandes, et les fréquences classiques d'un égaliseur graphique.
- *
- * Les extrêmes sont en `lowshelf` et `highshelf` — un plateau, pas une cloche :
- * relever la brillance doit relever tout ce qui est au-dessus de 12 kHz, pas
- * seulement une bosse autour. Q ne concerne que les bandes en cloche.
- */
-const BANDES: { libelle: string; frequence: number; type: "lowshelf" | "peaking" | "highshelf" }[] = [
-  { libelle: "Graves", frequence: 60, type: "lowshelf" },
-  { libelle: "Bas-médiums", frequence: 250, type: "peaking" },
-  { libelle: "Médiums", frequence: 1000, type: "peaking" },
-  { libelle: "Aigus", frequence: 4000, type: "peaking" },
-  { libelle: "Brillance", frequence: 12000, type: "highshelf" },
-];
-
-/** Le natif accepte ±40 dB : inutilisable en pratique, on s'en tient à ±12. */
-const GAIN_MAX = 12;
-/** Largeur des cloches. 1 couvre environ une octave, assez large pour être musical. */
-const Q_CLOCHE = 1;
 
 /** Fenêtre de programmation du métronome, en secondes de tampon. */
 const HORIZON_CLICS = 0.3;
@@ -174,7 +163,8 @@ export function LaboAudio({
   const [tentative, setTentative] = useState(0);
   const [corrigerTempo, setCorrigerTempo] = useState(false);
   const [egaliseur, setEgaliseur] = useState<number[]>(() => BANDES.map(() => 0));
-  const [ouvrirEgaliseur, setOuvrirEgaliseur] = useState(false);
+  const [egaliseurActif, setEgaliseurActif] = useState(true);
+  const [postGain, setPostGain] = useState(0);
 
   const gainRef = useRef<GainNode | null>(null);
   const filtresRef = useRef<BiquadFilterNode[]>([]);
@@ -289,7 +279,8 @@ export function LaboAudio({
     setBpmOrigine(piste.bpm ?? 0);
     setCorrigerTempo(false);
     setEgaliseur(BANDES.map(() => 0));
-    setOuvrirEgaliseur(false);
+    setEgaliseurActif(true);
+    setPostGain(0);
     // Proposition du conteneur, corrigeable : les profils de Krumhansl-Schmuckler
     // confondent volontiers une tonalité avec sa relative mineure.
     setTonaliteOrigine(piste.tonalite);
@@ -423,10 +414,18 @@ export function LaboAudio({
   // coupure — contrairement au tempo, qui peut franchir la frontière de la
   // correction de hauteur.
   useEffect(() => {
+    // Le contournement met les bandes à plat plutôt que de démonter la chaîne :
+    // débrancher cinq nœuds en cours de lecture produit un claquement.
     filtresRef.current.forEach((f, i) => {
-      f.gain.value = egaliseur[i] ?? 0;
+      f.gain.value = egaliseurActif ? (egaliseur[i] ?? 0) : 0;
     });
-  }, [egaliseur, etat]);
+  }, [egaliseur, egaliseurActif, etat]);
+
+  // Le post-gain rattrape le volume perdu ou gagné par l'égalisation. Les
+  // décibels se convertissent en gain linéaire : +6 dB double l'amplitude.
+  useEffect(() => {
+    if (gainRef.current) gainRef.current.gain.value = gainLineaire(postGain);
+  }, [postGain, etat]);
 
   useEffect(() => {
     const source = sourceRef.current;
@@ -771,55 +770,6 @@ export function LaboAudio({
                 <Puce libelle="Effacer" actif={false} onPress={() => setBoucle(null)} />
               </View>
 
-              {/* Replié par défaut : cinq rangées de plus déborderaient une
-                  modale qui en compte déjà autant. */}
-              <Pressable
-                onPress={() => setOuvrirEgaliseur((v) => !v)}
-                accessibilityRole="button"
-                style={{ minHeight: 44, justifyContent: "center" }}
-              >
-                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                  {`Égaliseur${
-                    egaliseur.some((g) => g !== 0) ? " (actif)" : ""
-                  } — appuyer pour ${ouvrirEgaliseur ? "replier" : "régler"}`}
-                </Texte>
-              </Pressable>
-
-              {ouvrirEgaliseur && (
-                <View style={{ gap: espacement.sm }}>
-                  {BANDES.map((bande, i) => (
-                    <ReglageLabo
-                      key={bande.libelle}
-                      libelle={`${bande.libelle} · ${
-                        bande.frequence >= 1000
-                          ? `${bande.frequence / 1000} kHz`
-                          : `${bande.frequence} Hz`
-                      }`}
-                      valeurAffichee={`${egaliseur[i] > 0 ? "+" : ""}${egaliseur[i]} dB`}
-                      auNeutre={egaliseur[i] === 0}
-                      onMoins={() =>
-                        setEgaliseur((g) =>
-                          g.map((v, j) => (j === i ? Math.max(-GAIN_MAX, v - 1) : v))
-                        )
-                      }
-                      onPlus={() =>
-                        setEgaliseur((g) =>
-                          g.map((v, j) => (j === i ? Math.min(GAIN_MAX, v + 1) : v))
-                        )
-                      }
-                      onNeutre={() => setEgaliseur((g) => g.map((v, j) => (j === i ? 0 : v)))}
-                    />
-                  ))}
-                  <View style={{ flexDirection: "row" }}>
-                    <Puce
-                      libelle="Remettre à plat"
-                      actif={false}
-                      onPress={() => setEgaliseur(BANDES.map(() => 0))}
-                    />
-                  </View>
-                </View>
-              )}
-
               <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
                 <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
                   Métronome
@@ -841,6 +791,57 @@ export function LaboAudio({
                   }}
                 />
               </View>
+
+              <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                  Égaliseur
+                </Texte>
+                <Puce
+                  libelle={egaliseurActif ? "Actif" : "Contourné"}
+                  actif={egaliseurActif}
+                  onPress={() => setEgaliseurActif((v) => !v)}
+                />
+                <Puce
+                  libelle="À plat"
+                  actif={false}
+                  onPress={() => {
+                    setEgaliseur(BANDES.map(() => 0));
+                    setPostGain(0);
+                  }}
+                />
+              </View>
+
+              <Egaliseur
+                gains={egaliseur}
+                actif={egaliseurActif}
+                surChanger={(i, g) =>
+                  setEgaliseur((precedents) =>
+                    precedents.map((v, j) => (j === i ? Math.min(GAIN_MAX, Math.max(-GAIN_MAX, g)) : v))
+                  )
+                }
+              />
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                  Volume de sortie
+                </Texte>
+                <Texte variante="petit" poids="semibold" couleur={postGain === 0 ? couleurs.texteSecondaire : couleurs.warmGold}>
+                  {`${postGain > 0 ? "+" : ""}${postGain.toFixed(1)} dB`}
+                </Texte>
+              </View>
+              <Slider
+                minimumValue={-POST_GAIN_MAX}
+                maximumValue={POST_GAIN_MAX}
+                step={0.5}
+                value={postGain}
+                onValueChange={setPostGain}
+                minimumTrackTintColor={couleurs.warmGold}
+                maximumTrackTintColor={couleurs.bordureForte}
+                thumbTintColor={couleurs.warmGold}
+                accessibilityLabel="Volume de sortie de l'égaliseur"
+              />
             </ScrollView>
           )}
         </View>

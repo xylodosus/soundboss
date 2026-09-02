@@ -391,18 +391,24 @@ Décision : **on garde la détection maison**, Fadr réservé aux stems.
 
 ## 4 sexies. Lot E3 — égaliseur graphique (2 sept. 2026)
 
-Cinq bandes insérées entre la source et le gain de sortie :
+Dix bandes par octave — 31, 62, 125, 250, 500, 1K, 2K, 4K, 8K, 16K — insérées
+entre la source et le gain de sortie. Première en `lowshelf`, dernière en
+`highshelf`, les huit autres en `peaking` (Q = 1).
 
-| Bande | Fréquence | Type |
-|---|---|---|
-| Graves | 60 Hz | `lowshelf` |
-| Bas-médiums | 250 Hz | `peaking` (Q = 1) |
-| Médiums | 1 kHz | `peaking` (Q = 1) |
-| Aigus | 4 kHz | `peaking` (Q = 1) |
-| Brillance | 12 kHz | `highshelf` |
-
-Gain limité à ±12 dB alors que le natif accepte ±40 : au-delà, un égaliseur ne
+Gain limité à ±15 dB alors que le natif accepte ±40 : au-delà, un égaliseur ne
 corrige plus, il détruit.
+
+Rendu en SVG (tracé, tiges, pastilles, graduations) mais **gestes pris par des
+vues natives superposées** : un PanResponder sur un élément SVG se négocie mal,
+et les poignées de la boucle A/B avaient déjà coûté trois tentatives sur ce
+terrain. Chaque colonne est saisissable sur toute sa hauteur — viser une
+pastille de neuf pixels au pouce serait intenable.
+
+Le contournement met les bandes à plat au lieu de démonter la chaîne :
+débrancher des nœuds en cours de lecture produit un claquement.
+
+Le volume de sortie (±12 dB) pilote le `GainNode` terminal, converti en gain
+linéaire : +6 dB double l'amplitude.
 
 Les extrêmes sont en plateau et non en cloche — relever la brillance doit
 relever tout ce qui est au-dessus de 12 kHz, pas creuser une bosse autour.
