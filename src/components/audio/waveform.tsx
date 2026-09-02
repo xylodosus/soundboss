@@ -80,45 +80,55 @@ export function Waveform({
   const surLayout = (e: LayoutChangeEvent) => setLargeur(e.nativeEvent.layout.width);
 
   return (
-    <View style={styles.zone} onLayout={surLayout} {...panResponder.panHandlers}>
-      {/* Voir ce qu'on boucle vaut mieux que lire deux nombres. */}
-      {boucle && (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.zoneBoucle,
-            {
-              left: `${clamp(boucle.debut) * 100}%`,
-              width: `${Math.max(0, clamp(boucle.fin) - clamp(boucle.debut)) * 100}%`,
-            },
-          ]}
-        />
-      )}
-      {barres.length === 0 ? (
-        // Audio pas encore analysé par le conteneur, ou analyse échouée : une
-        // barre de progression simple vaut mieux qu'un vide inexpliqué.
-        <View style={styles.piste} pointerEvents="none">
-          <View style={[styles.pisteLue, { width: `${clamp(progression) * 100}%` }]} />
-        </View>
-      ) : (
-        <View style={styles.barres} pointerEvents="none">
-          {barres.map((valeur, i) => {
-            const lue = i / barres.length <= progression;
-            const hauteur = HAUTEUR_BARRE_MIN + (valeur / 255) * (HAUTEUR_BARRE_MAX - HAUTEUR_BARRE_MIN);
-            return (
-              <View
-                key={i}
-                style={[
-                  styles.barre,
-                  { height: hauteur, backgroundColor: lue ? couleurs.warmGold : couleurs.bordureForte },
-                ]}
-              />
-            );
-          })}
-        </View>
-      )}
+    <View onLayout={surLayout}>
+      <View style={styles.zone} {...panResponder.panHandlers}>
+        {/* Voir ce qu'on boucle vaut mieux que lire deux nombres. */}
+        {boucle && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.zoneBoucle,
+              {
+                left: `${clamp(boucle.debut) * 100}%`,
+                width: `${Math.max(0, clamp(boucle.fin) - clamp(boucle.debut)) * 100}%`,
+              },
+            ]}
+          />
+        )}
+        {barres.length === 0 ? (
+          // Audio pas encore analysé par le conteneur, ou analyse échouée : une
+          // barre de progression simple vaut mieux qu'un vide inexpliqué.
+          <View style={styles.piste} pointerEvents="none">
+            <View style={[styles.pisteLue, { width: `${clamp(progression) * 100}%` }]} />
+          </View>
+        ) : (
+          <View style={styles.barres} pointerEvents="none">
+            {barres.map((valeur, i) => {
+              const lue = i / barres.length <= progression;
+              const hauteur =
+                HAUTEUR_BARRE_MIN + (valeur / 255) * (HAUTEUR_BARRE_MAX - HAUTEUR_BARRE_MIN);
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.barre,
+                    { height: hauteur, backgroundColor: lue ? couleurs.warmGold : couleurs.bordureForte },
+                  ]}
+                />
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/*
+        Les poignées vivent SOUS la waveform, hors de sa zone tactile.
+        Superposées, elles ne recevaient jamais le geste : le conteneur parent
+        le réclamait et déplaçait la lecture au lieu de la borne. Les sortir
+        supprime la négociation au lieu d'essayer de la gagner.
+      */}
       {boucle && surDeplacerBorne && (
-        <>
+        <View style={styles.rangeePoignees}>
           <PoigneeBoucle
             ratio={clamp(boucle.debut)}
             largeurRef={largeurRef}
@@ -133,7 +143,7 @@ export function Waveform({
             surDebutGeste={surDebutGeste}
             surDeplacer={(r, d) => surDeplacerBorne("fin", r, d)}
           />
-        </>
+        </View>
       )}
     </View>
   );
@@ -198,7 +208,8 @@ function PoigneeBoucle({
       accessibilityLabel={label}
       style={[styles.poignee, { left: `${ratio * 100}%` }]}
     >
-      <View style={styles.poigneeBarre} />
+      <View style={styles.poigneeTige} />
+      <View style={styles.poigneeCercle} />
     </View>
   );
 }
@@ -225,6 +236,7 @@ const styles = StyleSheet.create({
   barre: { width: LARGEUR_BARRE, borderRadius: rayons.pill },
   // Cible tactile de 44 px, centrée sur la borne : la barre visible n'en fait
   // que trois, mais on ne vise pas trois pixels avec un pouce.
+  rangeePoignees: { height: 44 },
   poignee: {
     position: "absolute",
     top: 0,
@@ -232,13 +244,16 @@ const styles = StyleSheet.create({
     width: 44,
     marginLeft: -22,
     alignItems: "center",
-    justifyContent: "center",
   },
-  poigneeBarre: {
-    width: 3,
-    height: HAUTEUR_BARRE_MAX + 8,
+  /** Relie visuellement le cercle à la borne de la zone teintée au-dessus. */
+  poigneeTige: { width: 2, height: 10, backgroundColor: couleurs.warmGold },
+  poigneeCercle: {
+    width: 22,
+    height: 22,
     borderRadius: rayons.pill,
     backgroundColor: couleurs.warmGold,
+    borderWidth: 3,
+    borderColor: couleurs.fond,
   },
   piste: { height: 4, borderRadius: rayons.pill, backgroundColor: couleurs.bordure, overflow: "hidden" },
   pisteLue: { height: "100%", backgroundColor: couleurs.warmGold },
