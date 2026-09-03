@@ -421,6 +421,31 @@ la frontière de `pitchCorrection` et impose alors un nœud neuf.
 Le clic du métronome reste branché sur la destination : il traverse la boucle de
 travail sans être filtré avec elle.
 
+## 4 septies. Échec de build iOS — SDK trop ancien pour audio-api (2 sept. 2026)
+
+```
+use of undeclared identifier 'AVAudioSessionModeDualRoute'
+use of undeclared identifier 'AVAudioSessionCategoryOptionFarFieldInput'
+```
+
+`react-native-audio-api` garde ces deux symboles par `@available(iOS 26.2, *)`
+dans `ios/audioapi/ios/system/AudioSessionManager.mm`. Le piège : `@available`
+protège l'**exécution**, jamais la **compilation** — le symbole doit exister
+dans le SDK contre lequel on compile, quelle que soit la version visée à
+l'exécution.
+
+L'image `auto` d'EAS choisit `macos-sequoia-15.6-xcode-26.0` pour un projet
+SDK 54, et le SDK iOS 26.0 ne déclare pas ces symboles. Correctif : épingler
+`macos-sequoia-15.6-xcode-26.2`, la **première** image dont le SDK les contient.
+Pas la plus récente : s'éloigner davantage de l'image testée par Expo pour le
+SDK 54 ajouterait du risque sans rien résoudre.
+
+Android n'était pas touché — ce code est spécifique à iOS, ce qui explique que
+tous les builds preview soient passés.
+
+Repli si Xcode 26.2 cassait autre chose : patcher le fichier pour retirer les
+deux branches, que le labo n'utilise pas.
+
 ## 5. Commandes utiles
 
 ```bash
