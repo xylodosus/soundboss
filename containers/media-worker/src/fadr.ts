@@ -20,17 +20,22 @@ export const INTERVALLE_SCRUTATION_MS = 5000;
 /**
  * Les quatre découpes, et ce qu'elles attendent en entrée.
  *
- * `parent` nomme le type de stem à réinjecter : `drum-stem` ne s'applique pas
- * au morceau mais au stem de batterie qu'une découpe `main` a produit.
+ * `parents` nomme les types de stem réinjectables : `drum-stem` ne s'applique
+ * pas au morceau mais au stem de batterie qu'une découpe `main` a produit.
+ *
+ * Plusieurs noms sont acceptés par entrée parce que la documentation et la
+ * réalité divergent : elle annonce un stem « melodies », l'API en produit un
+ * nommé **`other`** — constaté sur le premier essai réel du 5 septembre. Le
+ * nom documenté est conservé au cas où il apparaîtrait selon le modèle.
  */
 export const STEM_TYPES = {
-  main: { parent: null, produit: ['vocals', 'bass', 'drums', 'melodies', 'instrumental'] },
-  'vocal-stem': { parent: 'vocals', produit: ['lead vocals', 'background vocals'] },
+  main: { parents: [], produit: ['vocals', 'bass', 'drums', 'other', 'instrumental'] },
+  'vocal-stem': { parents: ['vocals'], produit: ['lead vocals', 'background vocals'] },
   'melodic-stem': {
-    parent: 'melodies',
+    parents: ['other', 'melodies'],
     produit: ['piano', 'electric guitar', 'acoustic guitar', 'strings', 'wind', 'other melodies'],
   },
-  'drum-stem': { parent: 'drums', produit: ['kick', 'snare', 'other drums'] },
+  'drum-stem': { parents: ['drums'], produit: ['kick', 'snare', 'other drums'] },
 } as const;
 
 export type StemType = keyof typeof STEM_TYPES;

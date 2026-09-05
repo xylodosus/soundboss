@@ -37,9 +37,14 @@ export function parentPourType(
   stemType: StemType,
   existants: { id: string; type: string }[],
 ): string | null {
-  const attendu = STEM_TYPES[stemType].parent;
-  if (!attendu) return null;
-  return existants.find((s) => s.type === attendu)?.id ?? null;
+  const attendus: readonly string[] = STEM_TYPES[stemType].parents;
+  if (attendus.length === 0) return null;
+  // Le premier nom trouvé l'emporte : l'ordre de la liste dit la préférence.
+  for (const attendu of attendus) {
+    const trouve = existants.find((s) => s.type === attendu);
+    if (trouve) return trouve.id;
+  }
+  return null;
 }
 
 /** Fadr ne décrit aucun état d'échec : l'échéance est le seul juge. */

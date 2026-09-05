@@ -117,8 +117,14 @@ describe('STEM_TYPES', () => {
       'melodic-stem',
       'vocal-stem',
     ]);
-    expect(STEM_TYPES.main.parent).toBeNull();
-    expect(STEM_TYPES['drum-stem'].parent).toBe('drums');
+    expect(STEM_TYPES.main.parents).toEqual([]);
+    expect(STEM_TYPES['drum-stem'].parents).toEqual(['drums']);
+  });
+
+  it('accepte le nom réel du stem mélodique, que la documentation nomme autrement', () => {
+    // Constaté le 5 septembre : l'API produit « other », la doc annonce « melodies ».
+    expect(STEM_TYPES['melodic-stem'].parents).toContain('other');
+    expect(STEM_TYPES['melodic-stem'].parents).toContain('melodies');
   });
 });
 

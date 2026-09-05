@@ -68,9 +68,11 @@ export async function separerStems(
     // --- Source : le morceau, ou le stem à affiner ---
     const existants = await listStems(mediaId);
     const parentId = parentPourType(stemType, existants);
-    if (STEM_TYPES[stemType].parent && !parentId) {
+    if (STEM_TYPES[stemType].parents.length > 0 && !parentId) {
       throw new Error(
-        `Affinage ${stemType} impossible : le stem « ${STEM_TYPES[stemType].parent} » n'existe pas encore.`,
+        `Affinage ${stemType} impossible : aucun stem « ${STEM_TYPES[stemType].parents.join(
+          ' » ou « ',
+        )} » n'existe encore.`,
       );
     }
 

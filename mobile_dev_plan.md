@@ -540,6 +540,41 @@ plusieurs tonalités pour donner de la vivacité est une pratique courante du
 gospel. La chronologie n'est donc pas un raffinement pour cas particulier, c'est
 le cas normal de ce corpus — et la case unique était le vrai défaut.
 
+## 4 nonies. Lot E4 — premiers essais réels de séparation (5 sept. 2026)
+
+Trois essais sur `HOSANNA reprise.mp3` (1 min 42), ~0,09 $ la tâche.
+
+| Essai | Résultat | Enseignement |
+|---|---|---|
+| 1 | tâche terminée, **zéro stem** | les identifiants vivent sur l'**asset source** (`asset.stems`), pas dans `output.assets` de la tâche |
+| 2 | cinq stems, tous typés `inconnu`, **une seule clé R2** | `GET /assets/{id}` **enveloppe** l'asset ; et cinq types identiques écrasaient le même fichier |
+| 3 | cinq stems nommés, cinq clés distinctes | la chaîne fonctionne |
+
+**Types réellement produits par `main`** — et la documentation se trompe sur le
+quatrième :
+
+| Type | Taille (102 s, mono 64 kbit/s) |
+|---|---|
+| `vocals` | 797 Ko |
+| `bass` | 794 Ko |
+| `drums` | 814 Ko |
+| **`other`** (doc : « melodies ») | 804 Ko |
+| `instrumental` | 812 Ko |
+
+`STEM_TYPES` accepte donc plusieurs noms de parent par découpe : sans cela,
+l'affinage `melodic-stem` n'aurait jamais trouvé son stem source.
+
+**Deux défauts de ma part, tous deux invisibles sans essai réel :** un statut
+`pret` écrit avec zéro stem — un succès vide ne se remarque pas, il lève
+désormais une erreur — et un écrasement silencieux dans R2, exactement le
+danger décrit dans le commentaire de `derivedKey` et réintroduit ailleurs. Les
+clés portent maintenant un suffixe tiré de l'identifiant de l'asset.
+
+**Projection mémoire confirmée.** 800 Ko pour 102 s en mono 64 kbit/s ; un
+morceau de cinq minutes donnera ~2,4 Mo par stem, soit ~26 Mo décodé. Cinq
+stems ensemble : ~130 Mo, l'ordre de grandeur d'un seul morceau stéréo
+aujourd'hui. Le plafond exact reste à mesurer sur appareil.
+
 ## 5. Commandes utiles
 
 ```bash

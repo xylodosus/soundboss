@@ -35,7 +35,7 @@ describe('cleStem', () => {
 describe('parentPourType', () => {
   const existants = [
     { id: 's1', type: 'drums' },
-    { id: 's2', type: 'melodies' },
+    { id: 's2', type: 'other' },
   ];
 
   it('rattache un affinage au stem dont il descend', () => {
