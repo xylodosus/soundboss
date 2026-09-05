@@ -177,8 +177,13 @@ export function LaboAudio({
 
   const gainRef = useRef<GainNode | null>(null);
   const filtresRef = useRef<BiquadFilterNode[]>([]);
-  const tamponRef = useRef<AudioBuffer | null>(null);
-  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  // Une piste en mode mixage, plusieurs en mode stems. Le moteur ne fait pas
+  // la différence : c'est la même liste, longue de un ou de cinq.
+  const pistesRef = useRef<{ id: string; tampon: AudioBuffer }[]>([]);
+  const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  /** Un gain par piste, pour couper une voix sans toucher aux autres. */
+  const gainsPistesRef = useRef<Map<string, GainNode>>(new Map());
+  const coupesRef = useRef<Set<string>>(new Set());
   // Un AudioBufferSourceNode ne se relit pas : chaque reprise en crée un neuf,
   // démarré à cet offset. C'est donc ici, et non dans le nœud, que vit la
   // position de lecture entre deux pauses.
@@ -200,26 +205,27 @@ export function LaboAudio({
   boucleRef.current = boucle;
 
   const libererSource = useCallback(() => {
-    const source = sourceRef.current;
-    if (!source) return;
+    if (sourcesRef.current.length === 0) return;
     arretVolontaireRef.current = true;
-    try {
-      source.onPositionChanged = null;
-      source.onEnded = null;
-      source.stop();
-      source.disconnect();
-    } catch {
-      // Le nœud peut déjà être arrêté ; rien à récupérer.
+    for (const source of sourcesRef.current) {
+      try {
+        source.onPositionChanged = null;
+        source.onEnded = null;
+        source.stop();
+        source.disconnect();
+      } catch {
+        // Le nœud peut déjà être arrêté ; rien à récupérer.
+      }
     }
-    sourceRef.current = null;
+    sourcesRef.current = [];
   }, []);
 
   const demarrer = useCallback(
     (offset: number) => {
       const contexte = contextePartage;
-      const gain = gainRef.current;
-      const tampon = tamponRef.current;
-      if (!contexte || !gain || !tampon) return;
+      const gainMaitre = gainRef.current;
+      const pistes = pistesRef.current;
+      if (!contexte || !gainMaitre || pistes.length === 0) return;
 
       libererSource();
       arretVolontaireRef.current = false;
@@ -228,34 +234,60 @@ export function LaboAudio({
       // transposition, le signal ne traverse pas le stretcher, donc ni coût
       // processeur ni artefact sur une écoute normale.
       const correction = tempoRef.current !== 1 || transpositionRef.current !== 0;
-      const source = contexte.createBufferSource({ pitchCorrection: correction });
       correctionActiveRef.current = correction;
-      source.buffer = tampon;
-      source.playbackRate.value = tempoRef.current;
-      source.detune.value =
-        transpositionRef.current === 0 ? CENT_NEUTRE : transpositionRef.current * 100;
-      const bornes = boucleRef.current;
-      if (bornes) {
-        source.loop = true;
-        source.loopStart = bornes.a;
-        source.loopEnd = bornes.b;
-      }
       dernierClicRef.current = -1;
-      source.onPositionChangedInterval = INTERVALLE_POSITION;
-      // value est la position en secondes dans le tampon, pas un nombre d'images.
-      source.onPositionChanged = ({ value }) => {
-        positionRef.current = value;
-        setPosition(value);
-      };
-      source.onEnded = () => {
-        if (arretVolontaireRef.current) return;
-        setEnLecture(false);
-        positionRef.current = 0;
-        setPosition(0);
-      };
-      source.connect(filtresRef.current[0] ?? gain);
-      source.start(0, offset);
-      sourceRef.current = source;
+
+      // Toutes les pistes démarrent au MÊME instant du contexte, pas « maintenant » :
+      // créer cinq nœuds prend quelques millisecondes, et démarrer chacun à sa
+      // création les décalerait les uns des autres de façon audible.
+      const depart = contexte.currentTime + 0.15;
+      const bornes = boucleRef.current;
+      const entree = filtresRef.current[0] ?? gainMaitre;
+
+      const nouvelles: AudioBufferSourceNode[] = [];
+      pistes.forEach((p, index) => {
+        const source = contexte.createBufferSource({ pitchCorrection: correction });
+        source.buffer = p.tampon;
+        source.playbackRate.value = tempoRef.current;
+        source.detune.value =
+          transpositionRef.current === 0 ? CENT_NEUTRE : transpositionRef.current * 100;
+        if (bornes) {
+          source.loop = true;
+          source.loopStart = bornes.a;
+          source.loopEnd = bornes.b;
+        }
+
+        let gainPiste = gainsPistesRef.current.get(p.id);
+        if (!gainPiste) {
+          gainPiste = contexte.createGain();
+          gainPiste.connect(entree);
+          gainsPistesRef.current.set(p.id, gainPiste);
+        }
+        gainPiste.gain.value = coupesRef.current.has(p.id) ? 0 : 1;
+        source.connect(gainPiste);
+
+        // Une seule piste porte le suivi : cinq abonnements diraient la même
+        // chose cinq fois, puisqu'elles avancent ensemble.
+        if (index === 0) {
+          source.onPositionChangedInterval = INTERVALLE_POSITION;
+          // value est la position en secondes dans le tampon, pas un nombre d'images.
+          source.onPositionChanged = ({ value }) => {
+            positionRef.current = value;
+            setPosition(value);
+          };
+          source.onEnded = () => {
+            if (arretVolontaireRef.current) return;
+            setEnLecture(false);
+            positionRef.current = 0;
+            setPosition(0);
+          };
+        }
+
+        source.start(depart, offset);
+        nouvelles.push(source);
+      });
+
+      sourcesRef.current = nouvelles;
       setEnLecture(true);
     },
     [libererSource]
@@ -320,7 +352,7 @@ export function LaboAudio({
         filtresRef.current = filtres;
 
         if (cache?.id === piste.id) {
-          tamponRef.current = cache.tampon;
+          pistesRef.current = [{ id: "mixage", tampon: cache.tampon }];
           setPics(cache.pics);
           setDuree(cache.tampon.duration);
           setEtat("pret");
@@ -369,7 +401,7 @@ export function LaboAudio({
         if (decodageEnVol === enVol) decodageEnVol = null;
         if (annule) return;
 
-        tamponRef.current = tampon;
+        pistesRef.current = [{ id: "mixage", tampon }];
         cache = { id: piste.id, tampon, pics: lus };
         surveillerArrierePlan();
         setDuree(tampon.duration);
@@ -392,11 +424,13 @@ export function LaboAudio({
   useEffect(() => {
     if (visible) return;
     libererSource();
+    gainsPistesRef.current.forEach((g) => g.disconnect());
+    gainsPistesRef.current.clear();
     filtresRef.current.forEach((f) => f.disconnect());
     filtresRef.current = [];
     gainRef.current?.disconnect();
     gainRef.current = null;
-    tamponRef.current = null;
+    pistesRef.current = [];
     setDuree(0);
   }, [visible, libererSource]);
 
@@ -405,15 +439,17 @@ export function LaboAudio({
   // recréation, donc pas de coupure. Franchir la frontière impose un nœud neuf,
   // puisque pitchCorrection se fixe à la construction.
   useEffect(() => {
-    const source = sourceRef.current;
-    if (!source) return;
+    const sources = sourcesRef.current;
+    if (sources.length === 0) return;
     const correction = tempo !== 1 || transposition !== 0;
     if (correction !== correctionActiveRef.current) {
       demarrer(positionRef.current);
       return;
     }
-    source.playbackRate.value = tempo;
-    source.detune.value = transposition === 0 ? CENT_NEUTRE : transposition * 100;
+    for (const source of sources) {
+      source.playbackRate.value = tempo;
+      source.detune.value = transposition === 0 ? CENT_NEUTRE : transposition * 100;
+    }
     dernierClicRef.current = -1;
   }, [tempo, transposition, demarrer]);
 
@@ -435,14 +471,16 @@ export function LaboAudio({
   }, [postGain, etat]);
 
   useEffect(() => {
-    const source = sourceRef.current;
-    if (!source) return;
-    if (boucle) {
-      source.loop = true;
-      source.loopStart = boucle.a;
-      source.loopEnd = boucle.b;
-    } else {
-      source.loop = false;
+    const sources = sourcesRef.current;
+    if (sources.length === 0) return;
+    for (const source of sources) {
+      if (boucle) {
+        source.loop = true;
+        source.loopStart = boucle.a;
+        source.loopEnd = boucle.b;
+      } else {
+        source.loop = false;
+      }
     }
   }, [boucle]);
 
