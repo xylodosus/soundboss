@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, View } from "react-native";
+import { EtatVide } from "@/components/ui/etat-vide";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAnnulerReservation, useMesReservations } from "@/lib/queries/studios";
@@ -35,9 +36,11 @@ export default function MesReservations() {
 
         <View style={{ gap: 12, marginTop: 20 }}>
           {!isLoading && reservations.length === 0 && (
-            <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ textAlign: "center", marginTop: 40 }}>
-              Aucune réservation pour le moment.
-            </Texte>
+            <EtatVide
+              icone="calendar-clear-outline"
+              titre="Aucune réservation"
+              message="Réserve un studio depuis l'onglet Studios ; tes créneaux apparaîtront ici."
+            />
           )}
           {reservations.map((reservation) => {
             const statut = STATUTS[reservation.statut ?? "pending"] ?? STATUTS.pending;

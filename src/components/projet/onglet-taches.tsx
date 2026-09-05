@@ -17,7 +17,7 @@ import { useDialogue } from "@/lib/dialogue";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
 import { Avatar } from "@/components/ui/avatar";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { Bouton } from "@/components/ui/bouton";
 import { Champ, ErreurChamp, Etiquette } from "@/components/ui/champ";
 import {
@@ -168,12 +168,15 @@ export function OngletTaches({
       {isLoading ? (
         <SqueletteListe lignes={2} hauteur={72} />
       ) : taches.length === 0 ? (
-        <View style={{ alignItems: "center", paddingVertical: 24 }}>
-          <Ionicons name="checkmark-done-outline" size={32} color={couleurs.terracottaLight} />
-          <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ marginTop: 10, textAlign: "center" }}>
-            Aucune tâche. {estGestionnaire ? "Ajoute les courses et actions du projet." : ""}
-          </Texte>
-        </View>
+        <EtatVide
+          icone="checkmark-done-outline"
+          titre="Aucune tâche"
+          message={
+            estGestionnaire
+              ? "Note ici les courses, les répétitions à caler, les personnes à relancer."
+              : "Aucune tâche n'a encore été notée pour ce projet."
+          }
+        />
       ) : (
         <View style={{ gap: 14 }}>
           {groupes.aFaire.length > 0 && (

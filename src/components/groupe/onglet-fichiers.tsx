@@ -9,7 +9,7 @@ import { televerserFichier } from "@/lib/r2";
 import { useDialogue } from "@/lib/dialogue";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { Bouton } from "@/components/ui/bouton";
 import { VignetteImage } from "@/components/ui/vignette-fichier";
 import { ModalDetailFichier, type FichierDetail } from "@/components/groupe/modal-detail-fichier";
@@ -329,12 +329,11 @@ export function OngletFichiers({
           <SqueletteListe lignes={2} hauteur={64} />
         </>
       ) : ressources.length === 0 ? (
-        <View style={{ alignItems: "center", paddingVertical: 32 }}>
-          <Ionicons name="folder-open-outline" size={32} color={couleurs.terracottaLight} />
-          <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ marginTop: 10, textAlign: "center" }}>
-            Aucun fichier partagé pour le moment.
-          </Texte>
-        </View>
+        <EtatVide
+          icone="folder-open-outline"
+          titre="Aucun fichier partagé"
+          message="Dépose ici les partitions, les enregistrements de référence et les documents que le groupe doit avoir sous la main."
+        />
       ) : (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
           {ressources.map((ressource) => (

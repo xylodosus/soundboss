@@ -10,7 +10,7 @@ import {
 import { couleurs, rayons } from "@/lib/theme";
 import { useDialogue } from "@/lib/dialogue";
 import { Texte } from "@/components/ui/texte";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { Bouton } from "@/components/ui/bouton";
 import { Champ, AlerteErreur } from "@/components/ui/champ";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
@@ -85,11 +85,11 @@ export function OngletPupitres({
       </View>
 
       {pupitres.length === 0 && !modeAjout && (
-        <View style={{ alignItems: "center", paddingVertical: 24 }}>
-          <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-            Aucun pupitre. Ajoute les sections de ton groupe.
-          </Texte>
-        </View>
+        <EtatVide
+          icone="people-circle-outline"
+          titre="Aucun pupitre"
+          message="Les pupitres découpent le groupe en sections — soprano, basse, guitare — pour adresser un audio ou un fichier aux bonnes personnes."
+        />
       )}
 
       {pupitres.map((pupitre) => (

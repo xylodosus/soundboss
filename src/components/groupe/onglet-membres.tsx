@@ -11,7 +11,7 @@ import { useDialogue } from "@/lib/dialogue";
 import { couleurs, rayons } from "@/lib/theme";
 import { Avatar } from "@/components/ui/avatar";
 import { Texte } from "@/components/ui/texte";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { useQueryClient } from "@tanstack/react-query";
 import { InvitationGroupe } from "@/components/groupe/invitation-groupe";
 import { ModalChoix } from "@/components/ui/modal-choix";
@@ -106,11 +106,11 @@ export function OngletMembres({
 
   if (membres.length === 0) {
     return (
-      <View style={{ alignItems: "center", paddingVertical: 32 }}>
-        <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-          Aucun membre pour le moment.
-        </Texte>
-      </View>
+      <EtatVide
+        icone="people-outline"
+        titre="Aucun membre"
+        message="Partage le code du groupe pour que les premiers membres le rejoignent."
+      />
     );
   }
 

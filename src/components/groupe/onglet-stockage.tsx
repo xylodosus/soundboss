@@ -3,7 +3,7 @@ import Svg, { Circle, G } from "react-native-svg";
 import { useRessources } from "@/lib/queries/ressources";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 
 const TYPES: { cle: string; label: string; couleur: string }[] = [
   { cle: "image", label: "Images", couleur: "#34D399" },
@@ -53,11 +53,11 @@ export function OngletStockage({ groupeId }: { groupeId: string }) {
         {isLoading ? (
           <SqueletteListe lignes={1} hauteur={160} />
         ) : nbGlobal === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 24 }}>
-            <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-              Aucun fichier partagé pour le moment.
-            </Texte>
-          </View>
+          <EtatVide
+            icone="cloud-outline"
+            titre="Rien de stocké"
+            message="La répartition du stockage apparaîtra dès que le groupe aura déposé des fichiers."
+          />
         ) : (
           <>
             <Donut

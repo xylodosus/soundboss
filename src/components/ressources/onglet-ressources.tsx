@@ -14,7 +14,7 @@ import { useDialogue } from "@/lib/dialogue";
 import { urlLectureR2 } from "@/lib/r2";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 
 const TYPES: { valeur: TypeRessource; label: string; icone: keyof typeof Ionicons.glyphMap }[] = [
   { valeur: "contrat", label: "Contrat", icone: "document-text-outline" },
@@ -114,12 +114,11 @@ export function OngletRessources() {
       {isLoading ? (
         <SqueletteListe lignes={3} hauteur={72} />
       ) : filtrees.length === 0 ? (
-        <View style={{ alignItems: "center", paddingVertical: 32 }}>
-          <Ionicons name="library-outline" size={32} color={couleurs.terracottaLight} />
-          <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ marginTop: 10, textAlign: "center" }}>
-            {messageVide}
-          </Texte>
-        </View>
+        <EtatVide
+          icone="library-outline"
+          titre="Aucune ressource"
+          message={messageVide}
+        />
       ) : (
         <View style={{ gap: 10 }}>
           {filtrees.map((ressource) => (

@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useProjetsGroupe, type ProjetAvecMorceaux } from "@/lib/queries/projets";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { ModalNouveauProjet } from "@/components/projet/modal-nouveau-projet";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
 import {
@@ -118,12 +118,15 @@ export function OngletProjets({
           <SqueletteListe lignes={2} hauteur={110} />
         </>
       ) : projets.length === 0 && !modeCreation ? (
-        <View style={{ alignItems: "center", paddingVertical: 32 }}>
-          <Ionicons name="albums-outline" size={32} color={couleurs.terracottaLight} />
-          <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ marginTop: 10, textAlign: "center" }}>
-            Aucun projet. {estGestionnaire ? "Crée un événement ou une production." : ""}
-          </Texte>
-        </View>
+        <EtatVide
+          icone="albums-outline"
+          titre="Aucun projet"
+          message={
+            estGestionnaire
+              ? "Un projet rassemble les morceaux, les tâches et les répétitions d'un concert ou d'une production."
+              : "Le chef de groupe n'a pas encore ouvert de projet."
+          }
+        />
       ) : (
         projets.map((projet) => (
           <CarteProjet key={projet.id} projet={projet} morceaux={projet.morceaux?.count ?? 0} />

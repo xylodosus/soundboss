@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSeancesGroupe } from "@/lib/queries/seances";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { Bouton } from "@/components/ui/bouton";
 import { ModalCreerSeance } from "@/components/ui/modal-creer-seance";
 import { formatDateCourte, libelleStatutSeance } from "@/lib/format";
@@ -60,11 +60,15 @@ export function OngletSeances({
           <SqueletteListe lignes={2} hauteur={70} />
         </>
       ) : seances.length === 0 ? (
-        <View style={{ alignItems: "center", paddingVertical: 32 }}>
-          <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-            Aucune répétition. {estGestionnaire ? "Planifie ta première séance." : ""}
-          </Texte>
-        </View>
+        <EtatVide
+          icone="calendar-outline"
+          titre="Aucune répétition"
+          message={
+            estGestionnaire
+              ? "Planifie une séance pour donner un rendez-vous au groupe."
+              : "Le chef de groupe n'a pas encore planifié de répétition."
+          }
+        />
       ) : (
         <>
           {aVenir.map((seance) => (

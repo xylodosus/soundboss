@@ -10,7 +10,7 @@ import {
 import { couleurs, police, rayons } from "@/lib/theme";
 import { Ecran } from "@/components/ui/ecran";
 import { Texte } from "@/components/ui/texte";
-import { Squelette } from "@/components/ui/etat-vide";
+import { EtatVide, Squelette } from "@/components/ui/etat-vide";
 import { formatDateHeure } from "@/lib/format";
 
 export default function Wallet() {
@@ -124,9 +124,11 @@ export default function Wallet() {
         </Texte>
         <View style={{ gap: 8 }}>
           {transactions.length === 0 && (
-            <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-              Aucune transaction.
-            </Texte>
+            <EtatVide
+              icone="receipt-outline"
+              titre="Aucune transaction"
+              message="Tes recharges et tes dépenses apparaîtront ici."
+            />
           )}
           {transactions.map((transaction) => (
             <View
