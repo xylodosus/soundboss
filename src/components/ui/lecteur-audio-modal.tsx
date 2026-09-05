@@ -448,6 +448,7 @@ export function LecteurAudioModal({
               borderTopColor: "rgba(255,255,255,0.06)",
               marginTop: 16,
               paddingTop: 12,
+              paddingBottom: 20,
             }}
           >
             <Pressable
@@ -464,10 +465,11 @@ export function LecteurAudioModal({
               />
             </Pressable>
 
-            {/* Le labo décode le morceau en entier : c'est un second geste, et
-                il n'a de quoi travailler que sur un enregistrement de
-                répétition — ailleurs il n'offrirait rien de plus que ce lecteur. */}
-            {enregistrement && (
+            {/* Le labo décode le morceau en entier : c'est un second geste,
+                jamais celui par défaut. Il s'ouvre sur n'importe quel audio —
+                sur un enregistrement de répétition il aura en plus les pics,
+                le tempo, la tonalité et les pistes séparées. */}
+            {piste && (
               <Pressable
                 onPress={() => setLaboOuvert(true)}
                 accessibilityRole="button"
@@ -496,12 +498,35 @@ export function LecteurAudioModal({
 
       {/* Monté seulement à l'ouverture : ses requêtes de contexte — séance,
           groupe, pupitres — n'ont aucune raison de partir à chaque écoute. */}
-      {laboOuvert && enregistrement && (
-        <LaboDepuisLecteur
-          enregistrement={enregistrement}
-          onFermer={() => setLaboOuvert(false)}
-        />
-      )}
+      {laboOuvert &&
+        (enregistrement ? (
+          <LaboDepuisLecteur
+            enregistrement={enregistrement}
+            onFermer={() => setLaboOuvert(false)}
+          />
+        ) : (
+          piste && (
+            <LaboAudio
+              piste={{
+                // url est déjà une URL signée : urlLectureR2 la rend telle
+                // quelle lorsqu'elle commence par http.
+                id: piste.url,
+                titre: piste.titre,
+                url: piste.url,
+                peaks_url: null,
+                duree_secondes: null,
+                bpm: null,
+                tonalite: null,
+                tonalite_confiance: null,
+                tonalite_sections: null,
+                analyzed_at: null,
+              }}
+              visible
+              onFermer={() => setLaboOuvert(false)}
+              avecStems={false}
+            />
+          )
+        ))}
     </Modal>
   );
 }
