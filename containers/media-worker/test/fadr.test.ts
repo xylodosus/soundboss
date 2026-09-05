@@ -7,6 +7,7 @@ import {
   parseAsset,
   parseTaches,
   parseUrlDepot,
+  stemsDeLAsset,
   typeDeStem,
 } from '../src/fadr.ts';
 
@@ -114,5 +115,26 @@ describe('STEM_TYPES', () => {
     ]);
     expect(STEM_TYPES.main.parent).toBeNull();
     expect(STEM_TYPES['drum-stem'].parent).toBe('drums');
+  });
+});
+
+describe('stemsDeLAsset', () => {
+  it('lit les stems portés par l’asset source', () => {
+    // La documentation tutoriel : « l'asset aura une propriété stems, tableau
+    // des _id des nouveaux assets créés pendant la tâche ».
+    expect(stemsDeLAsset({ asset: { stems: ['a', 'b'] } })).toEqual(['a', 'b']);
+  });
+
+  it('accepte un asset rendu à la racine', () => {
+    expect(stemsDeLAsset({ stems: ['a'] })).toEqual(['a']);
+  });
+
+  it('accepte des stems sous forme d’objets', () => {
+    expect(stemsDeLAsset({ asset: { stems: [{ _id: 'a' }] } })).toEqual(['a']);
+  });
+
+  it('rend une liste vide quand il n’y en a pas', () => {
+    expect(stemsDeLAsset({ asset: {} })).toEqual([]);
+    expect(stemsDeLAsset(null)).toEqual([]);
   });
 });

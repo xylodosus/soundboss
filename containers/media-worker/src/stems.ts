@@ -31,6 +31,7 @@ import {
   lancerSeparation,
   lireAsset,
   messageEtat,
+  stemsDeLAsset,
   typeDeStem,
   urlTelechargement,
 } from './fadr.ts';
@@ -73,9 +74,9 @@ export async function separerStems(
       );
     }
 
-    const source = join(dir, 'source.m4a');
-    await downloadToFile(media.url, source);
-    const octets = await readFile(source);
+    const fichierSource = join(dir, 'source.m4a');
+    await downloadToFile(media.url, fichierSource);
+    const octets = await readFile(fichierSource);
 
     // --- Dépôt chez Fadr ---
     const { url: urlDepot, s3Path } = await creerUrlDepot(cle, `soundboss-${mediaId}`, 'm4a');
@@ -100,8 +101,21 @@ export async function separerStems(
     }
 
     // --- Récupération, réencodage, dépôt ---
+    // Les identifiants des stems vivent sur l'asset SOURCE, pas dans la sortie
+    // de la tâche : le premier essai réel a rendu une tâche terminée dont
+    // `output.assets` était vide alors que la découpe avait bien eu lieu.
+    const source = await lireAsset(cle, assetId);
+    const idsStems = stemsDeLAsset(source);
+    const aTraiter = idsStems.length > 0 ? idsStems : assetsProduits(tache);
+
+    if (aTraiter.length === 0) {
+      throw new Error(
+        `Fadr a terminé sans produire de stem (tâche ${tacheId}, asset ${assetId}).`,
+      );
+    }
+
     const produits: { type: string; url: string }[] = [];
-    for (const stemAssetId of assetsProduits(tache)) {
+    for (const stemAssetId of aTraiter) {
       const asset = await lireAsset(cle, stemAssetId);
       const type = typeDeStem(asset);
       const urlSource = await urlTelechargement(cle, stemAssetId);

@@ -94,6 +94,24 @@ export function assetsProduits(tache: Tache): string[] {
 }
 
 /**
+ * Identifiants des stems, tels que portés par l'**asset source**.
+ *
+ * C'est là qu'ils vivent, et non dans `output.assets` de la tâche : le premier
+ * essai réel du 5 septembre a produit une tâche terminée dont la sortie était
+ * vide, alors que la découpe avait bien eu lieu. La page tutoriel le disait —
+ * « l'asset aura une propriété stems, tableau des _id des nouveaux assets ».
+ */
+export function stemsDeLAsset(reponse: unknown): string[] {
+  const o = objet(reponse);
+  const asset = objet(o?.asset) ?? o;
+  const stems = asset?.stems;
+  if (!Array.isArray(stems)) return [];
+  return stems
+    .map((s) => (typeof s === 'string' ? s : objet(s)?._id))
+    .filter((id): id is string => typeof id === 'string');
+}
+
+/**
  * Type d'un stem produit.
  *
  * Rend « inconnu » plutôt que d'échouer : la documentation n'énumère pas la
