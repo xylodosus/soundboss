@@ -517,6 +517,29 @@ mais aucune section en Do n'a jamais été détectée, donc rien ne peut l'absor
 — revenait donc à Mi, et la modulation était annoncée à 4:00 au lieu de 2:30.
 Une section absorbée rejoint désormais les bornes de celle qui l'absorbe.
 
+**Validation finale, six morceaux confrontés à l'oreille du chef de groupe :**
+
+| Morceau | Réel | Détecté | |
+|---|---|---|---|
+| HOSANNA reprise | Sol | Sol | exact |
+| ABBA | Ré | Ré | exact |
+| DEBOUT | Mi | Mi | exact |
+| HOSANNA.wma | Mi → Fa# à 2:30 | Mi → Fa# à 150 s | exact, borne comprise |
+| 02 Piste 2 | Mib → Fa → Sol | Mib → Fa → Sol | exact, trois modulations |
+| JE VEUX VIVRE | Do → Do# | Sol → Do# | première section fausse |
+
+Cinq sur six. Le seul échec restant tient à ce que la tonalité de Do n'a jamais
+été détectée nulle part : rien ne pouvait absorber sa dominante.
+
+`02 Piste 2` est la validation la plus forte de la règle d'absorption — trois
+modulations légitimes, toutes conservées. C'était le morceau où un faux positif
+aurait pu passer inaperçu.
+
+**Enseignement de répertoire, donné par le chef de groupe :** enchaîner
+plusieurs tonalités pour donner de la vivacité est une pratique courante du
+gospel. La chronologie n'est donc pas un raffinement pour cas particulier, c'est
+le cas normal de ce corpus — et la case unique était le vrai défaut.
+
 ## 5. Commandes utiles
 
 ```bash
