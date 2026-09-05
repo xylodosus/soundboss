@@ -36,6 +36,7 @@ import {
 import { ModalChoix } from "@/components/ui/modal-choix";
 import {
   clefsSeances,
+  useAjouterEnregistrement,
   useDemanderStems,
   useStatutStems,
   useStemsEnregistrement,
@@ -50,6 +51,8 @@ import {
   type EtatMixage,
 } from "@/lib/stems";
 import { Mixeur } from "@/components/audio/mixeur";
+import { ModalChoixMultiple } from "@/components/ui/modal-choix-multiple";
+import { useAjouterRessource } from "@/lib/queries/ressources";
 import { useQueryClient } from "@tanstack/react-query";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { formatTemps } from "@/lib/format";
@@ -172,10 +175,17 @@ export function LaboAudio({
   piste,
   visible,
   onFermer,
+  seanceId,
+  groupeId,
+  pupitres = [],
 }: {
   piste: Piste | null;
   visible: boolean;
   onFermer: () => void;
+  /** Contexte du transfert d'une piste vers les audios ou les fichiers. */
+  seanceId?: string;
+  groupeId?: string;
+  pupitres?: { id: string; nom: string; couleur?: string | null }[];
 }) {
   const insets = useSafeAreaInsets();
   const [etat, setEtat] = useState<Etat>("chargement");
@@ -209,6 +219,8 @@ export function LaboAudio({
   const [solos, setSolos] = useState<Set<string>>(() => new Set());
   const [pisteEnChargement, setPisteEnChargement] = useState<string | null>(null);
   const [telechargement, setTelechargement] = useState<string | null>(null);
+  const [transfert, setTransfert] = useState<string | null>(null);
+  const [choixPupitres, setChoixPupitres] = useState<string | null>(null);
   const [messageStems, setMessageStems] = useState<string | null>(null);
   const [onglet, setOnglet] = useState<Onglet>("lecteur");
 
@@ -581,6 +593,8 @@ export function LaboAudio({
   const sections = useMemo(() => parseSections(piste?.tonalite_sections), [piste]);
   const { data: stems = [] } = useStemsEnregistrement(piste?.id ?? "", visible && !!piste);
   const { mutate: demanderStems, isPending: demandeEnCours } = useDemanderStems();
+  const { mutateAsync: ajouterEnregistrement } = useAjouterEnregistrement();
+  const { mutateAsync: ajouterRessource } = useAjouterRessource(groupeId ?? "");
   const { data: statutStems } = useStatutStems(piste?.id ?? "", visible && !!piste);
   const extractionEnCours = statutStems?.stems_statut === "en_cours";
   const stemsOrdonnes = useMemo(() => ordonnerStems(stems), [stems]);
@@ -768,6 +782,55 @@ export function LaboAudio({
       if (stem.type === "instrumental") continue;
       if (pistesActives.includes(stem.id)) continue;
       await basculerPiste(stem.id);
+    }
+  }
+
+  /**
+   * Verse une piste dans les audios de la répétition.
+   *
+   * Aucun fichier n'est recopié : la piste existe déjà dans R2, seul un nouvel
+   * enregistrement pointe dessus. Le déposer une seconde fois doublerait le
+   * stockage pour un contenu identique.
+   */
+  async function transfererVersAudios(stemId: string, pupitreIds: string[]) {
+    const stem = stemsOrdonnes.find((s) => s.id === stemId);
+    if (!stem || !seanceId) return;
+    try {
+      await ajouterEnregistrement({
+        seanceId,
+        url: stem.url,
+        titre: `${piste?.titre ?? "Audio"} — ${libelleStem(stem.type)}`,
+        dureeSecondes: stem.duree_secondes,
+        pupitreIds,
+      });
+      setMessageStems(
+        pupitreIds.length > 0
+          ? "Piste ajoutée aux audios, pour les pupitres choisis."
+          : "Piste ajoutée aux audios de la répétition."
+      );
+    } catch (e) {
+      setMessageStems(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /** Verse une piste dans les fichiers du groupe, sans recopier l'audio. */
+  async function transfererVersFichiers(stemId: string) {
+    const stem = stemsOrdonnes.find((s) => s.id === stemId);
+    if (!stem || !groupeId) return;
+    try {
+      await ajouterRessource({
+        nom: `${piste?.titre ?? "Audio"} — ${libelleStem(stem.type)}`,
+        type: "audio",
+        url: stem.url,
+        format: "m4a",
+        tailleBytes: stem.taille_octets,
+        dureeSecondes: stem.duree_secondes,
+        partageType: "groupe",
+        partageGroupeId: groupeId,
+      });
+      setMessageStems("Piste ajoutée aux fichiers du groupe.");
+    } catch (e) {
+      setMessageStems(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -1247,6 +1310,7 @@ export function LaboAudio({
                       surMute={(id) => basculerDans(mutes, setMutes, id)}
                       surSolo={(id) => basculerDans(solos, setSolos, id)}
                       surTelecharger={(id) => void telechargerPiste(id)}
+                      surTransferer={(id) => setTransfert(id)}
                     />
 
                     <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
@@ -1296,6 +1360,61 @@ export function LaboAudio({
             </ScrollView>
           )}
         </View>
+
+        <ModalChoix
+          visible={transfert !== null}
+          titre="Transférer cette piste"
+          elements={[
+            ...(seanceId
+              ? [
+                  {
+                    id: "audios",
+                    titre: "Ajouter aux audios de la répétition",
+                    sousTitre: "Visible par tout le groupe, ou par des pupitres choisis",
+                    icone: "musical-notes-outline" as const,
+                  },
+                ]
+              : []),
+            ...(groupeId
+              ? [
+                  {
+                    id: "fichiers",
+                    titre: "Ajouter aux fichiers du groupe",
+                    sousTitre: "Rangé avec les ressources partagées",
+                    icone: "folder-outline" as const,
+                  },
+                ]
+              : []),
+          ]}
+          surChoisir={(id) => {
+            const stemId = transfert;
+            setTransfert(null);
+            if (!stemId) return;
+            // Le choix des pupitres se fait dans une seconde étape : mêler les
+            // deux listes dans une même modale rendait le geste illisible.
+            if (id === "audios") setChoixPupitres(stemId);
+            else void transfererVersFichiers(stemId);
+          }}
+          onFermer={() => setTransfert(null)}
+          messageVide="Aucune destination disponible."
+        />
+
+        <ModalChoixMultiple
+          visible={choixPupitres !== null}
+          titre="Pour quels pupitres ?"
+          sousTitre="Aucun choix = tout le groupe"
+          elements={pupitres.map((p) => ({
+            id: p.id,
+            titre: p.nom,
+            couleur: p.couleur ?? undefined,
+          }))}
+          surValider={(ids) => {
+            const stemId = choixPupitres;
+            setChoixPupitres(null);
+            if (stemId) void transfererVersAudios(stemId, ids);
+          }}
+          onFermer={() => setChoixPupitres(null)}
+        />
 
         <ModalChoix
           visible={choix !== null}

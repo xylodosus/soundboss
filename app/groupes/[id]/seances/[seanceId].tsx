@@ -921,6 +921,9 @@ export default function DetailSeance() {
         piste={audioLabo}
         visible={!!audioLabo}
         onFermer={() => setAudioLabo(null)}
+        seanceId={seanceId}
+        groupeId={seance?.groupe?.id ?? groupeId}
+        pupitres={pupitres}
       />
 
       <ModalEcoutes

@@ -30,6 +30,7 @@ export function Mixeur({
   surMute,
   surSolo,
   surTelecharger,
+  surTransferer,
 }: {
   pistes: PisteMixeur[];
   actives: string[];
@@ -41,6 +42,7 @@ export function Mixeur({
   surMute: (id: string) => void;
   surSolo: (id: string) => void;
   surTelecharger: (id: string) => void;
+  surTransferer: (id: string) => void;
 }) {
   return (
     <View style={{ gap: espacement.md }}>
@@ -95,6 +97,15 @@ export function Mixeur({
                     desactive={!active}
                     onPress={() => surSolo(p.id)}
                   />
+                  <Pressable
+                    onPress={() => surTransferer(p.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Transférer ${libelleStem(p.type)}`}
+                    hitSlop={8}
+                    style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
+                  >
+                    <Ionicons name="share-outline" size={18} color={couleurs.texteSecondaire} />
+                  </Pressable>
                   <Pressable
                     onPress={() => surTelecharger(p.id)}
                     accessibilityRole="button"
