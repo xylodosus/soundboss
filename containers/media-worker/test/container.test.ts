@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectContainer, needsRemux, withExtension } from '../src/container.ts';
+import { detectContainer, needsRemux, needsTranscode, withExtension } from '../src/container.ts';
 
 /** Construit un en-tête de 12 octets à partir d'octets de tête. */
 function header(...bytes: number[]): Buffer {
@@ -136,5 +136,42 @@ describe('withExtension', () => {
 
   it("renvoie le chemin INCHANGÉ si l'extension est déjà la bonne — l'appelant doit comparer avant d'écrire", () => {
     expect(withExtension('audio/global/x.m4a', 'm4a')).toBe('audio/global/x.m4a');
+  });
+});
+
+describe('detectContainer — ASF/WMA', () => {
+  const ENTETE_ASF = Buffer.from([
+    0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11,
+    0xa6, 0xd9, 0x00, 0xaa, 0x00, 0x62, 0xce, 0x6c,
+  ]);
+
+  it('reconnaît un conteneur ASF à son GUID d’en-tête', () => {
+    expect(detectContainer(ENTETE_ASF)).toBe('asf');
+  });
+
+  it('ne confond pas un GUID tronqué avec de l’ASF', () => {
+    expect(detectContainer(ENTETE_ASF.subarray(0, 8))).toBe('inconnu');
+  });
+});
+
+describe('needsTranscode', () => {
+  it('convertit ce que les lecteurs mobiles ne décodent pas', () => {
+    expect(needsTranscode('asf', 'audio')).toBe(true);
+    expect(needsTranscode('inconnu', 'audio')).toBe(true);
+    expect(needsTranscode('ogg', 'audio')).toBe(true);
+  });
+
+  it('laisse tranquilles les formats lus partout', () => {
+    expect(needsTranscode('mp3', 'audio')).toBe(false);
+    expect(needsTranscode('mp4', 'audio')).toBe(false);
+    expect(needsTranscode('wav', 'audio')).toBe(false);
+  });
+
+  it('laisse l’ADTS au remux, qui ne réencode pas', () => {
+    expect(needsTranscode('adts-aac', 'audio')).toBe(false);
+  });
+
+  it('ne touche pas à ce qui n’est pas de l’audio', () => {
+    expect(needsTranscode('inconnu', 'video')).toBe(false);
   });
 });

@@ -15,12 +15,12 @@
 import { mkdtemp, rm, open, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detectContainer, needsRemux, withExtension } from './container.ts';
+import { detectContainer, needsRemux, needsTranscode, withExtension } from './container.ts';
 import { downloadToFile, uploadFromFile, uploadBuffer, deleteObject } from './r2.ts';
 import { getMedia, patchMedia } from './db.ts';
 import { detectTempo } from './bpm.ts';
 import { detectTonalite } from './tonalite.ts';
-import { probeDurationSeconds, remuxAdtsToM4a } from './ffmpeg.ts';
+import { probeDurationSeconds, remuxAdtsToM4a, transcodeToM4a } from './ffmpeg.ts';
 import { measureLoudness, shouldNormalize, normalizeLoudness } from './loudness.ts';
 import { computeWaveformPeaks, serializePeaks } from './waveform.ts';
 import { config } from './config.ts';
@@ -31,7 +31,7 @@ export interface AnalyzeResult {
   container?: string;
   durationSeconds?: number | null;
   loudnessLufs?: number | null;
-  processing?: 'remux' | 'loudnorm' | null;
+  processing?: 'remux' | 'loudnorm' | 'transcode' | null;
   tonalite?: string | null;
   newPath?: string;
   peaksPath?: string;
@@ -91,7 +91,7 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
     // --- Traitement du fichier : normalisation OU remux, jamais les deux ---
     let finalPath = srcPath;
     let finalKey = media.url;
-    let processing: 'remux' | 'loudnorm' | null = null;
+    let processing: 'remux' | 'loudnorm' | 'transcode' | null = null;
     let loudnessLufs: number | null = null;
 
     if (isAudio && config.loudness.enabled) {
@@ -104,6 +104,18 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
         finalKey = derivedKey(media.url, 'loudnorm');
         processing = 'loudnorm';
       }
+    }
+
+    // Un conteneur que le mobile ne décode pas doit être réencodé, que son
+    // volume soit correct ou non. C'est le cas qui a laissé passer un WMA
+    // injouable : la normalisation seule décidait du réencodage, et ce fichier
+    // était déjà au bon niveau.
+    if (!processing && needsTranscode(container, 'audio')) {
+      const out = join(dir, 'transcoded.m4a');
+      await transcodeToM4a(srcPath, out, config.loudness.aacBitrate);
+      finalPath = out;
+      finalKey = derivedKey(media.url, 'transcode');
+      processing = 'transcode';
     }
 
     if (!processing && needsRemux(container, 'audio')) {

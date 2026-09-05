@@ -54,3 +54,31 @@ export async function remuxAdtsToM4a(inputPath: string, outputPath: string): Pro
     outputPath,
   ], { maxBuffer: 10 * 1024 * 1024 });
 }
+
+/**
+ * Réencode un audio quelconque en M4A/AAC.
+ *
+ * Contrairement à `remuxAdtsToM4a`, il n'y a pas de recopie possible : le flux
+ * source n'est pas de l'AAC. On perd donc une génération, ce qui est le prix à
+ * payer pour qu'un WMA — ou tout format que le mobile ignore — devienne
+ * audible.
+ *
+ * `-vn` écarte les pochettes embarquées : une image traitée comme un flux vidéo
+ * ferait échouer le conteneur M4A audio.
+ */
+export async function transcodeToM4a(
+  inputPath: string,
+  outputPath: string,
+  /** Même convention que la normalisation : une chaîne ffmpeg, par exemple '64k'. */
+  bitrate: string,
+): Promise<void> {
+  await run('ffmpeg', [
+    '-y',
+    '-i', inputPath,
+    '-vn',
+    '-c:a', 'aac',
+    '-b:a', bitrate,
+    '-movflags', '+faststart',
+    outputPath,
+  ], { maxBuffer: 10 * 1024 * 1024 });
+}
