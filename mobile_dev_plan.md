@@ -482,6 +482,31 @@ l'emporte et fige l'origine.
 Le JSONB est **validé** à la lecture, jamais converti de force : la colonne peut
 contenir un schéma d'une version antérieure du conteneur.
 
+**Absorption des dominantes (5 sept., après mesure).** La première chronologie
+produisait des sections parasites. Sur cinq morceaux dont la tonalité était
+relevée à l'oreille :
+
+| Morceau | Réel | Chronologie brute |
+|---|---|---|
+| HOSANNA reprise | Sol | ~~Ré~~ → Sol |
+| ABBA | Ré | Ré → ~~La~~ → Ré |
+| DEBOUT | Mi | Mi → ~~Si~~ → ~~Si min~~ → Mi |
+| HOSANNA.wma | Mi → Fa# | Mi → ~~Si~~ → ~~Do#~~ → Fa# |
+| JE VEUX VIVRE | Do → Do# | ~~Sol~~ → ~~Sol#~~ → Do# |
+
+**Les huit sections parasites étaient toutes exactement la dominante d'une
+vraie tonalité.** Aucune exception. Quand l'harmonie s'installe sur le cinquième
+degré pendant une minute, une tranche de trente secondes y voit une tonalité à
+part entière.
+
+La confiance ne permet pas de les écarter : une parasite à 0,155 dépassait une
+vraie à 0,11. C'est la troisième fois que cet indicateur se révèle inutilisable.
+
+Règle retenue : absorber une section dans sa voisine quand elle en est la
+dominante, en privilégiant la voisine la plus sûre. Risque assumé — effacer une
+modulation réelle vers la dominante — écarté par le répertoire : les deux
+modulations relevées montent d'un demi-ton et d'un ton, jamais d'une quinte.
+
 ## 5. Commandes utiles
 
 ```bash

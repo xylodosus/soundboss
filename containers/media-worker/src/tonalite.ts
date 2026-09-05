@@ -319,5 +319,97 @@ export function sectionsTonales(
       sections.push({ debut, fin, id: v.id, confiance: v.confiance });
     }
   }
-  return sections;
+  return fusionner(absorberDominantes(sections));
+}
+
+/** Degré chromatique d'une tonalité, ou -1 si son identifiant est inconnu. */
+function degre(id: string): number {
+  const note = id.split(':')[0];
+  return NOTES.indexOf(note as (typeof NOTES)[number]);
+}
+
+/** `candidat` est-il la dominante de `reference` ? Cinquième degré, soit sept demi-tons. */
+function estDominanteDe(candidat: string, reference: string): boolean {
+  const a = degre(candidat);
+  const b = degre(reference);
+  if (a < 0 || b < 0) return false;
+  return (b + 7) % 12 === a;
+}
+
+/**
+ * Absorbe les sections qui ne sont que la dominante de leur voisine.
+ *
+ * Observation du 5 septembre sur le corpus SoundBoss : sur cinq morceaux dont
+ * la tonalité était relevée à l'oreille, **les huit sections parasites étaient
+ * toutes exactement la dominante d'une vraie tonalité** — Ré pour Sol, La pour
+ * Ré, Si pour Mi, Do# pour Fa#, Sol# pour Do#. Quand l'harmonie s'installe sur
+ * le cinquième degré pendant une minute, une tranche de trente secondes y voit
+ * une tonalité à part entière.
+ *
+ * La confiance ne permet pas de les écarter : une parasite mesurée à 0,155
+ * dépassait une vraie à 0,11.
+ *
+ * Le risque assumé est d'effacer une modulation réelle vers la dominante. Elle
+ * existe en musique, mais pas dans ce répertoire : les deux modulations
+ * relevées montent d'un demi-ton et d'un ton, jamais d'une quinte.
+ */
+function absorberDominantes(sections: SectionTonale[]): SectionTonale[] {
+  if (sections.length < 2) return sections;
+
+  const garde = sections.map(() => true);
+  for (let i = 0; i < sections.length; i++) {
+    const avant = precedenteGardee(sections, garde, i);
+    const apres = suivanteGardee(sections, garde, i);
+    // On absorbe vers la voisine la plus sûre : c'est elle qui porte la
+    // tonalité réelle, la dominante n'étant qu'un passage harmonique.
+    const cible = [avant, apres]
+      .filter((v): v is SectionTonale => !!v && estDominanteDe(sections[i].id, v.id))
+      .sort((a, b) => b.confiance - a.confiance)[0];
+    if (cible) garde[i] = false;
+  }
+
+  const restantes = sections.filter((_, i) => garde[i]);
+  if (restantes.length === 0) return sections;
+
+  // Les bornes des sections absorbées reviennent à celle qui les précède.
+  for (let i = 0; i < restantes.length - 1; i++) {
+    restantes[i] = { ...restantes[i], fin: restantes[i + 1].debut };
+  }
+  const derniere = sections[sections.length - 1];
+  restantes[restantes.length - 1] = { ...restantes[restantes.length - 1], fin: derniere.fin };
+  restantes[0] = { ...restantes[0], debut: sections[0].debut };
+  return restantes;
+}
+
+function precedenteGardee(
+  sections: SectionTonale[],
+  garde: boolean[],
+  i: number
+): SectionTonale | null {
+  for (let j = i - 1; j >= 0; j--) if (garde[j]) return sections[j];
+  return null;
+}
+
+function suivanteGardee(
+  sections: SectionTonale[],
+  garde: boolean[],
+  i: number
+): SectionTonale | null {
+  for (let j = i + 1; j < sections.length; j++) if (garde[j]) return sections[j];
+  return null;
+}
+
+/** Recolle les sections voisines devenues identiques après absorption. */
+function fusionner(sections: SectionTonale[]): SectionTonale[] {
+  const sortie: SectionTonale[] = [];
+  for (const s of sections) {
+    const derniere = sortie[sortie.length - 1];
+    if (derniere && derniere.id === s.id) {
+      derniere.fin = s.fin;
+      derniere.confiance = Math.max(derniere.confiance, s.confiance);
+    } else {
+      sortie.push({ ...s });
+    }
+  }
+  return sortie;
 }

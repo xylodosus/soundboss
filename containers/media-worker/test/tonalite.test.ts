@@ -124,3 +124,53 @@ describe('sectionsTonales', () => {
     expect(sectionsTonales([new Float64Array(12), new Float64Array(12)], 30)).toEqual([]);
   });
 });
+
+describe('sectionsTonales — absorption des dominantes', () => {
+  const profil = (demiTons: number, mode: 'majeur' | 'mineur' = 'majeur') =>
+    Float64Array.from(
+      PROFILS[mode].map((_, i) => PROFILS[mode][(i - demiTons + 12) % 12]),
+    );
+  const ids = (tranches: Float64Array[]) => sectionsTonales(tranches, 30).map((s) => s.id);
+
+  // Chaque cas reprend une chronologie réellement produite le 5 septembre, avec
+  // la tonalité relevée à l'oreille par le chef de groupe.
+
+  it('HOSANNA reprise : Ré est la dominante de Sol', () => {
+    // Détecté : Ré | Sol. Réel : Sol.
+    expect(ids([profil(2), profil(7), profil(7)])).toEqual(['Sol:majeur']);
+  });
+
+  it('ABBA : La est la dominante de Ré', () => {
+    // Détecté : Ré | La | Ré. Réel : Ré.
+    expect(ids([profil(2), profil(9), profil(9), profil(2), profil(2)])).toEqual(['Ré:majeur']);
+  });
+
+  it('HOSANNA.wma : deux dominantes encadrent une vraie modulation', () => {
+    // Détecté : Mi | Si | Do# | Fa#. Réel : Mi puis Fa#.
+    expect(
+      ids([profil(4), profil(11), profil(11), profil(1), profil(1), profil(6), profil(6)]),
+    ).toEqual(['Mi:majeur', 'Fa#:majeur']);
+  });
+
+  it('préserve une modulation d’un ton, qui n’est pas une dominante', () => {
+    // Mi vers Fa# : deux demi-tons, le motif réel du répertoire.
+    expect(ids([profil(4), profil(4), profil(6), profil(6)])).toEqual([
+      'Mi:majeur',
+      'Fa#:majeur',
+    ]);
+  });
+
+  it('préserve une modulation d’un demi-ton', () => {
+    expect(ids([profil(0), profil(0), profil(1), profil(1)])).toEqual([
+      'Do:majeur',
+      'Do#:majeur',
+    ]);
+  });
+
+  it('absorbe une dominante de mode différent quand elle est encadrée', () => {
+    // DEBOUT : Mi | Si | Si mineur | Mi. Réel : Mi.
+    expect(
+      ids([profil(4), profil(11), profil(11), profil(11, 'mineur'), profil(4), profil(4)]),
+    ).toEqual(['Mi:majeur']);
+  });
+});
