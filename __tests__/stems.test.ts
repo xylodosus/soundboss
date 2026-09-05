@@ -1,4 +1,6 @@
 import {
+  arbreStems,
+  decoupeQuiAffine,
   gainEffectif,
   libelleStem,
   memoireEstimee,
@@ -161,5 +163,62 @@ describe("titreStem", () => {
 
   it("se rabat sur un titre neutre quand il manque", () => {
     expect(titreStem(null, "bass")).toBe("Audio - Stem Basse");
+  });
+});
+
+describe("decoupeQuiAffine", () => {
+  it("associe chaque stem redécoupable à sa découpe", () => {
+    expect(decoupeQuiAffine("vocals")).toBe("vocal-stem");
+    expect(decoupeQuiAffine("drums")).toBe("drum-stem");
+    expect(decoupeQuiAffine("other")).toBe("melodic-stem");
+  });
+
+  it("accepte aussi le nom documenté du stem mélodique", () => {
+    expect(decoupeQuiAffine("melodies")).toBe("melodic-stem");
+  });
+
+  it("rend null pour ce qui ne se redécoupe pas", () => {
+    // L'instrumental est un mixage, la basse et les feuilles sont terminales.
+    expect(decoupeQuiAffine("instrumental")).toBeNull();
+    expect(decoupeQuiAffine("bass")).toBeNull();
+    expect(decoupeQuiAffine("kick")).toBeNull();
+  });
+});
+
+describe("arbreStems", () => {
+  const s = (id: string, type: string, parent_id: string | null = null) => ({
+    id,
+    type,
+    parent_id,
+  });
+
+  it("place chaque enfant juste sous son parent", () => {
+    const arbre = arbreStems([
+      s("a", "vocals"),
+      s("b", "drums"),
+      s("c", "kick", "b"),
+      s("d", "snare", "b"),
+    ]);
+    expect(arbre.map((n) => [n.stem.type, n.niveau])).toEqual([
+      ["vocals", 0],
+      ["drums", 0],
+      ["kick", 1],
+      ["snare", 1],
+    ]);
+  });
+
+  it("garde l'ordre de console entre les branches", () => {
+    const arbre = arbreStems([s("a", "drums"), s("b", "vocals")]);
+    expect(arbre.map((n) => n.stem.type)).toEqual(["vocals", "drums"]);
+  });
+
+  it("ne perd pas un enfant dont le parent est absent", () => {
+    // Une découpe partiellement supprimée ne doit pas faire disparaître de piste.
+    const arbre = arbreStems([s("c", "kick", "inconnu")]);
+    expect(arbre.map((n) => [n.stem.type, n.niveau])).toEqual([["kick", 0]]);
+  });
+
+  it("rend une liste vide sans stem", () => {
+    expect(arbreStems([])).toEqual([]);
   });
 });

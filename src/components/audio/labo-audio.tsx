@@ -34,6 +34,7 @@ import {
   transposer,
 } from "@/lib/tonalite";
 import { ModalChoix } from "@/components/ui/modal-choix";
+import { useDialogue } from "@/lib/dialogue";
 import {
   clefsSeances,
   useAjouterEnregistrement,
@@ -196,6 +197,7 @@ export function LaboAudio({
   avecStems?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const dialogue = useDialogue();
   const [etat, setEtat] = useState<Etat>("chargement");
   const [message, setMessage] = useState<string | null>(null);
   const [pics, setPics] = useState<number[]>([]);
@@ -866,6 +868,41 @@ export function LaboAudio({
   }
 
   /**
+   * Demande l'affinage d'un stem, après confirmation du coût.
+   *
+   * Chaque affinage est une tâche facturée au même tarif à la minute qu'une
+   * découpe principale — et un stem dure aussi longtemps que le morceau. Le
+   * dire avant, pas après.
+   */
+  async function affinerStem(stemId: string, decoupe: string) {
+    const stem = stemsOrdonnes.find((s) => s.id === stemId);
+    if (!stem || !piste) return;
+
+    const produits =
+      decoupe === "vocal-stem"
+        ? "voix principale et chœurs"
+        : decoupe === "drum-stem"
+          ? "grosse caisse, caisse claire et autres percussions"
+          : "piano, guitares, cordes, vents et autres mélodies";
+
+    const accepte = await dialogue.confirmer({
+      titre: `Affiner « ${libelleStem(stem.type)} » ?`,
+      message: `Cette piste sera séparée en ${produits}. L'opération prend quelques minutes et compte comme une extraction.`,
+      boutonConfirmer: "Affiner",
+      danger: false,
+    });
+    if (!accepte) return;
+
+    demanderStems(
+      { enregistrementId: piste.id, stemType: decoupe },
+      {
+        onSuccess: (r) => setMessageStems(r.message),
+        onError: (e) => setMessageStems(e instanceof Error ? e.message : String(e)),
+      }
+    );
+  }
+
+  /**
    * Verse une piste dans les audios de la répétition.
    *
    * Aucun fichier n'est recopié : la piste existe déjà dans R2, seul un nouvel
@@ -1392,6 +1429,10 @@ export function LaboAudio({
                       surSolo={(id) => basculerDans(solos, setSolos, id)}
                       surTelecharger={(id) => void telechargerPiste(id)}
                       surTransferer={seanceId || groupeId ? (id) => setTransfert(id) : undefined}
+                      surAffiner={(id, decoupe) => void affinerStem(id, decoupe)}
+                      dejaAffines={stemsOrdonnes
+                        .filter((s) => s.parent_id)
+                        .map((s) => s.parent_id!)}
                     />
 
                     <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>

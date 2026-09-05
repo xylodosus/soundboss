@@ -3,12 +3,13 @@ import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Texte } from "@/components/ui/texte";
-import { libelleStem, type EtatMixage } from "@/lib/stems";
+import { arbreStems, decoupeQuiAffine, libelleStem, type EtatMixage } from "@/lib/stems";
 import { couleurs, espacement, rayons } from "@/lib/theme";
 
 export type PisteMixeur = {
   id: string;
   type: string;
+  parent_id: string | null;
   duree_secondes: number | null;
 };
 
@@ -31,6 +32,8 @@ export function Mixeur({
   surSolo,
   surTelecharger,
   surTransferer,
+  surAffiner,
+  dejaAffines = [],
 }: {
   pistes: PisteMixeur[];
   actives: string[];
@@ -47,16 +50,25 @@ export function Mixeur({
    * les audios de l'application, y compris hors d'un groupe ou d'une répétition.
    */
   surTransferer?: (id: string) => void;
+  /** Absent quand l'affinage n'est pas proposé — hors répétition, par exemple. */
+  surAffiner?: (id: string, decoupe: string) => void;
+  /** Identifiants des stems dont l'affinage est déjà fait ou en cours. */
+  dejaAffines?: string[];
 }) {
   return (
     <View style={{ gap: espacement.md }}>
-      {pistes.map((p) => {
+      {arbreStems(pistes).map(({ stem: p, niveau }) => {
         const active = actives.includes(p.id);
         const enChargement = chargement === p.id;
+        const decoupe = decoupeQuiAffine(p.type);
+        const affinable = !!surAffiner && !!decoupe && !dejaAffines.includes(p.id);
         return (
           <View
             key={p.id}
             style={{
+              // Les enfants d'un stem se lisent en retrait : une grosse caisse
+              // n'est pas une piste de même rang que la batterie dont elle sort.
+              marginLeft: niveau * 20,
               backgroundColor: couleurs.surfaceCarte,
               borderRadius: rayons.md,
               padding: espacement.md,
@@ -101,6 +113,17 @@ export function Mixeur({
                     desactive={!active}
                     onPress={() => surSolo(p.id)}
                   />
+                  {affinable && (
+                    <Pressable
+                      onPress={() => surAffiner!(p.id, decoupe!)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Affiner ${libelleStem(p.type)} en plusieurs pistes`}
+                      hitSlop={8}
+                      style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
+                    >
+                      <Ionicons name="git-branch-outline" size={18} color={couleurs.warmGold} />
+                    </Pressable>
+                  )}
                   {surTransferer && (
                     <Pressable
                       onPress={() => surTransferer(p.id)}

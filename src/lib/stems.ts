@@ -158,3 +158,54 @@ export function titreStem(titreSource: string | null | undefined, type: string):
   const base = (titreSource ?? "Audio").replace(/\.[A-Za-z0-9]{2,4}$/, "").trim() || "Audio";
   return `${base} - Stem ${libelleStem(type)}`;
 }
+
+/**
+ * Découpe qui affine un stem, ou null s'il est terminal.
+ *
+ * Trois stems seulement se redécoupent. L'instrumental n'en fait pas partie :
+ * c'est un mixage, pas une famille d'instruments. La basse non plus — Fadr n'en
+ * propose aucune subdivision.
+ */
+export function decoupeQuiAffine(type: string): string | null {
+  if (type === "vocals") return "vocal-stem";
+  if (type === "drums") return "drum-stem";
+  // `other` est le nom réel, `melodies` celui de la documentation.
+  if (type === "other" || type === "melodies") return "melodic-stem";
+  return null;
+}
+
+export type NoeudStem<T> = { stem: T; niveau: number };
+
+/**
+ * Range les stems en arbre : chaque enfant suit immédiatement son parent.
+ *
+ * Un enfant dont le parent a disparu remonte au premier niveau plutôt que
+ * d'être perdu — une découpe partiellement supprimée ne doit pas escamoter des
+ * pistes qui existent bel et bien dans R2.
+ */
+export function arbreStems<T extends { id: string; type: string; parent_id: string | null }>(
+  stems: T[]
+): NoeudStem<T>[] {
+  const parIdParent = new Map<string, T[]>();
+  const racines: T[] = [];
+  const ids = new Set(stems.map((s) => s.id));
+
+  for (const stem of stems) {
+    if (stem.parent_id && ids.has(stem.parent_id)) {
+      const fratrie = parIdParent.get(stem.parent_id) ?? [];
+      fratrie.push(stem);
+      parIdParent.set(stem.parent_id, fratrie);
+    } else {
+      racines.push(stem);
+    }
+  }
+
+  const sortie: NoeudStem<T>[] = [];
+  for (const racine of ordonnerStems(racines)) {
+    sortie.push({ stem: racine, niveau: 0 });
+    for (const enfant of ordonnerStems(parIdParent.get(racine.id) ?? [])) {
+      sortie.push({ stem: enfant, niveau: 1 });
+    }
+  }
+  return sortie;
+}
