@@ -337,6 +337,61 @@ export function useSupprimerMorceauSetlist() {
   });
 }
 
+export type StemEnregistrement = {
+  id: string;
+  type: string;
+  url: string;
+  parent_id: string | null;
+  taille_octets: number | null;
+  duree_secondes: number | null;
+};
+
+/**
+ * Pistes séparées d'un enregistrement.
+ *
+ * Elles appartiennent à l'enregistrement, pas à qui les a demandées : dès que
+ * quelqu'un du groupe les a extraites, tout le monde y accède selon la même
+ * règle de visibilité — la RLS y pourvoit.
+ */
+export function useStemsEnregistrement(enregistrementId: string, actif = true) {
+  return useQuery({
+    queryKey: [...clefsSeances.enregistrements(enregistrementId), "stems"],
+    enabled: actif && !!enregistrementId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("enregistrement_stems")
+        .select("id, type, url, parent_id, taille_octets, duree_secondes")
+        .eq("enregistrement_id", enregistrementId);
+      if (error) throw error;
+      return (data ?? []) as StemEnregistrement[];
+    },
+  });
+}
+
+/** Demande une séparation. La RPC vérifie l'accès, le quota et les doublons. */
+export function useDemanderStems() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      enregistrementId,
+      stemType = "main",
+    }: {
+      enregistrementId: string;
+      stemType?: string;
+    }) => {
+      const { data, error } = await supabase.rpc("demander_stems", {
+        p_enregistrement_id: enregistrementId,
+        p_stem_type: stemType,
+      });
+      if (error) throw error;
+      return data as { success: boolean; message: string; data?: Record<string, unknown> };
+    },
+    onSuccess: (_r, { enregistrementId }) => {
+      client.invalidateQueries({ queryKey: clefsSeances.enregistrements(enregistrementId) });
+    },
+  });
+}
+
 export function useEnregistrementsSeance(seanceId: string) {
   return useQuery({
     queryKey: clefsSeances.enregistrements(seanceId),

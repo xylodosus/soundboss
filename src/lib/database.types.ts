@@ -3081,6 +3081,63 @@ export type Database = {
           },
         ]
       }
+      enregistrement_stems: {
+        Row: {
+          created_at: string
+          duree_secondes: number | null
+          enregistrement_id: string
+          fadr_asset_id: string | null
+          id: string
+          parent_id: string | null
+          taille_octets: number | null
+          type: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          duree_secondes?: number | null
+          enregistrement_id: string
+          fadr_asset_id?: string | null
+          id?: string
+          parent_id?: string | null
+          taille_octets?: number | null
+          type: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          duree_secondes?: number | null
+          enregistrement_id?: string
+          fadr_asset_id?: string | null
+          id?: string
+          parent_id?: string | null
+          taille_octets?: number | null
+          type?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      quotas_ia: {
+        Row: {
+          compteur: number
+          jour: string
+          service: string
+          utilisateur_id: string
+        }
+        Insert: {
+          compteur?: number
+          jour?: string
+          service: string
+          utilisateur_id: string
+        }
+        Update: {
+          compteur?: number
+          jour?: string
+          service?: string
+          utilisateur_id?: string
+        }
+        Relationships: []
+      }
       seance_enregistrements: {
         Row: {
           analyzed_at: string | null
@@ -4129,6 +4186,10 @@ export type Database = {
     }
     Functions: {
       a_achete_produit: { Args: { p_produit_id: string }; Returns: boolean }
+      demander_stems: {
+        Args: { p_enregistrement_id: string; p_stem_type?: string }
+        Returns: Json
+      }
       a_le_role_dans_groupe: { Args: { p_role_id: string }; Returns: boolean }
       ajouter_enregistrement_seance: {
         Args: {
