@@ -1,4 +1,10 @@
-import { libelleStem, memoireEstimee, ordonnerStems, peutCharger } from "../src/lib/stems";
+import {
+  gainEffectif,
+  libelleStem,
+  memoireEstimee,
+  ordonnerStems,
+  peutCharger,
+} from "../src/lib/stems";
 
 describe("libelleStem", () => {
   it("traduit les types connus", () => {
@@ -80,5 +86,49 @@ describe("peutCharger", () => {
     // Refuser la seule piste demandée rendrait la fonction inutilisable sur un
     // morceau long, alors qu'une piste seule reste jouable.
     expect(peutCharger(0, 400 * MO, 250 * MO)).toBe(true);
+  });
+});
+
+describe("gainEffectif", () => {
+  const etat = (p: Partial<Parameters<typeof gainEffectif>[1]> = {}) => ({
+    volumes: {},
+    mutes: new Set<string>(),
+    solos: new Set<string>(),
+    ...p,
+  });
+
+  it("laisse passer une piste au volume par défaut", () => {
+    expect(gainEffectif("a", etat())).toBe(1);
+  });
+
+  it("applique le volume de la piste", () => {
+    expect(gainEffectif("a", etat({ volumes: { a: 0.4 } }))).toBeCloseTo(0.4);
+  });
+
+  it("coupe une piste en sourdine, quel que soit son volume", () => {
+    expect(gainEffectif("a", etat({ volumes: { a: 0.9 }, mutes: new Set(["a"]) }))).toBe(0);
+  });
+
+  it("ne laisse passer que les pistes en solo", () => {
+    const e = etat({ solos: new Set(["a"]) });
+    expect(gainEffectif("a", e)).toBe(1);
+    expect(gainEffectif("b", e)).toBe(0);
+  });
+
+  it("accepte plusieurs solos à la fois", () => {
+    const e = etat({ solos: new Set(["a", "b"]) });
+    expect(gainEffectif("a", e)).toBe(1);
+    expect(gainEffectif("b", e)).toBe(1);
+    expect(gainEffectif("c", e)).toBe(0);
+  });
+
+  it("la sourdine l'emporte sur le solo de la même piste", () => {
+    // Convention des consoles : M coupe, même si S est enclenché.
+    const e = etat({ mutes: new Set(["a"]), solos: new Set(["a"]) });
+    expect(gainEffectif("a", e)).toBe(0);
+  });
+
+  it("respecte le volume d'une piste en solo", () => {
+    expect(gainEffectif("a", etat({ volumes: { a: 0.5 }, solos: new Set(["a"]) }))).toBeCloseTo(0.5);
   });
 });

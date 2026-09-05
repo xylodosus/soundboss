@@ -99,3 +99,27 @@ export function peutCharger(actuelle: number, ajout: number, plafond = PLAFOND_M
   if (actuelle === 0) return true;
   return actuelle + ajout <= plafond;
 }
+
+export type EtatMixage = {
+  /** Volume par piste, de 0 à 1. Absent vaut 1. */
+  volumes: Record<string, number>;
+  mutes: Set<string>;
+  solos: Set<string>;
+};
+
+/**
+ * Gain d'une piste, selon les conventions d'une console de mixage.
+ *
+ * Dès qu'une piste au moins est en solo, les autres se taisent — c'est ce que
+ * « solo » veut dire, et c'est ce qui le rend utile pour isoler une partie sans
+ * couper les quatre autres une à une.
+ *
+ * La sourdine l'emporte sur le solo de la même piste : appuyer sur M doit
+ * toujours faire taire, sans qu'on ait à se demander si S est enclenché.
+ */
+export function gainEffectif(id: string, etat: EtatMixage): number {
+  if (etat.mutes.has(id)) return 0;
+  if (etat.solos.size > 0 && !etat.solos.has(id)) return 0;
+  const volume = etat.volumes[id];
+  return typeof volume === "number" ? Math.min(1, Math.max(0, volume)) : 1;
+}

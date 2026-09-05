@@ -35,7 +35,17 @@ import {
 } from "@/lib/tonalite";
 import { ModalChoix } from "@/components/ui/modal-choix";
 import { useDemanderStems, useStemsEnregistrement } from "@/lib/queries/seances";
-import { PLAFOND_MEMOIRE, libelleStem, memoireEstimee, ordonnerStems, peutCharger } from "@/lib/stems";
+import {
+  PLAFOND_MEMOIRE,
+  gainEffectif,
+  libelleStem,
+  memoireEstimee,
+  ordonnerStems,
+  peutCharger,
+  type EtatMixage,
+} from "@/lib/stems";
+import { Mixeur } from "@/components/audio/mixeur";
+import { telechargerEtPartager } from "@/lib/telechargement";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
 import { urlLectureR2 } from "@/lib/r2";
@@ -188,6 +198,11 @@ export function LaboAudio({
   const [chargementStems, setChargementStems] = useState(false);
   /** Pistes réellement décodées et jouées. Vide = mixage complet. */
   const [pistesActives, setPistesActives] = useState<string[]>([]);
+  const [volumes, setVolumes] = useState<Record<string, number>>({});
+  const [mutes, setMutes] = useState<Set<string>>(() => new Set());
+  const [solos, setSolos] = useState<Set<string>>(() => new Set());
+  const [pisteEnChargement, setPisteEnChargement] = useState<string | null>(null);
+  const [telechargement, setTelechargement] = useState<string | null>(null);
   const [messageStems, setMessageStems] = useState<string | null>(null);
   const [onglet, setOnglet] = useState<Onglet>("lecteur");
 
@@ -339,6 +354,9 @@ export function LaboAudio({
     setEgaliseurActif(true);
     setPostGain(0);
     setPistesActives([]);
+    setVolumes({});
+    setMutes(new Set());
+    setSolos(new Set());
     setMessageStems(null);
     setOnglet("lecteur");
     setTonaliteManuelle(null);
@@ -473,6 +491,18 @@ export function LaboAudio({
     dernierClicRef.current = -1;
   }, [tempo, transposition, demarrer]);
 
+  // Le mixage s'applique à chaud sur les gains de piste : régler un volume ou
+  // appuyer sur M ne recrée aucun nœud, donc n'interrompt pas la lecture.
+  const etatMixage: EtatMixage = useMemo(
+    () => ({ volumes, mutes, solos }),
+    [volumes, mutes, solos]
+  );
+  useEffect(() => {
+    gainsPistesRef.current.forEach((gain, id) => {
+      gain.gain.value = id === "mixage" ? 1 : gainEffectif(id, etatMixage);
+    });
+  }, [etatMixage, pistesActives]);
+
   // Le gain d'un biquad s'écrit à chaud : aucun nœud à recréer, donc aucune
   // coupure — contrairement au tempo, qui peut franchir la frontière de la
   // correction de hauteur.
@@ -602,6 +632,7 @@ export function LaboAudio({
 
     setMessageStems(null);
     setChargementStems(true);
+    setPisteEnChargement(stemId);
     try {
       let tampon = cacheStems?.id === piste.id ? cacheStems.tampons.get(stemId) : undefined;
       if (!tampon) {
@@ -618,6 +649,49 @@ export function LaboAudio({
       setMessageStems(e instanceof Error ? e.message : String(e));
     } finally {
       setChargementStems(false);
+      setPisteEnChargement(null);
+    }
+  }
+
+  function basculerDans(
+    ensemble: Set<string>,
+    poser: (s: Set<string>) => void,
+    id: string
+  ) {
+    const suivant = new Set(ensemble);
+    if (suivant.has(id)) suivant.delete(id);
+    else suivant.add(id);
+    poser(suivant);
+  }
+
+  /** Télécharge une piste. Sur Android le fichier va dans la médiathèque ; sur iOS il passe par le partage. */
+  async function telechargerPiste(stemId: string) {
+    const stem = stemsOrdonnes.find((s) => s.id === stemId);
+    if (!stem || telechargement) return;
+    setTelechargement(stemId);
+    try {
+      const url = await urlLectureR2(stem.url);
+      if (!url) throw new Error("Lien de la piste indisponible.");
+      const nom = `${piste?.titre ?? "audio"} - ${libelleStem(stem.type)}.m4a`;
+      await telechargerEtPartager(url, nom, "audio/mp4");
+    } catch (e) {
+      setMessageStems(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTelechargement(null);
+    }
+  }
+
+  /**
+   * Télécharge toutes les pistes, une par une.
+   *
+   * Pas d'archive zip : elle imposerait une bibliothèque de compression pour
+   * regrouper des fichiers déjà compressés, sans rien gagner en taille. Sur
+   * Android chaque piste part directement dans la médiathèque, sans interaction.
+   */
+  async function telechargerToutes() {
+    if (telechargement) return;
+    for (const stem of stemsOrdonnes) {
+      await telechargerPiste(stem.id);
     }
   }
 
@@ -634,6 +708,9 @@ export function LaboAudio({
   /** Revient au mixage complet, en libérant les pistes séparées. */
   function revenirAuMixage() {
     setPistesActives([]);
+    setVolumes({});
+    setMutes(new Set());
+    setSolos(new Set());
     setMessageStems(null);
     const enCache = cache;
     if (enCache && enCache.id === piste?.id) {
@@ -772,10 +849,11 @@ export function LaboAudio({
               contentContainerStyle={{ gap: espacement.lg, paddingBottom: 50 }}
               showsVerticalScrollIndicator={false}
             >
-              {/* Waveform et transport restent au-dessus des onglets : ils
-                  commandent ce qui joue, quel que soit l'onglet ouvert. Les
-                  dupliquer dans « Lecteur » et « Pistes » aurait donné deux
-                  boutons de lecture pour une seule lecture. */}
+              {/* Le transport reste au-dessus des onglets : il commande ce qui
+                  joue, quel que soit l'onglet. La waveform, elle, dépeint le
+                  mixage — elle n'a rien à dire d'une basse jouée en solo, donc
+                  elle disparaît dans l'onglet Pistes. */}
+              {onglet !== "pistes" && (
               <Waveform
                 pics={pics}
                 progression={duree > 0 ? position / duree : 0}
@@ -790,6 +868,7 @@ export function LaboAudio({
                   deplacerBorne(borne, ratio * duree, definitif)
                 }
               />
+              )}
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>
                   {formatTemps(position)}
@@ -1041,7 +1120,7 @@ export function LaboAudio({
                     </Texte>
                     <View style={{ flexDirection: "row" }}>
                       <Puce
-                        libelle={demandeEnCours ? "Demande…" : "Séparer le morceau"}
+                        libelle={demandeEnCours ? "Demande…" : "Extraire les pistes"}
                         actif={false}
                         onPress={() => {
                           if (demandeEnCours || !piste) return;
@@ -1059,45 +1138,35 @@ export function LaboAudio({
                   </View>
                 ) : (
                   <>
-                    {/* Chaque piste se charge à la demande : cinq pistes d'un
-                        morceau de huit minutes demanderaient 450 Mo, alors que
-                        l'usage courant en réclame une ou deux. */}
-                    {stemsOrdonnes.map((stem) => {
-                      const active = pistesActives.includes(stem.id);
-                      return (
-                        <View
-                          key={stem.id}
-                          style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}
-                        >
-                          <Texte
-                            variante="petit"
-                            couleur={active ? couleurs.texte : couleurs.texteSecondaire}
-                            style={{ flex: 1 }}
-                          >
-                            {libelleStem(stem.type)}
-                          </Texte>
-                          <Puce
-                            libelle={active ? "Active" : "Activer"}
-                            actif={active}
-                            onPress={() => void basculerPiste(stem.id)}
-                          />
-                        </View>
-                      );
-                    })}
+                    <Mixeur
+                      pistes={stemsOrdonnes}
+                      actives={pistesActives}
+                      etat={etatMixage}
+                      chargement={pisteEnChargement}
+                      telechargementEnCours={telechargement}
+                      surBasculer={(id) => void basculerPiste(id)}
+                      surVolume={(id, v) => setVolumes((p) => ({ ...p, [id]: v }))}
+                      surMute={(id) => basculerDans(mutes, setMutes, id)}
+                      surSolo={(id) => basculerDans(solos, setSolos, id)}
+                      surTelecharger={(id) => void telechargerPiste(id)}
+                    />
 
                     <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
                       <Texte variante="micro" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-                        {chargementStems
-                          ? "Chargement d'une piste…"
-                          : pistesActives.length === 0
-                            ? "Aucune piste active — le mixage complet est joué."
-                            : `${pistesActives.length} piste${
-                                pistesActives.length > 1 ? "s" : ""
-                              } — ${(memoireChargee / 1024 / 1024).toFixed(0)} Mo`}
+                        {pistesActives.length === 0
+                          ? "Aucune piste chargée — appuie sur un nom pour l'activer."
+                          : `${pistesActives.length} piste${
+                              pistesActives.length > 1 ? "s" : ""
+                            } — ${(memoireChargee / 1024 / 1024).toFixed(0)} Mo`}
                       </Texte>
                       {pistesActives.length > 0 && (
-                        <Puce libelle="Mixage" actif={false} onPress={revenirAuMixage} />
+                        <Puce libelle="Tout libérer" actif={false} onPress={revenirAuMixage} />
                       )}
+                      <Puce
+                        libelle={telechargement ? "En cours…" : "Tout télécharger"}
+                        actif={false}
+                        onPress={() => void telechargerToutes()}
+                      />
                     </View>
 
                     {messageStems && (
