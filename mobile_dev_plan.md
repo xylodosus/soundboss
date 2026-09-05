@@ -721,6 +721,28 @@ un stem dure aussi longtemps que le morceau.
 repart donc d'une source dégradée, là où la découpe principale part du fichier
 d'origine. À évaluer sur un premier essai réel.
 
+## 4 quaterdecies. Répartition coût / stockage (décision du 5 sept. 2026)
+
+Deux notions distinctes, à ne pas confondre quand le système de crédits sera
+construit :
+
+| | Imputé à |
+|---|---|
+| **Coût** d'une extraction ou d'un affinage | le **demandeur**, sur ses crédits — colonne `stems_demandeur` |
+| **Stockage** des fichiers produits | le **groupe** propriétaire de la répétition |
+
+Un membre qui extrait seize pistes paie l'opération, mais les fichiers pèsent
+sur le quota du groupe — qui les possède et dont tous les membres profitent.
+
+Le stockage personnel ne compte donc que les fichiers propres et les
+répétitions sans groupe.
+
+**Correctif du même jour :** le calcul de stockage ne portait que sur les
+fichiers partagés. Il ignorait les audios de répétition et les pistes
+extraites, de loin les plus lourds — seize pistes de `HOSANNA reprise` font
+13 Mo pour un morceau de 2,6 Mo. L'agrégation vit désormais dans
+`src/lib/stockage.ts`, testée, et sert les deux espaces.
+
 ## 6. Notes & pièges
 
 ### Une clé étrangère de plus casse l'imbrication PostgREST (5 sept. 2026)
