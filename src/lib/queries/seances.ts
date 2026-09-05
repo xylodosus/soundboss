@@ -420,11 +420,17 @@ export function useEnregistrementsSeance(seanceId: string) {
   return useQuery({
     queryKey: clefsSeances.enregistrements(seanceId),
     queryFn: async () => {
-      const { data } = await supabase
+      // La clé étrangère est nommée explicitement : depuis l'ajout de
+      // stems_demandeur, deux colonnes pointent vers users et PostgREST refuse
+      // de choisir — il répond 300 « Multiple Choices » et la liste se vide.
+      const { data, error } = await supabase
         .from("seance_enregistrements")
-        .select("*, uploader:users(id, prenom, nom)")
+        .select("*, uploader:users!seance_enregistrements_uploaded_by_fkey(id, prenom, nom)")
         .eq("seance_id", seanceId)
         .order("created_at", { ascending: false });
+      // Sans ce throw, une requête en échec rendait une liste vide sans rien
+      // signaler : c'est ce qui a rendu la panne invisible pendant une OTA.
+      if (error) throw error;
       return (data ?? []) as unknown as (Database["public"]["Tables"]["seance_enregistrements"]["Row"] & {
         uploader: { id: string; prenom: string | null; nom: string | null } | null;
       })[];

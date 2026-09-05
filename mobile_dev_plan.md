@@ -624,6 +624,31 @@ npx expo install <pkg>   # installer une dep (versions compatibles SDK 54)
 
 ## 6. Notes & pièges
 
+### Une clé étrangère de plus casse l'imbrication PostgREST (5 sept. 2026)
+
+Ajouter `stems_demandeur uuid references users(id)` a vidé la liste des audios
+de répétition, pour tout le monde, chef compris.
+
+Cause : `seance_enregistrements` avait déjà `uploaded_by` vers `users`. Avec
+deux clés étrangères vers la même table, PostgREST ne peut plus résoudre
+`uploader:users(...)` et répond **300 Multiple Choices**. La requête échouait,
+et comme elle ignorait son `error` en rendant `data ?? []`, la liste
+s'affichait vide sans le moindre message.
+
+Deux leçons, et la seconde compte plus que la première :
+
+1. **Nommer la clé étrangère dès qu'une table en a plusieurs vers la même
+   cible** : `users!seance_enregistrements_uploaded_by_fkey(...)`. Le projet le
+   faisait déjà dans `ressources.ts` — l'idiome existait, il n'a pas été suivi.
+2. **Ne jamais avaler l'erreur d'une requête.** Aucun test, aucun `typecheck`,
+   aucun lint ne pouvait attraper ceci : la casse est dans l'inférence de
+   relations de PostgREST, côté serveur. Seul le `throw` la rend visible.
+
+Le symptôme est resté invisible jusqu'à ce qu'un utilisateur le signale, et le
+diagnostic est venu des logs Supabase — un `GET | 300` sur la seule requête qui
+n'apparaissait nulle part ailleurs.
+
+
 - **Auth mobile** : session persistée dans SecureStore (jamais AsyncStorage
   pour les tokens) ; `detectSessionInUrl: false`.
 - **Upload R2** : mêmes edge functions que le web (JWT requis) ; RN envoie un
