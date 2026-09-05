@@ -34,6 +34,8 @@ import {
   transposer,
 } from "@/lib/tonalite";
 import { ModalChoix } from "@/components/ui/modal-choix";
+import { useDemanderStems, useStemsEnregistrement } from "@/lib/queries/seances";
+import { libelleStem, ordonnerStems } from "@/lib/stems";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
 import { urlLectureR2 } from "@/lib/r2";
@@ -78,6 +80,14 @@ const CADENCE_ORDONNANCEUR = 100;
  */
 let contextePartage: AudioContext | null = null;
 let cache: { id: string; tampon: AudioBuffer; pics: number[] } | null = null;
+/**
+ * Pistes séparées décodées, gardées entre deux ouvertures du même morceau.
+ *
+ * Elles pèsent lourd — cinq tampons — donc elles partent en même temps que le
+ * mixage, dès qu'on ouvre un autre morceau ou que l'application passe en
+ * arrière-plan.
+ */
+let cacheStems: { id: string; pistes: { id: string; tampon: AudioBuffer }[] } | null = null;
 let abonnementArrierePlan: { remove: () => void } | null = null;
 /**
  * Décodage en vol, partagé entre les ouvertures.
@@ -98,6 +108,7 @@ function obtenirContexte(): AudioContext {
 
 function libererCache() {
   cache = null;
+  cacheStems = null;
   contextePartage?.close();
   contextePartage = null;
   abonnementArrierePlan?.remove();
@@ -174,6 +185,11 @@ export function LaboAudio({
   const [egaliseur, setEgaliseur] = useState<number[]>(() => BANDES.map(() => 0));
   const [egaliseurActif, setEgaliseurActif] = useState(true);
   const [postGain, setPostGain] = useState(0);
+  const [modeStems, setModeStems] = useState(false);
+  const [chargementStems, setChargementStems] = useState(false);
+  const [coupes, setCoupes] = useState<Set<string>>(() => new Set());
+  const [memoireStems, setMemoireStems] = useState(0);
+  const [messageStems, setMessageStems] = useState<string | null>(null);
 
   const gainRef = useRef<GainNode | null>(null);
   const filtresRef = useRef<BiquadFilterNode[]>([]);
@@ -322,6 +338,10 @@ export function LaboAudio({
     setEgaliseur(BANDES.map(() => 0));
     setEgaliseurActif(true);
     setPostGain(0);
+    setModeStems(false);
+    setCoupes(new Set());
+    setMemoireStems(0);
+    setMessageStems(null);
     setTonaliteManuelle(null);
 
     (async () => {
@@ -359,8 +379,9 @@ export function LaboAudio({
           return;
         }
 
-        // Un autre morceau : l'entrée précédente n'a plus lieu d'être.
+        // Un autre morceau : les entrées précédentes n'ont plus lieu d'être.
         cache = null;
+        cacheStems = null;
 
         let lus: number[] = [];
         if (piste.peaks_url) {
@@ -518,9 +539,79 @@ export function LaboAudio({
   // Une correction manuelle l'emporte ; sinon on suit la section jouée, et à
   // défaut la tonalité dominante du morceau.
   const sections = useMemo(() => parseSections(piste?.tonalite_sections), [piste]);
+  const { data: stems = [] } = useStemsEnregistrement(piste?.id ?? "", visible && !!piste);
+  const { mutate: demanderStems, isPending: demandeEnCours } = useDemanderStems();
+  const stemsOrdonnes = useMemo(() => ordonnerStems(stems), [stems]);
   const tonaliteOrigine =
     tonaliteManuelle ?? sectionA(sections, position)?.id ?? piste?.tonalite ?? null;
   const resume = resumeSections(sections);
+
+  /** Remplace les pistes jouées et relance la lecture si elle était en cours. */
+  function poserPistes(nouvelles: { id: string; tampon: AudioBuffer }[]) {
+    const jouait = enLecture;
+    libererSource();
+    pistesRef.current = nouvelles;
+    if (jouait) demarrer(positionRef.current);
+    else setEnLecture(false);
+  }
+
+  async function basculerStems() {
+    if (etat !== "pret" || !piste) return;
+
+    if (modeStems) {
+      // Retour au mixage : les tampons des stems restent en cache, le
+      // basculement inverse est alors immédiat.
+      if (cache?.id === piste.id) poserPistes([{ id: "mixage", tampon: cache.tampon }]);
+      setModeStems(false);
+      return;
+    }
+
+    if (cacheStems?.id === piste.id) {
+      poserPistes(cacheStems.pistes);
+      setModeStems(true);
+      return;
+    }
+
+    const contexte = contextePartage;
+    if (!contexte) return;
+    setChargementStems(true);
+    try {
+      const charges: { id: string; tampon: AudioBuffer }[] = [];
+      // Séquentiel et non parallèle : cinq décodages simultanés feraient un pic
+      // à cinq tampons en vol, alors qu'un seul suffit à la fois.
+      for (const stem of stemsOrdonnes) {
+        const url = await urlLectureR2(stem.url);
+        if (!url) continue;
+        charges.push({ id: stem.id, tampon: await decodeAudioData(url, contexte.sampleRate) });
+      }
+      if (charges.length === 0) throw new Error("Aucune piste n'a pu être chargée.");
+      cacheStems = { id: piste.id, pistes: charges };
+      setMemoireStems(
+        charges.reduce((somme, c) => somme + c.tampon.length * c.tampon.numberOfChannels * 4, 0)
+      );
+      poserPistes(charges);
+      setModeStems(true);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+      setEtat("erreur");
+    } finally {
+      setChargementStems(false);
+    }
+  }
+
+  /** Couper une piste, c'est mettre son gain à zéro — pas la débrancher. */
+  function basculerCoupure(stemId: string) {
+    setCoupes((precedentes) => {
+      const suivantes = new Set(precedentes);
+      if (suivantes.has(stemId)) suivantes.delete(stemId);
+      else suivantes.add(stemId);
+      coupesRef.current = suivantes;
+      const gain = gainsPistesRef.current.get(stemId);
+      // Débrancher un nœud en cours de lecture claque ; le gain ne claque pas.
+      if (gain) gain.gain.value = suivantes.has(stemId) ? 0 : 1;
+      return suivantes;
+    });
+  }
 
   function deplacerBorne(borne: "debut" | "fin", secondes: number, definitif = true) {
     if (!boucle) return;
@@ -713,6 +804,79 @@ export function LaboAudio({
                   onPress={() => allerA(positionRef.current + SAUT)}
                 />
               </View>
+
+              <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                  Pistes séparées
+                </Texte>
+                {stemsOrdonnes.length > 0 ? (
+                  <Puce
+                    libelle={chargementStems ? "Chargement…" : modeStems ? "Actives" : "Activer"}
+                    actif={modeStems}
+                    onPress={() => {
+                      if (!chargementStems) void basculerStems();
+                    }}
+                  />
+                ) : (
+                  <Puce
+                    libelle={demandeEnCours ? "Demande…" : "Séparer le morceau"}
+                    actif={false}
+                    onPress={() => {
+                      if (demandeEnCours || !piste) return;
+                      demanderStems(
+                        { enregistrementId: piste.id },
+                        {
+                          onSuccess: (r) => setMessageStems(r.message),
+                          onError: (e) =>
+                            setMessageStems(e instanceof Error ? e.message : String(e)),
+                        }
+                      );
+                    }}
+                  />
+                )}
+              </View>
+
+              {messageStems && (
+                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                  {messageStems}
+                </Texte>
+              )}
+
+              {modeStems &&
+                stemsOrdonnes.map((stem) => {
+                  const coupe = coupes.has(stem.id);
+                  return (
+                    <View
+                      key={stem.id}
+                      style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}
+                    >
+                      <Texte
+                        variante="petit"
+                        couleur={coupe ? couleurs.texteSecondaire : couleurs.texte}
+                        style={{ flex: 1 }}
+                      >
+                        {libelleStem(stem.type)}
+                      </Texte>
+                      <Puce
+                        libelle={coupe ? "Coupée" : "Active"}
+                        actif={!coupe}
+                        onPress={() => basculerCoupure(stem.id)}
+                      />
+                    </View>
+                  );
+                })}
+
+              {modeStems && memoireStems > 0 && (
+                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                  {`${stemsOrdonnes.length} pistes en mémoire — ${(
+                    memoireStems /
+                    1024 /
+                    1024
+                  ).toFixed(0)} Mo`}
+                </Texte>
+              )}
 
               <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
 
