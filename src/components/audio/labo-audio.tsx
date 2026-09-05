@@ -35,7 +35,7 @@ import {
 } from "@/lib/tonalite";
 import { ModalChoix } from "@/components/ui/modal-choix";
 import { useDemanderStems, useStemsEnregistrement } from "@/lib/queries/seances";
-import { libelleStem, ordonnerStems } from "@/lib/stems";
+import { PLAFOND_MEMOIRE, libelleStem, memoireEstimee, ordonnerStems, peutCharger } from "@/lib/stems";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
 import { urlLectureR2 } from "@/lib/r2";
@@ -87,7 +87,7 @@ let cache: { id: string; tampon: AudioBuffer; pics: number[] } | null = null;
  * mixage, dès qu'on ouvre un autre morceau ou que l'application passe en
  * arrière-plan.
  */
-let cacheStems: { id: string; pistes: { id: string; tampon: AudioBuffer }[] } | null = null;
+let cacheStems: { id: string; tampons: Map<string, AudioBuffer> } | null = null;
 let abonnementArrierePlan: { remove: () => void } | null = null;
 /**
  * Décodage en vol, partagé entre les ouvertures.
@@ -185,10 +185,9 @@ export function LaboAudio({
   const [egaliseur, setEgaliseur] = useState<number[]>(() => BANDES.map(() => 0));
   const [egaliseurActif, setEgaliseurActif] = useState(true);
   const [postGain, setPostGain] = useState(0);
-  const [modeStems, setModeStems] = useState(false);
   const [chargementStems, setChargementStems] = useState(false);
-  const [coupes, setCoupes] = useState<Set<string>>(() => new Set());
-  const [memoireStems, setMemoireStems] = useState(0);
+  /** Pistes réellement décodées et jouées. Vide = mixage complet. */
+  const [pistesActives, setPistesActives] = useState<string[]>([]);
   const [messageStems, setMessageStems] = useState<string | null>(null);
   const [onglet, setOnglet] = useState<Onglet>("lecteur");
 
@@ -339,9 +338,7 @@ export function LaboAudio({
     setEgaliseur(BANDES.map(() => 0));
     setEgaliseurActif(true);
     setPostGain(0);
-    setModeStems(false);
-    setCoupes(new Set());
-    setMemoireStems(0);
+    setPistesActives([]);
     setMessageStems(null);
     setOnglet("lecteur");
     setTonaliteManuelle(null);
@@ -553,66 +550,97 @@ export function LaboAudio({
     const jouait = enLecture;
     libererSource();
     pistesRef.current = nouvelles;
+    if (nouvelles.length === 0) {
+      setEnLecture(false);
+      return;
+    }
     if (jouait) demarrer(positionRef.current);
     else setEnLecture(false);
   }
 
-  async function basculerStems() {
-    if (etat !== "pret" || !piste) return;
+  const memoireChargee = pistesActives.reduce(
+    (somme, id) =>
+      somme +
+      memoireEstimee(
+        stemsOrdonnes.find((s) => s.id === id)?.duree_secondes ?? null,
+        contextePartage?.sampleRate ?? 48000
+      ),
+    0
+  );
 
-    if (modeStems) {
-      // Retour au mixage : les tampons des stems restent en cache, le
-      // basculement inverse est alors immédiat.
-      if (cache?.id === piste.id) poserPistes([{ id: "mixage", tampon: cache.tampon }]);
-      setModeStems(false);
+  /**
+   * Active ou désactive une piste, en la chargeant à la demande.
+   *
+   * On ne charge plus les cinq d'office : cinq pistes d'un morceau de huit
+   * minutes demanderaient 450 Mo, alors que l'usage courant en réclame une ou
+   * deux — chanter sur l'instrumental, isoler la basse pour la travailler.
+   */
+  async function basculerPiste(stemId: string) {
+    if (etat !== "pret" || !piste || chargementStems) return;
+
+    if (pistesActives.includes(stemId)) {
+      const restantes = pistesActives.filter((id) => id !== stemId);
+      setPistesActives(restantes);
+      poserPistes(pistesJouees(restantes));
+      // Le tampon reste en cache : le réactiver doit être immédiat.
       return;
     }
 
-    if (cacheStems?.id === piste.id) {
-      poserPistes(cacheStems.pistes);
-      setModeStems(true);
-      return;
-    }
-
+    const stem = stemsOrdonnes.find((s) => s.id === stemId);
     const contexte = contextePartage;
-    if (!contexte) return;
+    if (!stem || !contexte) return;
+
+    const ajout = memoireEstimee(stem.duree_secondes, contexte.sampleRate);
+    if (!peutCharger(memoireChargee, ajout, PLAFOND_MEMOIRE)) {
+      setMessageStems(
+        `Trop de pistes chargées pour ce morceau. Désactives-en une avant d'ajouter « ${libelleStem(
+          stem.type
+        )} ».`
+      );
+      return;
+    }
+
+    setMessageStems(null);
     setChargementStems(true);
     try {
-      const charges: { id: string; tampon: AudioBuffer }[] = [];
-      // Séquentiel et non parallèle : cinq décodages simultanés feraient un pic
-      // à cinq tampons en vol, alors qu'un seul suffit à la fois.
-      for (const stem of stemsOrdonnes) {
+      let tampon = cacheStems?.id === piste.id ? cacheStems.tampons.get(stemId) : undefined;
+      if (!tampon) {
         const url = await urlLectureR2(stem.url);
-        if (!url) continue;
-        charges.push({ id: stem.id, tampon: await decodeAudioData(url, contexte.sampleRate) });
+        if (!url) throw new Error("Lien de la piste indisponible.");
+        tampon = await decodeAudioData(url, contexte.sampleRate);
+        if (cacheStems?.id !== piste.id) cacheStems = { id: piste.id, tampons: new Map() };
+        cacheStems.tampons.set(stemId, tampon);
       }
-      if (charges.length === 0) throw new Error("Aucune piste n'a pu être chargée.");
-      cacheStems = { id: piste.id, pistes: charges };
-      setMemoireStems(
-        charges.reduce((somme, c) => somme + c.tampon.length * c.tampon.numberOfChannels * 4, 0)
-      );
-      poserPistes(charges);
-      setModeStems(true);
+      const suivantes = [...pistesActives, stemId];
+      setPistesActives(suivantes);
+      poserPistes(pistesJouees(suivantes));
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
-      setEtat("erreur");
+      setMessageStems(e instanceof Error ? e.message : String(e));
     } finally {
       setChargementStems(false);
     }
   }
 
-  /** Couper une piste, c'est mettre son gain à zéro — pas la débrancher. */
-  function basculerCoupure(stemId: string) {
-    setCoupes((precedentes) => {
-      const suivantes = new Set(precedentes);
-      if (suivantes.has(stemId)) suivantes.delete(stemId);
-      else suivantes.add(stemId);
-      coupesRef.current = suivantes;
-      const gain = gainsPistesRef.current.get(stemId);
-      // Débrancher un nœud en cours de lecture claque ; le gain ne claque pas.
-      if (gain) gain.gain.value = suivantes.has(stemId) ? 0 : 1;
-      return suivantes;
-    });
+  /** Tampons des pistes actives, dans l'ordre d'affichage. */
+  function pistesJouees(ids: string[]): { id: string; tampon: AudioBuffer }[] {
+    const tampons = cacheStems?.tampons;
+    if (!tampons) return [];
+    return stemsOrdonnes
+      .filter((s) => ids.includes(s.id))
+      .map((s) => ({ id: s.id, tampon: tampons.get(s.id) }))
+      .filter((p): p is { id: string; tampon: AudioBuffer } => !!p.tampon);
+  }
+
+  /** Revient au mixage complet, en libérant les pistes séparées. */
+  function revenirAuMixage() {
+    setPistesActives([]);
+    setMessageStems(null);
+    const enCache = cache;
+    if (enCache && enCache.id === piste?.id) {
+      poserPistes([{ id: "mixage", tampon: enCache.tampon }]);
+    } else {
+      poserPistes([]);
+    }
   }
 
   function deplacerBorne(borne: "debut" | "fin", secondes: number, definitif = true) {
@@ -1006,75 +1034,78 @@ export function LaboAudio({
               {onglet === "pistes" && (
                 <View style={{ gap: espacement.lg }}>
 
-                <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-                  <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-                    Pistes séparées
-                  </Texte>
-                  {stemsOrdonnes.length > 0 ? (
-                    <Puce
-                      libelle={chargementStems ? "Chargement…" : modeStems ? "Actives" : "Activer"}
-                      actif={modeStems}
-                      onPress={() => {
-                        if (!chargementStems) void basculerStems();
-                      }}
-                    />
-                  ) : (
-                    <Puce
-                      libelle={demandeEnCours ? "Demande…" : "Séparer le morceau"}
-                      actif={false}
-                      onPress={() => {
-                        if (demandeEnCours || !piste) return;
-                        demanderStems(
-                          { enregistrementId: piste.id },
-                          {
-                            onSuccess: (r) => setMessageStems(r.message),
-                            onError: (e) =>
-                              setMessageStems(e instanceof Error ? e.message : String(e)),
-                          }
-                        );
-                      }}
-                    />
-                  )}
-                </View>
-
-                {messageStems && (
-                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                    {messageStems}
-                  </Texte>
-                )}
-
-                {modeStems &&
-                  stemsOrdonnes.map((stem) => {
-                    const coupe = coupes.has(stem.id);
-                    return (
-                      <View
-                        key={stem.id}
-                        style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}
-                      >
-                        <Texte
-                          variante="petit"
-                          couleur={coupe ? couleurs.texteSecondaire : couleurs.texte}
-                          style={{ flex: 1 }}
+                {stemsOrdonnes.length === 0 ? (
+                  <View style={{ gap: espacement.sm }}>
+                    <Texte variante="petit" couleur={couleurs.texteSecondaire}>
+                      {"Ce morceau n'a pas encore été séparé en pistes."}
+                    </Texte>
+                    <View style={{ flexDirection: "row" }}>
+                      <Puce
+                        libelle={demandeEnCours ? "Demande…" : "Séparer le morceau"}
+                        actif={false}
+                        onPress={() => {
+                          if (demandeEnCours || !piste) return;
+                          demanderStems(
+                            { enregistrementId: piste.id },
+                            {
+                              onSuccess: (r) => setMessageStems(r.message),
+                              onError: (e) =>
+                                setMessageStems(e instanceof Error ? e.message : String(e)),
+                            }
+                          );
+                        }}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    {/* Chaque piste se charge à la demande : cinq pistes d'un
+                        morceau de huit minutes demanderaient 450 Mo, alors que
+                        l'usage courant en réclame une ou deux. */}
+                    {stemsOrdonnes.map((stem) => {
+                      const active = pistesActives.includes(stem.id);
+                      return (
+                        <View
+                          key={stem.id}
+                          style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}
                         >
-                          {libelleStem(stem.type)}
-                        </Texte>
-                        <Puce
-                          libelle={coupe ? "Coupée" : "Active"}
-                          actif={!coupe}
-                          onPress={() => basculerCoupure(stem.id)}
-                        />
-                      </View>
-                    );
-                  })}
+                          <Texte
+                            variante="petit"
+                            couleur={active ? couleurs.texte : couleurs.texteSecondaire}
+                            style={{ flex: 1 }}
+                          >
+                            {libelleStem(stem.type)}
+                          </Texte>
+                          <Puce
+                            libelle={active ? "Active" : "Activer"}
+                            actif={active}
+                            onPress={() => void basculerPiste(stem.id)}
+                          />
+                        </View>
+                      );
+                    })}
 
-                {modeStems && memoireStems > 0 && (
-                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                    {`${stemsOrdonnes.length} pistes en mémoire — ${(
-                      memoireStems /
-                      1024 /
-                      1024
-                    ).toFixed(0)} Mo`}
-                  </Texte>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                      <Texte variante="micro" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                        {chargementStems
+                          ? "Chargement d'une piste…"
+                          : pistesActives.length === 0
+                            ? "Aucune piste active — le mixage complet est joué."
+                            : `${pistesActives.length} piste${
+                                pistesActives.length > 1 ? "s" : ""
+                              } — ${(memoireChargee / 1024 / 1024).toFixed(0)} Mo`}
+                      </Texte>
+                      {pistesActives.length > 0 && (
+                        <Puce libelle="Mixage" actif={false} onPress={revenirAuMixage} />
+                      )}
+                    </View>
+
+                    {messageStems && (
+                      <Texte variante="micro" couleur={couleurs.danger}>
+                        {messageStems}
+                      </Texte>
+                    )}
+                  </>
                 )}
                 </View>
               )}

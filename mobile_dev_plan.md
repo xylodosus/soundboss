@@ -594,10 +594,22 @@ Coût réel : ~0,9 Mo par seconde de morceau pour cinq pistes. Donc :
 | 300 s | ~275 Mo |
 | 488 s | ~450 Mo |
 
+Mesure confirmée sur `PARDONNE NOUS.mp3` (245 s) : **225 Mo**, contre les
+~220 prévus. La projection tient.
+
 Au-delà de trois ou quatre minutes, cinq pistes simultanées deviennent
 intenables sur un appareil modeste. Le plafond ne peut donc pas être un nombre
-fixe de pistes : il doit dépendre de la durée. À trancher avec une mesure sur
-un morceau plus long.
+fixe de pistes : il dépend de la durée.
+
+**Solution retenue : charger les pistes à la carte.** Chacune se décode quand on
+l'active et libère sa place quand on la désactive, avec un plafond de 250 Mo —
+posé un peu au-dessus de la plus haute valeur *vérifiée*, jamais d'une valeur
+supposée. La première piste passe toujours, même très longue : refuser la seule
+piste demandée rendrait la fonction inutilisable sur un morceau long, alors
+qu'une piste seule reste parfaitement jouable.
+
+L'usage courant réclame d'ailleurs une ou deux pistes, pas cinq : chanter sur
+l'`instrumental`, ou isoler la basse pour la travailler.
 
 ## 5. Commandes utiles
 

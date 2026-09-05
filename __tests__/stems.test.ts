@@ -1,4 +1,4 @@
-import { libelleStem, ordonnerStems } from "../src/lib/stems";
+import { libelleStem, memoireEstimee, ordonnerStems, peutCharger } from "../src/lib/stems";
 
 describe("libelleStem", () => {
   it("traduit les types connus", () => {
@@ -50,5 +50,35 @@ describe("ordonnerStems", () => {
     const entree = [s("drums"), s("vocals")];
     ordonnerStems(entree);
     expect(entree.map((x) => x.type)).toEqual(["drums", "vocals"]);
+  });
+});
+
+describe("memoireEstimee", () => {
+  it("compte quatre octets par échantillon mono", () => {
+    // Mesuré le 5 septembre : 102 s décodées à 48 kHz pèsent ~19,6 Mo.
+    expect(memoireEstimee(102, 48000)).toBeCloseTo(102 * 48000 * 4, 0);
+  });
+
+  it("rend zéro sans durée connue", () => {
+    expect(memoireEstimee(null, 48000)).toBe(0);
+  });
+});
+
+describe("peutCharger", () => {
+  const MO = 1024 * 1024;
+
+  it("accepte tant que le plafond n'est pas franchi", () => {
+    expect(peutCharger(100 * MO, 40 * MO, 250 * MO)).toBe(true);
+  });
+
+  it("refuse ce qui ferait dépasser", () => {
+    // 225 Mo tiennent sur un Pocophone F1 ; 450 Mo ne tiendraient pas.
+    expect(peutCharger(225 * MO, 40 * MO, 250 * MO)).toBe(false);
+  });
+
+  it("accepte toujours la première piste, même très longue", () => {
+    // Refuser la seule piste demandée rendrait la fonction inutilisable sur un
+    // morceau long, alors qu'une piste seule reste jouable.
+    expect(peutCharger(0, 400 * MO, 250 * MO)).toBe(true);
   });
 });
