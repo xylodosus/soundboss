@@ -232,7 +232,6 @@ export function LaboAudio({
   const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
   /** Un gain par piste, pour couper une voix sans toucher aux autres. */
   const gainsPistesRef = useRef<Map<string, GainNode>>(new Map());
-  const coupesRef = useRef<Set<string>>(new Set());
   /** Instant du contexte auquel la lecture a démarré, et position de départ. */
   const departRef = useRef(0);
   const offsetDepartRef = useRef(0);
@@ -295,48 +294,11 @@ export function LaboAudio({
       const depart = contexte.currentTime + 0.15;
       departRef.current = depart;
       offsetDepartRef.current = offset;
-      const bornes = boucleRef.current;
       const entree = filtresRef.current[0] ?? gainMaitre;
 
       const nouvelles: AudioBufferSourceNode[] = [];
       pistes.forEach((p, index) => {
-        const source = contexte.createBufferSource({ pitchCorrection: correction });
-        source.buffer = p.tampon;
-        source.playbackRate.value = tempoRef.current;
-        source.detune.value =
-          transpositionRef.current === 0 ? CENT_NEUTRE : transpositionRef.current * 100;
-        if (bornes) {
-          source.loop = true;
-          source.loopStart = bornes.a;
-          source.loopEnd = bornes.b;
-        }
-
-        let gainPiste = gainsPistesRef.current.get(p.id);
-        if (!gainPiste) {
-          gainPiste = contexte.createGain();
-          gainPiste.connect(entree);
-          gainsPistesRef.current.set(p.id, gainPiste);
-        }
-        gainPiste.gain.value = coupesRef.current.has(p.id) ? 0 : 1;
-        source.connect(gainPiste);
-
-        // Une seule piste porte le suivi : cinq abonnements diraient la même
-        // chose cinq fois, puisqu'elles avancent ensemble.
-        if (index === 0) {
-          source.onPositionChangedInterval = INTERVALLE_POSITION;
-          // value est la position en secondes dans le tampon, pas un nombre d'images.
-          source.onPositionChanged = ({ value }) => {
-            positionRef.current = value;
-            setPosition(value);
-          };
-          source.onEnded = () => {
-            if (arretVolontaireRef.current) return;
-            setEnLecture(false);
-            positionRef.current = 0;
-            setPosition(0);
-          };
-        }
-
+        const source = creerSource(contexte, entree, p, correction, index === 0);
         source.start(depart, offset);
         nouvelles.push(source);
       });
@@ -353,6 +315,108 @@ export function LaboAudio({
       laboOuvert = false;
     };
   }, [visible]);
+
+  /** Fabrique une source réglée et branchée, sans la démarrer. */
+  function creerSource(
+    contexte: AudioContext,
+    entree: BiquadFilterNode | GainNode,
+    p: { id: string; tampon: AudioBuffer },
+    correction: boolean,
+    porteLeSuivi: boolean
+  ): AudioBufferSourceNode {
+    const source = contexte.createBufferSource({ pitchCorrection: correction });
+    source.buffer = p.tampon;
+    source.playbackRate.value = tempoRef.current;
+    source.detune.value =
+      transpositionRef.current === 0 ? CENT_NEUTRE : transpositionRef.current * 100;
+    const bornes = boucleRef.current;
+    if (bornes) {
+      source.loop = true;
+      source.loopStart = bornes.a;
+      source.loopEnd = bornes.b;
+    }
+
+    let gainPiste = gainsPistesRef.current.get(p.id);
+    if (!gainPiste) {
+      gainPiste = contexte.createGain();
+      gainPiste.connect(entree);
+      gainsPistesRef.current.set(p.id, gainPiste);
+    }
+    gainPiste.gain.value = p.id === "mixage" ? 1 : gainEffectif(p.id, etatMixageRef.current);
+    source.connect(gainPiste);
+
+    // Une seule piste porte le suivi : cinq abonnements diraient la même chose
+    // cinq fois, puisqu'elles avancent ensemble.
+    if (porteLeSuivi) {
+      source.onPositionChangedInterval = INTERVALLE_POSITION;
+      // value est la position en secondes dans le tampon, pas un nombre d'images.
+      source.onPositionChanged = ({ value }) => {
+        positionRef.current = value;
+        setPosition(value);
+      };
+      source.onEnded = () => {
+        if (arretVolontaireRef.current) return;
+        setEnLecture(false);
+        positionRef.current = 0;
+        setPosition(0);
+      };
+    }
+    return source;
+  }
+
+  /**
+   * Ajoute une piste à une lecture déjà en cours, **sans toucher aux autres**.
+   *
+   * Relancer les cinq sources pour en ajouter une était la vraie cause du
+   * décalage : la recréation coûte plusieurs dizaines de millisecondes par
+   * nœud, et les dernières rataient le rendez-vous commun. Ici on ne crée
+   * qu'une source, calée sur l'horloge audio — c'est le motif que recommandent
+   * les implémentations Web Audio multipistes.
+   */
+  function ajouterEnLecture(p: { id: string; tampon: AudioBuffer }) {
+    const contexte = contextePartage;
+    const gainMaitre = gainRef.current;
+    if (!contexte || !gainMaitre) return false;
+
+    const marge = 0.08;
+    const quand = contexte.currentTime + marge;
+    // La position à laquelle démarrer n'est pas celle d'aujourd'hui mais celle
+    // qu'aura la lecture à l'instant du rendez-vous.
+    const offset = positionReelle() + marge * tempoRef.current;
+    if (offset >= duree) return false;
+
+    const source = creerSource(
+      contexte,
+      filtresRef.current[0] ?? gainMaitre,
+      p,
+      correctionActiveRef.current,
+      sourcesRef.current.length === 0
+    );
+    source.start(quand, offset);
+    sourcesRef.current = [...sourcesRef.current, source];
+    pistesRef.current = [...pistesRef.current, p];
+    return true;
+  }
+
+  /** Retire une piste sans interrompre les autres. */
+  function retirerDeLaLecture(stemId: string) {
+    const index = pistesRef.current.findIndex((p) => p.id === stemId);
+    if (index === -1) return false;
+    const source = sourcesRef.current[index];
+    if (source) {
+      try {
+        source.onPositionChanged = null;
+        source.onEnded = null;
+        source.stop();
+        source.disconnect();
+      } catch {
+        // Le nœud peut déjà être arrêté ; rien à récupérer.
+      }
+    }
+    sourcesRef.current = sourcesRef.current.filter((_, i) => i !== index);
+    pistesRef.current = pistesRef.current.filter((_, i) => i !== index);
+    return true;
+  }
 
   // Chargement : URL signée, pics, puis décodage. Le décodage est long (~5,5 s
   // sur cinq minutes), d'où un état explicite plutôt qu'un écran figé.
@@ -520,6 +584,8 @@ export function LaboAudio({
     () => ({ volumes, mutes, solos }),
     [volumes, mutes, solos]
   );
+  const etatMixageRef = useRef(etatMixage);
+  etatMixageRef.current = etatMixage;
   useEffect(() => {
     gainsPistesRef.current.forEach((gain, id) => {
       gain.gain.value = id === "mixage" ? 1 : gainEffectif(id, etatMixage);
@@ -673,7 +739,11 @@ export function LaboAudio({
     if (pistesActives.includes(stemId)) {
       const restantes = pistesActives.filter((id) => id !== stemId);
       setPistesActives(restantes);
-      poserPistes(pistesJouees(restantes), positionReelle());
+      // On retire la seule source concernée : arrêter puis recréer les autres
+      // les décalerait, alors qu'elles n'ont aucune raison de bouger.
+      if (!enLecture || !retirerDeLaLecture(stemId)) {
+        poserPistes(pistesJouees(restantes), positionReelle());
+      }
       // Le tampon reste en cache : le réactiver doit être immédiat.
       return;
     }
@@ -706,9 +776,11 @@ export function LaboAudio({
       }
       const suivantes = [...pistesActives, stemId];
       setPistesActives(suivantes);
-      // Position lue sur l'horloge audio, immunisée contre le blocage du fil
-      // JavaScript qu'a provoqué le décodage qui vient de s'achever.
-      poserPistes(pistesJouees(suivantes), positionReelle());
+      // Si la lecture tourne, la nouvelle piste s'y greffe sans interrompre les
+      // autres. Sinon on repose simplement l'ensemble.
+      if (!enLecture || !ajouterEnLecture({ id: stemId, tampon })) {
+        poserPistes(pistesJouees(suivantes), positionReelle());
+      }
     } catch (e) {
       setMessageStems(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1310,7 +1382,7 @@ export function LaboAudio({
                       surMute={(id) => basculerDans(mutes, setMutes, id)}
                       surSolo={(id) => basculerDans(solos, setSolos, id)}
                       surTelecharger={(id) => void telechargerPiste(id)}
-                      surTransferer={(id) => setTransfert(id)}
+                      surTransferer={seanceId || groupeId ? (id) => setTransfert(id) : undefined}
                     />
 
                     <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
