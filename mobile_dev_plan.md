@@ -743,6 +743,89 @@ extraites, de loin les plus lourds — seize pistes de `HOSANNA reprise` font
 13 Mo pour un morceau de 2,6 Mo. L'agrégation vit désormais dans
 `src/lib/stockage.ts`, testée, et sert les deux espaces.
 
+## 4 quindecies. Modèle de facturation par crédits (vision du 5 sept. 2026)
+
+**Unité :** 1 crédit = **100 F CFA** ≈ 0,17 $ (à 600 XOF pour 1 USD).
+
+### Packs de crédits
+
+| Pack | Prix | Le crédit | Remise |
+|---|---|---|---|
+| 5 crédits | 500 F | 100 F | — |
+| 10 crédits | 1 000 F | 100 F | — |
+| 22 crédits | 2 000 F | 90,9 F | 9 % |
+| 60 crédits | 5 000 F | 83,3 F | 17 % |
+
+### Opérations payantes
+
+**Extraction et affinage de pistes : 1 crédit par minute d'audio**, un affinage
+étant facturé comme une extraction — c'est aussi ce que fait Fadr.
+
+Marge vérifiée sur le corpus réel, Fadr coûtant 0,05 $ la minute :
+
+| Morceau | Durée | Facturé | Coût | Rapport |
+|---|---|---|---|---|
+| HOSANNA reprise | 1,70 min | 2 cr = 0,33 $ | 0,085 $ | ×3,9 |
+| ALLELUIA | 3,27 min | 4 cr = 0,67 $ | 0,164 $ | ×4,1 |
+| PARDONNE NOUS | 4,08 min | 5 cr = 0,83 $ | 0,204 $ | ×4,1 |
+| 02 Piste 2 | 8,13 min | 9 cr = 1,50 $ | 0,407 $ | ×3,7 |
+
+**Stockage.** 1 Go offert par groupe, 500 Mo par utilisateur. Au-delà, extension
+mensuelle payée en crédits :
+
+| Volume | Crédits/mois | Revenu | Coût R2 | Rapport |
+|---|---|---|---|---|
+| 20 Go | 5 | 0,83 $ | 0,30 $ | ×2,8 |
+| 50 Go | 10 | 1,67 $ | 0,75 $ | ×2,2 |
+| 100 Go | 18 | 3,00 $ | 1,50 $ | ×2,0 |
+| 500 Go | 80 | 13,33 $ | 7,50 $ | ×1,8 |
+
+**Le reste** — ressources payantes, masterclass, produits à venir — affiche son
+prix en crédits.
+
+**Règle de répartition** (arrêtée le même jour) : le **coût suit le demandeur**,
+qui paie sur ses crédits ; le **stockage suit le groupe**, propriétaire des
+fichiers.
+
+### Ce que les chiffres révèlent, et qu'il faudra trancher
+
+**Le palier gratuit se remplit vite dès qu'on extrait.** Mesures réelles : un
+morceau de quatre minutes pèse ~4 Mo, ses cinq pistes ~10 Mo de plus, son arbre
+complet ~32 Mo.
+
+| Contenu | 1 Go (groupe) | 500 Mo (perso) |
+|---|---|---|
+| morceaux seuls | 256 | 128 |
+| + 5 pistes | 73 | 37 |
+| + arbre complet | 28 | 14 |
+
+Un groupe qui décompose systématiquement ses morceaux sature son gigaoctet en
+une trentaine de titres.
+
+**Deux tensions à résoudre avant de construire :**
+
+1. **On facture l'extraction, puis le stockage qu'elle crée.** C'est défendable,
+   mais il n'existe aujourd'hui **aucun moyen de supprimer des pistes**. Si le
+   stockage devient payant, la suppression cesse d'être un confort pour devenir
+   une nécessité — sinon la seule issue d'un groupe saturé est de payer.
+
+2. **La marge du stockage se contracte quand le volume monte** (×2,8 à 20 Go,
+   ×1,8 à 500 Go), là où les packs de crédits font l'inverse en accordant une
+   remise aux gros volumes. Un gros client cumulerait donc les deux effets. À
+   vérifier que 500 Go à 80 crédits reste soutenable.
+
+**Questions ouvertes :**
+
+- **Arrondi** de la facturation à la minute : à la minute supérieure ? Les
+  chiffres ci-dessus le supposent, et c'est ce qui protège la marge sur les
+  morceaux courts.
+- **Prélèvement mensuel** du stockage : quel comportement si le solde est
+  insuffisant ? Délai de grâce, passage en lecture seule, suppression ? Aucune
+  de ces réponses n'est neutre pour un groupe qui perdrait l'accès à ses
+  répétitions.
+- **Décompte du stockage** : le quota se mesure-t-il sur le total courant ou sur
+  un pic mensuel ?
+
 ## 6. Notes & pièges
 
 ### Une clé étrangère de plus casse l'imbrication PostgREST (5 sept. 2026)
