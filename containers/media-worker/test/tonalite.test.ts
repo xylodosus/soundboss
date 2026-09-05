@@ -174,3 +174,22 @@ describe('sectionsTonales — absorption des dominantes', () => {
     ).toEqual(['Mi:majeur']);
   });
 });
+
+describe('sectionsTonales — bornes après absorption', () => {
+  const profil = (demiTons: number) =>
+    Float64Array.from(PROFILS.majeur.map((_, i) => PROFILS.majeur[(i - demiTons + 12) % 12]));
+
+  it('rend au repreneur les tranches qu’il absorbe, pas au voisin de gauche', () => {
+    // HOSANNA.wma : Mi | Si (dom. de Mi) | Do# (dom. de Fa#) | Fa#.
+    // Le passage en Do# appartient à la région de Fa#, qui doit donc commencer
+    // là où il commence — et non quatre-vingt-dix secondes plus tard.
+    const sections = sectionsTonales(
+      [profil(4), profil(11), profil(11), profil(1), profil(1), profil(6), profil(6)],
+      30,
+    );
+    expect(sections.map((s) => [s.id, s.debut, s.fin])).toEqual([
+      ['Mi:majeur', 0, 90],
+      ['Fa#:majeur', 90, 210],
+    ]);
+  });
+});

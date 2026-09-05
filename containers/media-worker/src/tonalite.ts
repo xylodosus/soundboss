@@ -357,46 +357,55 @@ function absorberDominantes(sections: SectionTonale[]): SectionTonale[] {
   if (sections.length < 2) return sections;
 
   const garde = sections.map(() => true);
+  // Chaque section absorbée note QUI l'absorbe : ses tranches reviennent à ce
+  // repreneur, pas à la section qui la précède. Sur HOSANNA.wma, la région en
+  // Do# — dominante de Fa# — appartient à Fa#, qui doit donc commencer là où
+  // elle commence, et non quatre-vingt-dix secondes plus tard.
+  const repreneur = sections.map(() => -1);
+
   for (let i = 0; i < sections.length; i++) {
-    const avant = precedenteGardee(sections, garde, i);
-    const apres = suivanteGardee(sections, garde, i);
-    // On absorbe vers la voisine la plus sûre : c'est elle qui porte la
-    // tonalité réelle, la dominante n'étant qu'un passage harmonique.
-    const cible = [avant, apres]
-      .filter((v): v is SectionTonale => !!v && estDominanteDe(sections[i].id, v.id))
-      .sort((a, b) => b.confiance - a.confiance)[0];
-    if (cible) garde[i] = false;
+    const iAvant = indexGarde(garde, i, -1);
+    const iApres = indexGarde(garde, i, 1);
+    const candidats = [iAvant, iApres]
+      .filter((j) => j >= 0 && estDominanteDe(sections[i].id, sections[j].id))
+      // On absorbe vers la voisine la plus sûre : c'est elle qui porte la
+      // tonalité réelle, la dominante n'étant qu'un passage harmonique.
+      .sort((a, b) => sections[b].confiance - sections[a].confiance);
+    if (candidats.length > 0) {
+      garde[i] = false;
+      repreneur[i] = candidats[0];
+    }
   }
 
-  const restantes = sections.filter((_, i) => garde[i]);
-  if (restantes.length === 0) return sections;
+  if (garde.every((g) => !g)) return sections;
 
-  // Les bornes des sections absorbées reviennent à celle qui les précède.
-  for (let i = 0; i < restantes.length - 1; i++) {
-    restantes[i] = { ...restantes[i], fin: restantes[i + 1].debut };
+  const bornes = sections.map((s) => ({ debut: s.debut, fin: s.fin }));
+  for (let i = 0; i < sections.length; i++) {
+    if (garde[i]) continue;
+    // Le repreneur peut lui-même avoir été absorbé : on remonte la chaîne.
+    let cible = repreneur[i];
+    const vus = new Set<number>([i]);
+    while (cible >= 0 && !garde[cible] && !vus.has(cible)) {
+      vus.add(cible);
+      cible = repreneur[cible];
+    }
+    if (cible < 0 || !garde[cible]) continue;
+    bornes[cible].debut = Math.min(bornes[cible].debut, bornes[i].debut);
+    bornes[cible].fin = Math.max(bornes[cible].fin, bornes[i].fin);
   }
-  const derniere = sections[sections.length - 1];
-  restantes[restantes.length - 1] = { ...restantes[restantes.length - 1], fin: derniere.fin };
-  restantes[0] = { ...restantes[0], debut: sections[0].debut };
-  return restantes;
+
+  return sections
+    .map((s, i) => ({ ...s, debut: bornes[i].debut, fin: bornes[i].fin }))
+    .filter((_, i) => garde[i])
+    .sort((a, b) => a.debut - b.debut);
 }
 
-function precedenteGardee(
-  sections: SectionTonale[],
-  garde: boolean[],
-  i: number
-): SectionTonale | null {
-  for (let j = i - 1; j >= 0; j--) if (garde[j]) return sections[j];
-  return null;
-}
-
-function suivanteGardee(
-  sections: SectionTonale[],
-  garde: boolean[],
-  i: number
-): SectionTonale | null {
-  for (let j = i + 1; j < sections.length; j++) if (garde[j]) return sections[j];
-  return null;
+/** Index de la section gardée la plus proche dans la direction donnée, ou -1. */
+function indexGarde(garde: boolean[], depart: number, sens: 1 | -1): number {
+  for (let j = depart + sens; j >= 0 && j < garde.length; j += sens) {
+    if (garde[j]) return j;
+  }
+  return -1;
 }
 
 /** Recolle les sections voisines devenues identiques après absorption. */

@@ -507,6 +507,16 @@ dominante, en privilégiant la voisine la plus sûre. Risque assumé — effacer
 modulation réelle vers la dominante — écarté par le répertoire : les deux
 modulations relevées montent d'un demi-ton et d'un ton, jamais d'une quinte.
 
+Résultat après redéploiement : les quatre morceaux stables rendent **une seule
+section**, et HOSANNA.wma rend exactement Mi puis Fa#. JE VEUX VIVRE garde une
+première section fausse (Sol au lieu de Do) : Sol est bien la dominante de Do,
+mais aucune section en Do n'a jamais été détectée, donc rien ne peut l'absorber.
+
+**Correctif des bornes.** La première version attribuait les tranches absorbées
+à la section *précédente*. Sur HOSANNA.wma, la région en Do# — dominante de Fa#
+— revenait donc à Mi, et la modulation était annoncée à 4:00 au lieu de 2:30.
+Une section absorbée rejoint désormais les bornes de celle qui l'absorbe.
+
 ## 5. Commandes utiles
 
 ```bash
