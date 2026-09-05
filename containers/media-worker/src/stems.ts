@@ -128,7 +128,7 @@ export async function separerStems(
       const reencode = join(dir, `${stemAssetId}.m4a`);
       await transcodeStemMono(brut, reencode, config.fadr.frequenceStems, config.fadr.bitrateStems);
 
-      const cleCible = cleStem(media.url, type);
+      const cleCible = cleStem(media.url, type, stemAssetId);
       await uploadFromFile(cleCible, reencode, 'audio/mp4');
       await insertStem({
         enregistrement_id: mediaId,

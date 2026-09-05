@@ -12,9 +12,10 @@ import { STEM_TYPES, type StemType } from './fadr.ts';
  *
  * Le type vient de Fadr et n'est pas contraint : on le normalise sévèrement
  * avant d'en faire un chemin. Un type contenant des séparateurs sortirait
- * sinon du dossier prévu.
+ * sinon du dossier prévu. L'identifiant de l'asset garantit l'unicité, un type
+ * pouvant se répéter.
  */
-export function cleStem(cleSource: string, type: string): string {
+export function cleStem(cleSource: string, type: string, assetId = ''): string {
   const point = cleSource.lastIndexOf('.');
   const base = point === -1 ? cleSource : cleSource.slice(0, point);
   const nom =
@@ -24,7 +25,11 @@ export function cleStem(cleSource: string, type: string): string {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'stem';
-  return `${base}.stems/${nom}.m4a`;
+  // Suffixe d'unicité : deux stems de même type — ou deux « inconnu » — se
+  // seraient écrasés dans R2. C'est arrivé au premier essai réel : cinq stems,
+  // une seule clé, quatre fichiers perdus. Un écrasement ne se remarque pas.
+  const suffixe = assetId ? `-${assetId.slice(-8).toLowerCase().replace(/[^a-z0-9]/g, '')}` : '';
+  return `${base}.stems/${nom}${suffixe}.m4a`;
 }
 
 /** Stem dont descend un affinage, s'il a déjà été produit. */

@@ -118,8 +118,13 @@ export function stemsDeLAsset(reponse: unknown): string[] {
  * totalité des `metaData.stemType`, et un type non prévu doit être stocké et
  * affiché tel quel, jamais rejeté.
  */
-export function typeDeStem(asset: unknown): string {
-  const type = objet(objet(asset)?.metaData)?.stemType;
+export function typeDeStem(reponse: unknown): string {
+  // GET /assets/{id} enveloppe l'asset, comme POST /assets : sans ce
+  // déballage, les cinq stems du premier essai réel sont tous ressortis
+  // « inconnu ».
+  const o = objet(reponse);
+  const asset = objet(o?.asset) ?? o;
+  const type = objet(asset?.metaData)?.stemType;
   return typeof type === 'string' && type.length > 0 ? type : 'inconnu';
 }
 

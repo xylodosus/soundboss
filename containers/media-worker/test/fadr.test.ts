@@ -98,6 +98,10 @@ describe('typeDeStem', () => {
     expect(typeDeStem({ metaData: { stemType: 'drums' } })).toBe('drums');
   });
 
+  it('déballe l’asset enveloppé, comme le fait GET /assets/{id}', () => {
+    expect(typeDeStem({ asset: { metaData: { stemType: 'bass' } } })).toBe('bass');
+  });
+
   it('rend inconnu plutôt que d’échouer sur un type non documenté', () => {
     // La documentation Fadr n'énumère pas toutes les valeurs produites.
     expect(typeDeStem({ metaData: {} })).toBe('inconnu');

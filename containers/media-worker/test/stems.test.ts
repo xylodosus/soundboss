@@ -8,6 +8,15 @@ describe('cleStem', () => {
     );
   });
 
+  it('distingue deux stems de même type par l’identifiant de l’asset', () => {
+    // Sans ce suffixe, cinq stems « inconnu » se sont écrasés dans R2 au
+    // premier essai réel : quatre fichiers perdus, sans le moindre signe.
+    const a = cleStem('a/b.m4a', 'inconnu', '6a9c02c5e1339f3aa5e70359');
+    const c = cleStem('a/b.m4a', 'inconnu', '6a9c02c5e1339f3aa5e70999');
+    expect(a).not.toBe(c);
+    expect(a).toBe('a/b.stems/inconnu-a5e70359.m4a');
+  });
+
   it('normalise un type à espaces', () => {
     expect(cleStem('a/b.m4a', 'lead vocals')).toBe('a/b.stems/lead-vocals.m4a');
   });
