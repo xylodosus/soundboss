@@ -82,3 +82,33 @@ export async function transcodeToM4a(
     outputPath,
   ], { maxBuffer: 10 * 1024 * 1024 });
 }
+
+/**
+ * Réencode un stem en M4A **mono**, à fréquence réduite.
+ *
+ * Les stems se jouent ensemble — c'est tout leur intérêt, on en coupe un pour
+ * entendre les autres. Cinq pistes stéréo à 48 kHz feraient 515 Mo décodés sur
+ * l'appareil, mesure du lot E1 à l'appui. Mono à 22 050 Hz ramène chacune à
+ * ~26 Mo, soit l'ordre de grandeur d'un seul morceau aujourd'hui.
+ *
+ * La perte est réelle et assumée : isoler une ligne de basse ou couper la voix
+ * pour travailler un pupitre ne demande ni stéréo ni bande passante complète.
+ */
+export async function transcodeStemMono(
+  inputPath: string,
+  outputPath: string,
+  frequence: number,
+  bitrate: string,
+): Promise<void> {
+  await run('ffmpeg', [
+    '-y',
+    '-i', inputPath,
+    '-vn',
+    '-ac', '1',
+    '-ar', String(frequence),
+    '-c:a', 'aac',
+    '-b:a', bitrate,
+    '-movflags', '+faststart',
+    outputPath,
+  ], { maxBuffer: 10 * 1024 * 1024 });
+}

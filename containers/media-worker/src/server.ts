@@ -10,6 +10,8 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { config } from './config.ts';
 import { analyzeMedia } from './analyze.ts';
+import { separerStems } from './stems.ts';
+import { STEM_TYPES, type StemType } from './fadr.ts';
 import { listUnanalyzed } from './db.ts';
 
 /**
@@ -58,6 +60,35 @@ app.post('/jobs/analyze', async (c) => {
   });
 
   return c.json({ success: true, accepted: mediaId }, 202);
+});
+
+/**
+ * Séparation en stems. Réponse immédiate : la découpe prend plusieurs minutes,
+ * et l'appelant suit l'avancement par `stems_statut` en base.
+ */
+app.post('/jobs/stems', async (c) => {
+  const corps = (await c.req.json().catch(() => ({}))) as {
+    media_id?: string;
+    stem_type?: string;
+  };
+  const mediaId = corps.media_id;
+  if (!mediaId) return c.json({ success: false, message: 'media_id requis' }, 400);
+
+  const stemType = (corps.stem_type ?? 'main') as StemType;
+  if (!(stemType in STEM_TYPES)) {
+    return c.json({ success: false, message: `stem_type inconnu : ${stemType}` }, 400);
+  }
+
+  queueMicrotask(async () => {
+    try {
+      const r = await separerStems(mediaId, stemType);
+      console.log('[stems]', JSON.stringify(r));
+    } catch (e: any) {
+      console.error('[stems] échec', mediaId, describeError(e));
+    }
+  });
+
+  return c.json({ success: true, accepted: mediaId, stemType }, 202);
 });
 
 /**

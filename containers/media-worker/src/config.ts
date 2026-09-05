@@ -47,6 +47,20 @@ export const config = {
   /** Conserver le fichier source après traitement (v1 : oui, filet de sécurité). */
   deleteSourceAfterProcessing: process.env.DELETE_SOURCE_AFTER_PROCESSING === 'true',
 
+  fadr: {
+    /** Absente, la séparation reste inerte : une fonctionnalité qui se tait vaut
+     *  mieux qu'un service qui tombe. Même règle que le déclencheur d'analyse
+     *  tant que le conteneur n'existait pas. */
+    apiKey: process.env.FADR_API_KEY ?? '',
+    /** Fadr ne documente aucun état d'échec : seule une échéance distingue une
+     *  tâche échouée d'une tâche lente. */
+    delaiMaxMs: Number(process.env.FADR_TIMEOUT_MS ?? 15 * 60 * 1000),
+    /** Les stems se jouent ENSEMBLE : cinq pistes stéréo à 48 kHz feraient
+     *  515 Mo décodés sur l'appareil. Mono à 22 050 Hz ramène chacune à ~26 Mo. */
+    frequenceStems: Number(process.env.FADR_STEM_SAMPLE_RATE ?? 22050),
+    bitrateStems: process.env.FADR_STEM_BITRATE ?? '64k',
+  },
+
   waveform: {
     /** Non destructif : activé par défaut. */
     enabled: process.env.ENABLE_WAVEFORM !== 'false',
