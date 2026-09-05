@@ -36,7 +36,7 @@ import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
 import { ModalChoix } from "@/components/ui/modal-choix";
 import { ModalChoixMultiple } from "@/components/ui/modal-choix-multiple";
 import { ModalEcoutes } from "@/components/groupe/modal-ecoutes";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
 import { formatDateCourte, libelleCategorieProjet, libelleStatutSeance } from "@/lib/format";
 import * as DocumentPicker from "expo-document-picker";
@@ -428,9 +428,17 @@ export default function DetailSeance() {
         <Section titre="Programme (setlist)">
           <View style={{ gap: 8 }}>
             {setlist.length === 0 && !modeSetlist && (
-              <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                Aucun morceau au programme.
-              </Texte>
+              <EtatVide
+                icone="list-outline"
+                titre="Aucun morceau au programme"
+                message={
+                  estGestionnaire
+                    ? "Ajoute les morceaux que le groupe travaillera pendant cette répétition."
+                    : "Le chef de groupe n'a pas encore fixé le programme de cette répétition."
+                }
+                action={estGestionnaire ? () => setModeSetlist(true) : undefined}
+                actionTitre={estGestionnaire ? "Composer le programme" : undefined}
+              />
             )}
             {setlist.map((item, index) => (
               <View

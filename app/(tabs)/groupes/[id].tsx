@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useGroupe } from "@/lib/queries/groupes";
 import { couleurs, police, rayons } from "@/lib/theme";
 import { Ecran } from "@/components/ui/ecran";
 import { VisuelGroupe } from "@/components/ui/avatar";
+import { ModalRecherche } from "@/components/ui/modal-recherche";
+import { useRechercheGroupe } from "@/lib/queries/recherche";
 import { Texte } from "@/components/ui/texte";
 import { SqueletteListe } from "@/components/ui/etat-vide";
 import { libelleTypeGroupe } from "@/lib/format";
@@ -32,6 +34,12 @@ export default function DetailGroupe() {
   const { data: groupe, isLoading } = useGroupe(id);
   const [photoAgrandie, setPhotoAgrandie] = useState(false);
   const [onglet, setOnglet] = useState("projets");
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const [terme, setTerme] = useState("");
+  const { data: resultats = [], isFetching: rechercheEnCours } = useRechercheGroupe(
+    id ?? "",
+    rechercheOuverte ? terme : ""
+  );
 
   if (isLoading || !groupe) {
     return (
@@ -73,6 +81,7 @@ export default function DetailGroupe() {
             >
               <Ionicons name="arrow-back" size={22} color={couleurs.texte} />
             </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <View
               style={{
                 flexDirection: "row",
@@ -93,6 +102,22 @@ export default function DetailGroupe() {
               <Texte variante="micro" poids="bold" couleur={couleurs.texte}>
                 {libelleRole}
               </Texte>
+            </View>
+            <Pressable
+              onPress={() => setRechercheOuverte(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Rechercher dans le groupe"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: couleurs.surfaceCarte,
+              }}
+            >
+              <Ionicons name="search" size={20} color={couleurs.texte} />
+            </Pressable>
             </View>
           </View>
 
@@ -283,6 +308,30 @@ export default function DetailGroupe() {
           </Texte>
         </Pressable>
       </Modal>
+
+      <ModalRecherche
+        visible={rechercheOuverte}
+        onFermer={() => {
+          setRechercheOuverte(false);
+          setTerme("");
+        }}
+        terme={terme}
+        surTerme={setTerme}
+        resultats={resultats}
+        chargement={rechercheEnCours}
+        surChoisir={(r) => {
+          setRechercheOuverte(false);
+          setTerme("");
+          if (r.type === "audio" && r.seanceId) {
+            router.push(`/groupes/${id}/seances/${r.seanceId}` as Href);
+          } else if (r.type === "projet") {
+            router.push(`/projets/${r.id}` as Href);
+          } else {
+            // Un fichier n'a pas d'écran à lui : on ouvre l'onglet qui le range.
+            setOnglet("fichiers");
+          }
+        }}
+      />
     </Ecran>
   );
 }

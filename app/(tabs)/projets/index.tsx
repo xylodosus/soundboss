@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter, type Href } from "expo-router";
 import { KeyboardAvoidingView, Platform, FlatList, Pressable, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useProjetsPersonnels } from "@/lib/queries/projets";
@@ -10,6 +11,8 @@ import { CarteProjet } from "@/components/projet/onglet-projets";
 import { ModalNouveauProjet } from "@/components/projet/modal-nouveau-projet";
 import { OngletRessources } from "@/components/ressources/onglet-ressources";
 import { OngletFichiersPersonnels } from "@/components/personnel/onglet-fichiers-personnels";
+import { ModalRecherche } from "@/components/ui/modal-recherche";
+import { useRecherchePersonnelle } from "@/lib/queries/recherche";
 
 const ONGLETS = [
   { id: "projets", label: "Projets" },
@@ -21,8 +24,14 @@ type OngletId = (typeof ONGLETS)[number]["id"];
 
 export default function MesProjets() {
   const { data: projets = [], isLoading } = useProjetsPersonnels();
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const [terme, setTerme] = useState("");
+  const { data: resultats = [], isFetching: rechercheEnCours } = useRecherchePersonnelle(
+    rechercheOuverte ? terme : ""
+  );
   const [onglet, setOnglet] = useState<OngletId>("projets");
   const [modeCreation, setModeCreation] = useState(false);
+  const router = useRouter();
 
   return (
     <Ecran>
@@ -47,6 +56,22 @@ export default function MesProjets() {
                 Espace perso
               </Texte>
             </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              onPress={() => setRechercheOuverte(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Rechercher dans l'espace perso"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: couleurs.surfaceCarte,
+              }}
+            >
+              <Ionicons name="search" size={20} color={couleurs.texte} />
+            </Pressable>
             {onglet === "projets" && !modeCreation && (
               <Pressable
                 onPress={() => setModeCreation(true)}
@@ -64,6 +89,7 @@ export default function MesProjets() {
                 <Ionicons name="add" size={26} color={couleurs.charcoal} />
               </Pressable>
             )}
+            </View>
           </View>
 
           {/* Onglets */}
@@ -152,6 +178,29 @@ export default function MesProjets() {
       <ModalNouveauProjet
         visible={modeCreation}
         onFermer={() => setModeCreation(false)}
+      />
+
+      <ModalRecherche
+        visible={rechercheOuverte}
+        onFermer={() => {
+          setRechercheOuverte(false);
+          setTerme("");
+        }}
+        terme={terme}
+        surTerme={setTerme}
+        resultats={resultats}
+        chargement={rechercheEnCours}
+        placeholder="Rechercher un fichier, un projet…"
+        surChoisir={(r) => {
+          setRechercheOuverte(false);
+          setTerme("");
+          if (r.type === "projet") {
+            router.push(`/projets/${r.id}` as Href);
+          } else {
+            // Un fichier personnel n'a pas d'écran à lui : on ouvre son onglet.
+            setOnglet("fichiers");
+          }
+        }}
       />
     </Ecran>
   );
