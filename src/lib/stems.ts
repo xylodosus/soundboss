@@ -14,7 +14,9 @@ const LIBELLES: Record<string, string> = {
   other: "Mélodies",
   melodies: "Mélodies",
   instrumental: "Instrumental",
+  "vocals-lead": "Voix principale",
   "lead vocals": "Voix principale",
+  "vocals-background": "Chœurs",
   "background vocals": "Chœurs",
   kick: "Grosse caisse",
   snare: "Caisse claire",
@@ -24,10 +26,16 @@ const LIBELLES: Record<string, string> = {
   "drums-other": "Autres percussions",
   "other drums": "Autres percussions",
   piano: "Piano",
+  // Noms réellement produits par l'API, systématiquement plus courts que ceux
+  // de sa documentation : « electric » et non « electric guitar », etc. Les
+  // deux formes sont traduites, l'API pouvant changer d'avis.
+  electric: "Guitare électrique",
   "electric guitar": "Guitare électrique",
+  acoustic: "Guitare acoustique",
   "acoustic guitar": "Guitare acoustique",
   strings: "Cordes",
   wind: "Vents",
+  "melodics-other": "Autres mélodies",
   "other melodies": "Autres mélodies",
 };
 
@@ -44,15 +52,20 @@ export function libelleStem(type: string): string {
 /** Ordre d'affichage, calqué sur une console : voix en haut, rythmique en bas. */
 const ORDRE = [
   "vocals",
+  "vocals-lead",
   "lead vocals",
+  "vocals-background",
   "background vocals",
   "other",
   "melodies",
   "piano",
+  "electric",
   "electric guitar",
+  "acoustic",
   "acoustic guitar",
   "strings",
   "wind",
+  "melodics-other",
   "other melodies",
   "bass",
   "drums",

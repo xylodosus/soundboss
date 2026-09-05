@@ -27,6 +27,11 @@ describe("libelleStem", () => {
     expect(libelleStem("lead vocals")).toBe("Voix principale");
     // Nom réellement produit par l'API, différent de sa documentation.
     expect(libelleStem("drums-other")).toBe("Autres percussions");
+    expect(libelleStem("electric")).toBe("Guitare électrique");
+    expect(libelleStem("acoustic")).toBe("Guitare acoustique");
+    expect(libelleStem("melodics-other")).toBe("Autres mélodies");
+    expect(libelleStem("vocals-lead")).toBe("Voix principale");
+    expect(libelleStem("vocals-background")).toBe("Chœurs");
     expect(libelleStem("background vocals")).toBe("Chœurs");
   });
 

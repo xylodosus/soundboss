@@ -693,6 +693,21 @@ Fadr accepte de redécouper un asset qu'il détient déjà : aucun téléverseme
 aucune perte de qualité, et les assets ne sont pas expirés. La conservation
 d'une copie pleine dans R2 devient donc inutile pour cet usage.
 
+**Taxonomie réelle, établie par l'essai le 5 septembre — seize stems.** La
+documentation de Fadr se trompe sur **six noms sur seize** : elle emploie des
+formes longues là où l'API préfixe par le parent.
+
+| Parent | Types réellement produits | Annoncés par la doc |
+|---|---|---|
+| *(morceau)* | `vocals`, `bass`, `drums`, **`other`**, `instrumental` | « melodies » pour `other` |
+| `vocals` | **`vocals-lead`**, **`vocals-background`** | « lead vocals », « background vocals » |
+| `drums` | `kick`, `snare`, **`drums-other`** | « other drums » |
+| `other` | `piano`, **`electric`**, **`acoustic`**, `strings`, `wind`, **`melodics-other`** | « electric guitar », « acoustic guitar », « other melodies » |
+
+Treize feuilles, trois parents redécoupés. Les deux formes sont traduites dans
+`libelleStem`, l'API pouvant changer d'avis, et un type inconnu reste affiché
+tel quel — c'est ce qui a permis de découvrir ces écarts sans rien casser.
+
 **Client : rien.** Aucun point d'entrée n'existe pour demander un affinage —
 `useDemanderStems` accepte le type mais l'interface envoie toujours `main`, et
 la liste des pistes ne montre pas la hiérarchie.
