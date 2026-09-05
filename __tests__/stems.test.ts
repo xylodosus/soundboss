@@ -78,7 +78,6 @@ describe("peutCharger", () => {
   });
 
   it("refuse ce qui ferait dépasser", () => {
-    // 225 Mo tiennent sur un Pocophone F1 ; 450 Mo ne tiendraient pas.
     expect(peutCharger(225 * MO, 40 * MO, 250 * MO)).toBe(false);
   });
 

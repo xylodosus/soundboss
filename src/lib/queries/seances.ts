@@ -368,6 +368,30 @@ export function useStemsEnregistrement(enregistrementId: string, actif = true) {
   });
 }
 
+/**
+ * Statut de l'extraction, scruté tant qu'elle tourne.
+ *
+ * La séparation prend plusieurs minutes côté Fadr : sans cette scrutation,
+ * l'écran resterait muet jusqu'à ce qu'on le rouvre.
+ */
+export function useStatutStems(enregistrementId: string, actif = true) {
+  return useQuery({
+    queryKey: [...clefsSeances.enregistrements(enregistrementId), "stems-statut"],
+    enabled: actif && !!enregistrementId,
+    refetchInterval: (requete) =>
+      requete.state.data?.stems_statut === "en_cours" ? 5000 : false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("seance_enregistrements")
+        .select("stems_statut, stems_erreur")
+        .eq("id", enregistrementId)
+        .single();
+      if (error) throw error;
+      return data as { stems_statut: string | null; stems_erreur: string | null };
+    },
+  });
+}
+
 /** Demande une séparation. La RPC vérifie l'accès, le quota et les doublons. */
 export function useDemanderStems() {
   const client = useQueryClient();

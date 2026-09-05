@@ -34,7 +34,12 @@ import {
   transposer,
 } from "@/lib/tonalite";
 import { ModalChoix } from "@/components/ui/modal-choix";
-import { useDemanderStems, useStemsEnregistrement } from "@/lib/queries/seances";
+import {
+  clefsSeances,
+  useDemanderStems,
+  useStatutStems,
+  useStemsEnregistrement,
+} from "@/lib/queries/seances";
 import {
   PLAFOND_MEMOIRE,
   gainEffectif,
@@ -45,6 +50,7 @@ import {
   type EtatMixage,
 } from "@/lib/stems";
 import { Mixeur } from "@/components/audio/mixeur";
+import { useQueryClient } from "@tanstack/react-query";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
@@ -570,7 +576,20 @@ export function LaboAudio({
   const sections = useMemo(() => parseSections(piste?.tonalite_sections), [piste]);
   const { data: stems = [] } = useStemsEnregistrement(piste?.id ?? "", visible && !!piste);
   const { mutate: demanderStems, isPending: demandeEnCours } = useDemanderStems();
+  const { data: statutStems } = useStatutStems(piste?.id ?? "", visible && !!piste);
+  const extractionEnCours = statutStems?.stems_statut === "en_cours";
   const stemsOrdonnes = useMemo(() => ordonnerStems(stems), [stems]);
+  const clientRequetes = useQueryClient();
+
+  // L'extraction s'achève côté serveur : sans cette invalidation, la liste des
+  // pistes resterait vide jusqu'à la réouverture de la modale.
+  useEffect(() => {
+    if (statutStems?.stems_statut === "pret" && piste) {
+      clientRequetes.invalidateQueries({
+        queryKey: clefsSeances.enregistrements(piste.id),
+      });
+    }
+  }, [statutStems?.stems_statut, piste, clientRequetes]);
   const tonaliteOrigine =
     tonaliteManuelle ?? sectionA(sections, position)?.id ?? piste?.tonalite ?? null;
   const resume = resumeSections(sections);
@@ -1113,7 +1132,28 @@ export function LaboAudio({
               {onglet === "pistes" && (
                 <View style={{ gap: espacement.lg }}>
 
-                {stemsOrdonnes.length === 0 ? (
+                {extractionEnCours ? (
+                  <View
+                    style={{
+                      paddingVertical: espacement.xl,
+                      gap: espacement.sm,
+                      alignItems: "center",
+                    }}
+                  >
+                    <ActivityIndicator color={couleurs.warmGold} />
+                    <Texte variante="petit" couleur={couleurs.texte}>
+                      Extraction des pistes en cours.
+                    </Texte>
+                    <Texte
+                      variante="micro"
+                      couleur={couleurs.texteSecondaire}
+                      style={{ textAlign: "center" }}
+                    >
+                      Ce processus peut prendre quelques minutes. Tu recevras une notification
+                      quand ce sera prêt — tu peux fermer le labo entre-temps.
+                    </Texte>
+                  </View>
+                ) : stemsOrdonnes.length === 0 ? (
                   <View style={{ gap: espacement.sm }}>
                     <Texte variante="petit" couleur={couleurs.texteSecondaire}>
                       {"Ce morceau n'a pas encore été séparé en pistes."}

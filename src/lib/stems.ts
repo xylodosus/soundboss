@@ -85,12 +85,16 @@ export function memoireEstimee(dureeSecondes: number | null, frequence: number):
 /**
  * Plafond mémoire au-delà duquel on refuse d'ajouter une piste.
  *
- * Mesuré sur Pocophone F1 : cinq pistes de 102 s tiennent à 93 Mo, cinq pistes
- * de 245 s tiennent à 225 Mo. Huit minutes en cinq pistes demanderaient 450 Mo,
- * ce qui ne passera pas. Le plafond est posé un peu au-dessus de la plus haute
- * valeur vérifiée, pas au-dessus d'une valeur supposée.
+ * Mesuré sur Pocophone F1 : cinq pistes de 102 s tiennent à 93 Mo, cinq de
+ * 245 s à 225 Mo, et deux pistes de 488 s à 179 Mo — sans ralentissement.
+ * Le premier plafond de 250 Mo s'est révélé trop prudent : il refusait une
+ * troisième piste que rien ne prouvait intenable.
+ *
+ * 460 Mo laisse tenter les cinq pistes du morceau le plus long du corpus
+ * (~446 Mo). C'est délibérément une valeur d'exploration : si l'application
+ * tombe, on saura enfin où est la vraie limite, ce qu'aucun calcul ne dira.
  */
-export const PLAFOND_MEMOIRE = 250 * 1024 * 1024;
+export const PLAFOND_MEMOIRE = 460 * 1024 * 1024;
 
 export function peutCharger(actuelle: number, ajout: number, plafond = PLAFOND_MEMOIRE): boolean {
   // La première piste passe toujours : refuser la seule piste demandée rendrait

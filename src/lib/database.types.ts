@@ -3149,6 +3149,10 @@ export type Database = {
           pupitre_id: string | null
           pupitre_ids: string[]
           seance_id: string
+          stems_demandeur: string | null
+          stems_erreur: string | null
+          stems_statut: string | null
+          stems_tache_id: string | null
           taille_octets: number | null
           titre: string | null
           tonalite: string | null
@@ -3167,6 +3171,10 @@ export type Database = {
           pupitre_id?: string | null
           pupitre_ids?: string[]
           seance_id: string
+          stems_demandeur: string | null
+          stems_erreur: string | null
+          stems_statut: string | null
+          stems_tache_id: string | null
           taille_octets?: number | null
           titre?: string | null
           tonalite?: string | null
@@ -3185,6 +3193,10 @@ export type Database = {
           pupitre_id?: string | null
           pupitre_ids?: string[]
           seance_id?: string
+          stems_demandeur?: string | null
+          stems_erreur?: string | null
+          stems_statut?: string | null
+          stems_tache_id?: string | null
           taille_octets?: number | null
           titre?: string | null
           tonalite?: string | null
