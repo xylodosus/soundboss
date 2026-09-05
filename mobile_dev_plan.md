@@ -658,6 +658,20 @@ Vérifié le 5 septembre sur Pocophone F1 : les cinq pistes de `02 Piste 2`
 mais le mixage de tout sauf la voix : le jouer avec la basse, la batterie et les
 mélodies ferait entendre chacune deux fois. « Tout activer » l'exclut donc.
 
+## 4 duodecies. À faire plus tard — écoute des loops de la bibliothèque
+
+Le labo est atteignable depuis tout audio de l'application : audios de
+répétition par le lecteur, fichiers de groupe, fichiers personnels et messages
+vocaux du chat par la modale de détail.
+
+Une surface reste à l'écart : les **ressources d'équipe**, qui n'offrent
+aujourd'hui qu'un téléchargement. Les ressources de type `loop` **sont** des
+audios et méritent une écoute — décision du chef de groupe, 5 septembre 2026.
+
+À faire : ajouter un bouton d'écoute sur les ressources dont le type est `loop`
+(et vérifier si `style` en est un aussi), ouvrant le labo sans onglet Pistes,
+comme pour un fichier de groupe.
+
 ## 6. Notes & pièges
 
 ### Une clé étrangère de plus casse l'imbrication PostgREST (5 sept. 2026)
