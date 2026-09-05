@@ -33,7 +33,6 @@ import { Avatar } from "@/components/ui/avatar";
 import { useLecteurAudio } from "@/lib/audio-context";
 import { useDialogue } from "@/lib/dialogue";
 import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
-import { LaboAudio } from "@/components/audio/labo-audio";
 import { ModalChoix } from "@/components/ui/modal-choix";
 import { ModalChoixMultiple } from "@/components/ui/modal-choix-multiple";
 import { ModalEcoutes } from "@/components/groupe/modal-ecoutes";
@@ -87,9 +86,6 @@ export default function DetailSeance() {
   // Audio dont on consulte le détail des écoutes. Une seule modale pour toute
   // la liste, plutôt qu'une par ligne.
   const [ecoutesAudio, setEcoutesAudio] = useState<{ id: string; titre: string | null } | null>(null);
-  const [audioLabo, setAudioLabo] = useState<
-    (typeof enregistrements)[number] | null
-  >(null);
   const { data: notes = [] } = useNotesSeance(seanceId);
 
   const mettreAJourPresence = useMettreAJourPresence();
@@ -639,16 +635,6 @@ export default function DetailSeance() {
                       />
                     )}
                   </View>
-                  {/* L'écoute reste le geste par défaut : le labo décode le
-                      fichier en entier et fait attendre quelques secondes. */}
-                  <Pressable
-                    onPress={() => setAudioLabo(enregistrement)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Ouvrir ${enregistrement.titre ?? "l'audio"} dans le labo`}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="pulse-outline" size={18} color={couleurs.texteSecondaire} />
-                  </Pressable>
                   <BoutonEcouter
                     cle={enregistrement.url}
                     titre={enregistrement.titre ?? "Audio"}
@@ -916,15 +902,6 @@ export default function DetailSeance() {
       </ScrollView>
       </KeyboardAvoidingView>
       </GestureHandlerRootView>
-
-      <LaboAudio
-        piste={audioLabo}
-        visible={!!audioLabo}
-        onFermer={() => setAudioLabo(null)}
-        seanceId={seanceId}
-        groupeId={seance?.groupe?.id ?? groupeId}
-        pupitres={pupitres}
-      />
 
       <ModalEcoutes
         enregistrementId={ecoutesAudio?.id ?? null}

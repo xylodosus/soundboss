@@ -11,7 +11,13 @@ import { formatTemps } from "@/lib/format";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { useDialogue } from "@/lib/dialogue";
 import { deltaEcoute, estEcoutee } from "@/lib/ecoute";
-import { useEnregistrement, useEnregistrerEcoute, useValiderEcoute } from "@/lib/queries/seances";
+import {
+  useEnregistrement,
+  useEnregistrerEcoute,
+  useSeance,
+  useValiderEcoute,
+} from "@/lib/queries/seances";
+import { usePupitresGroupe } from "@/lib/queries/groupes";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
 
@@ -259,27 +265,6 @@ export function LecteurAudioModal({
                 </Texte>
               )}
             </View>
-            {/* Le labo décode le morceau en entier : c'est un second geste,
-                pas le geste par défaut. */}
-            {enregistrement && (
-              <Pressable
-                onPress={() => setLaboOuvert(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Ouvrir dans le labo audio"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: couleurs.surfaceCarte,
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.06)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="pulse-outline" size={20} color={couleurs.warmGold} />
-              </Pressable>
-            )}
             <Pressable
               onPress={telecharger}
               disabled={enTelechargement || !piste}
@@ -478,15 +463,75 @@ export function LecteurAudioModal({
                 color={couleurs.texteSecondaire}
               />
             </Pressable>
+
+            {/* Le labo décode le morceau en entier : c'est un second geste, et
+                il n'a de quoi travailler que sur un enregistrement de
+                répétition — ailleurs il n'offrirait rien de plus que ce lecteur. */}
+            {enregistrement && (
+              <Pressable
+                onPress={() => setLaboOuvert(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Ouvrir dans le labo audio"
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  minHeight: 44,
+                  paddingHorizontal: 16,
+                  borderRadius: rayons.pill,
+                  backgroundColor: couleurs.warmGold15,
+                  borderWidth: 1,
+                  borderColor: "rgba(251,191,36,0.25)",
+                }}
+              >
+                <Ionicons name="pulse-outline" size={18} color={couleurs.warmGold} />
+                <Texte variante="petit" poids="semibold" couleur={couleurs.warmGold}>
+                  Labo audio
+                </Texte>
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
 
-      <LaboAudio
-        piste={laboOuvert ? (enregistrement ?? null) : null}
-        visible={laboOuvert && !!enregistrement}
-        onFermer={() => setLaboOuvert(false)}
-      />
+      {/* Monté seulement à l'ouverture : ses requêtes de contexte — séance,
+          groupe, pupitres — n'ont aucune raison de partir à chaque écoute. */}
+      {laboOuvert && enregistrement && (
+        <LaboDepuisLecteur
+          enregistrement={enregistrement}
+          onFermer={() => setLaboOuvert(false)}
+        />
+      )}
     </Modal>
+  );
+}
+
+/**
+ * Ouvre le labo sur un enregistrement, en retrouvant le contexte nécessaire au
+ * transfert d'une piste : la séance, son groupe, et les pupitres de ce groupe.
+ *
+ * Le lecteur, lui, ne connaît que l'identifiant de l'enregistrement — il sert
+ * aussi bien un audio de répétition qu'un fichier de groupe.
+ */
+function LaboDepuisLecteur({
+  enregistrement,
+  onFermer,
+}: {
+  enregistrement: NonNullable<ReturnType<typeof useEnregistrement>["data"]>;
+  onFermer: () => void;
+}) {
+  const { data: seance } = useSeance(enregistrement.seance_id);
+  const groupeId = seance?.groupe?.id ?? "";
+  const { data: pupitres = [] } = usePupitresGroupe(groupeId);
+
+  return (
+    <LaboAudio
+      piste={enregistrement}
+      visible
+      onFermer={onFermer}
+      seanceId={enregistrement.seance_id}
+      groupeId={groupeId || undefined}
+      pupitres={pupitres}
+    />
   );
 }
