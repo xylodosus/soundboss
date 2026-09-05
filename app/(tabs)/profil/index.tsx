@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -64,6 +64,7 @@ export default function Profil() {
           <Ligne icone="wallet-outline" label="Wallet (crédits)" onAppui={() => router.push("/wallet")} />
           <Ligne icone="notifications-outline" label="Notifications" onAppui={() => router.push("/profil/notifications")} />
           <Ligne icone="settings-outline" label="Paramètres" onAppui={() => router.push("/profil/parametres")} />
+          <Ligne icone="cloud-outline" label="Stockage" onAppui={() => router.push("/profil/stockage" as Href)} />
           <Ligne icone="sparkles-outline" label="Mes jobs IA" onAppui={() => router.push("/profil/jobs-ia")} />
           <Ligne icone="calendar-outline" label="Mes réservations de studios" onAppui={() => router.push("/studios/mes-reservations")} />
           <Ligne icone="log-out-outline" label="Se déconnecter" couleur={couleurs.danger} onAppui={deconnexion} />

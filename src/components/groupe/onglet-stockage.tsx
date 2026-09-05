@@ -1,39 +1,31 @@
 import { View } from "react-native";
 import Svg, { Circle, G } from "react-native-svg";
-import { useRessources } from "@/lib/queries/ressources";
+import type { Stockage } from "@/lib/stockage";
+import { useStockageGroupe } from "@/lib/queries/stockage";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "@/components/ui/texte";
 import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 
-const TYPES: { cle: string; label: string; couleur: string }[] = [
-  { cle: "image", label: "Images", couleur: "#34D399" },
-  { cle: "audio", label: "Audio", couleur: couleurs.warmGold },
-  { cle: "video", label: "Vidéos", couleur: "#60A5FA" },
-  { cle: "pdf", label: "PDF", couleur: couleurs.danger },
-  { cle: "partition", label: "Partitions", couleur: "#C084FC" },
-  { cle: "autre", label: "Autres", couleur: couleurs.muted },
-];
-
-type Agregation = { total: number; nb: number };
-
-/** Onglet Stockage : tailles des fichiers par type + taille globale (réservé au chef). */
-export function OngletStockage({ groupeId }: { groupeId: string }) {
-  const { data: ressources = [], isLoading } = useRessources(groupeId, true);
-
-  const parType: Record<string, Agregation> = {};
-  for (const t of TYPES) parType[t.cle] = { total: 0, nb: 0 };
-
-  let totalGlobal = 0;
-  let nbGlobal = 0;
-  for (const r of ressources) {
-    const cle = TYPES.some((t) => t.cle === r.type) ? r.type : "autre";
-    const octets = r.taille_bytes ?? 0;
-    parType[cle].total += octets;
-    parType[cle].nb += 1;
-    totalGlobal += octets;
-    nbGlobal += 1;
-  }
-
+/**
+ * Vue du stockage : donut et légende, alimentée par une agrégation déjà faite.
+ *
+ * Le composant ne calcule plus rien : il servait le groupe en ne comptant que
+ * les fichiers partagés, laissant de côté les audios de répétition et les
+ * pistes extraites — de loin les plus lourds. Le calcul vit maintenant dans
+ * `src/lib/stockage.ts`, testé, et sert aussi l'espace personnel.
+ */
+export function VueStockage({
+  stockage,
+  isLoading,
+  messageVide,
+}: {
+  stockage: Stockage | undefined;
+  isLoading: boolean;
+  messageVide: string;
+}) {
+  const categories = stockage?.categories ?? [];
+  const totalGlobal = stockage?.total ?? 0;
+  const nbGlobal = stockage?.nb ?? 0;
   const totalMo = totalGlobal / (1024 * 1024);
 
   return (
@@ -56,12 +48,12 @@ export function OngletStockage({ groupeId }: { groupeId: string }) {
           <EtatVide
             icone="cloud-outline"
             titre="Rien de stocké"
-            message="La répartition du stockage apparaîtra dès que le groupe aura déposé des fichiers."
+            message={messageVide}
           />
         ) : (
           <>
             <Donut
-              parts={TYPES.map((t) => ({ valeur: parType[t.cle].total, couleur: t.couleur }))}
+              parts={categories.map((c) => ({ valeur: c.total, couleur: c.couleur }))}
             />
             <View style={{ alignItems: "center" }}>
               <Texte poids="extrabold" variante="titre2" couleur={couleurs.warmGold}>
@@ -78,12 +70,13 @@ export function OngletStockage({ groupeId }: { groupeId: string }) {
       {/* Légende par type */}
       {!isLoading && nbGlobal > 0 && (
         <View style={{ gap: 8 }}>
-          {TYPES.filter((t) => parType[t.cle].nb > 0).map((t) => {
-            const a = parType[t.cle];
-            const pct = totalGlobal > 0 ? Math.round((a.total / totalGlobal) * 100) : 0;
+          {categories
+            .filter((c) => c.nb > 0)
+            .map((c) => {
+            const pct = totalGlobal > 0 ? Math.round((c.total / totalGlobal) * 100) : 0;
             return (
               <View
-                key={t.cle}
+                key={c.cle}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
@@ -100,19 +93,19 @@ export function OngletStockage({ groupeId }: { groupeId: string }) {
                     width: 12,
                     height: 12,
                     borderRadius: 6,
-                    backgroundColor: t.couleur,
+                    backgroundColor: c.couleur,
                   }}
                 />
                 <View style={{ flex: 1 }}>
                   <Texte variante="petit" poids="semibold">
-                    {t.label}
+                    {c.label}
                   </Texte>
                   <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                    {a.nb} fichier{a.nb > 1 ? "s" : ""} · {pct}%
+                    {c.nb} fichier{c.nb > 1 ? "s" : ""} · {pct}%
                   </Texte>
                 </View>
                 <Texte variante="petit" poids="bold">
-                  {(a.total / (1024 * 1024)).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} Mo
+                  {(c.total / (1024 * 1024)).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} Mo
                 </Texte>
               </View>
             );
@@ -172,5 +165,17 @@ function Donut({
             })}
       </G>
     </Svg>
+  );
+}
+
+/** Onglet Stockage d'un groupe. */
+export function OngletStockage({ groupeId }: { groupeId: string }) {
+  const { data: stockage, isLoading } = useStockageGroupe(groupeId);
+  return (
+    <VueStockage
+      stockage={stockage}
+      isLoading={isLoading}
+      messageVide="La répartition du stockage apparaîtra dès que le groupe aura déposé des fichiers ou enregistré une répétition."
+    />
   );
 }
