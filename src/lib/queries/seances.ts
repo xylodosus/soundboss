@@ -392,6 +392,27 @@ export function useStatutStems(enregistrementId: string, actif = true) {
   });
 }
 
+/**
+ * Un enregistrement seul, pour le lecteur : il n'a que son identifiant et a
+ * besoin de `peaks_url` pour dessiner une vraie waveform, et du reste pour
+ * ouvrir le labo sur le bon morceau.
+ */
+export function useEnregistrement(enregistrementId: string, actif = true) {
+  return useQuery({
+    queryKey: [...clefsSeances.enregistrements(enregistrementId), "detail"],
+    enabled: actif && !!enregistrementId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("seance_enregistrements")
+        .select("*")
+        .eq("id", enregistrementId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as Database["public"]["Tables"]["seance_enregistrements"]["Row"] | null;
+    },
+  });
+}
+
 /** Demande une séparation. La RPC vérifie l'accès, le quota et les doublons. */
 export function useDemanderStems() {
   const client = useQueryClient();

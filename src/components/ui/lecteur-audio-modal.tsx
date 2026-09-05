@@ -1,22 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import Animated, {
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { urlLectureR2 } from "@/lib/r2";
+import { Waveform } from "@/components/audio/waveform";
+import { LaboAudio } from "@/components/audio/labo-audio";
+import { parsePics } from "@/lib/peaks";
 import { formatTemps } from "@/lib/format";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { useDialogue } from "@/lib/dialogue";
 import { deltaEcoute, estEcoutee } from "@/lib/ecoute";
-import { useEnregistrerEcoute, useValiderEcoute } from "@/lib/queries/seances";
+import { useEnregistrement, useEnregistrerEcoute, useValiderEcoute } from "@/lib/queries/seances";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
 
@@ -29,86 +24,11 @@ export interface PisteAudio {
   imageCle?: string | null; // clé R2 / URL de la couverture (photo de groupe, affiche projet…)
 }
 
-const NB_BARRES = 40;
-
-/** Hauteurs pseudo-aléatoires stables (ne changent pas entre rendus). */
-function hauteurBarre(i: number): number {
-  return 18 + ((i * 37 + 11) % 82);
-}
 
 /**
  * Barre de la waveform. En lecture : pulse en égaliseur (amplitudes animées).
  * En pause : se fige sur sa hauteur de base. Colorée en doré si déjà lue.
  */
-function BarreWaveforme({
-  index,
-  actif,
-  enLecture,
-}: {
-  index: number;
-  actif: boolean;
-  enLecture: boolean;
-}) {
-  const hauteurBase = hauteurBarre(index);
-  const amplitude = useSharedValue(hauteurBase);
-
-  useEffect(() => {
-    if (enLecture) {
-      amplitude.value = withRepeat(
-        withSequence(
-          withTiming(12 + Math.random() * 80, { duration: 260 }),
-          withTiming(12 + Math.random() * 80, { duration: 260 })
-        ),
-        -1
-      );
-    } else {
-      cancelAnimation(amplitude);
-      amplitude.value = withTiming(hauteurBase, { duration: 200 });
-    }
-  }, [enLecture, amplitude, hauteurBase]);
-
-  const styleAnim = useAnimatedStyle(() => ({
-    height: `${amplitude.value}%`,
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        styleAnim,
-        {
-          width: 4,
-          borderRadius: 2,
-          backgroundColor: actif ? couleurs.warmGold : "rgba(255,255,255,0.18)",
-        },
-      ]}
-    />
-  );
-}
-
-/** Waveform : barres pulsantes pendant la lecture, coloration liée à la progression. */
-function Waveforme({ enLecture, ratio }: { enLecture: boolean; ratio: number }) {
-  const barres = useMemo(() => Array.from({ length: NB_BARRES }), []);
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 3,
-        height: 80,
-        justifyContent: "center",
-      }}
-    >
-      {barres.map((_, i) => (
-        <BarreWaveforme
-          key={i}
-          index={i}
-          actif={i / NB_BARRES <= ratio}
-          enLecture={enLecture}
-        />
-      ))}
-    </View>
-  );
-}
 
 /**
  * Lecteur audio plein écran (bottom sheet) — d'après le template SoundBoss :
@@ -144,6 +64,29 @@ export function LecteurAudioModal({
   const dernierEnvoi = useRef(0);
 
   const enregistrementId = piste?.enregistrementId;
+  const { data: enregistrement } = useEnregistrement(enregistrementId ?? "", !!enregistrementId);
+  const [pics, setPics] = useState<number[]>([]);
+  const [laboOuvert, setLaboOuvert] = useState(false);
+
+  // Pics produits par le media-worker. Absents — audio pas encore analysé, ou
+  // fichier qui n'est pas un enregistrement — la waveform se replie sur une
+  // barre de progression simple.
+  useEffect(() => {
+    let annule = false;
+    setPics([]);
+    const cle = enregistrement?.peaks_url;
+    if (!cle) return;
+    urlLectureR2(cle)
+      .then((url) => (url ? fetch(url) : null))
+      .then((r) => (r?.ok ? r.text() : null))
+      .then((texte) => {
+        if (!annule && texte) setPics(parsePics(texte) ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      annule = true;
+    };
+  }, [enregistrement?.peaks_url]);
 
   // Nouvelle piste : le cumul repart de zéro.
   useEffect(() => {
@@ -316,6 +259,27 @@ export function LecteurAudioModal({
                 </Texte>
               )}
             </View>
+            {/* Le labo décode le morceau en entier : c'est un second geste,
+                pas le geste par défaut. */}
+            {enregistrement && (
+              <Pressable
+                onPress={() => setLaboOuvert(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Ouvrir dans le labo audio"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: couleurs.surfaceCarte,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.06)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="pulse-outline" size={20} color={couleurs.warmGold} />
+              </Pressable>
+            )}
             <Pressable
               onPress={telecharger}
               disabled={enTelechargement || !piste}
@@ -361,10 +325,14 @@ export function LecteurAudioModal({
             </Pressable>
           </View>
 
-          {/* Visuel : image du groupe/projet, sinon disque vinyle */}
+          {/* Visuel : image du groupe/projet, sinon disque vinyle.
+              Réduit à un format de vignette : un carré pleine largeur poussait
+              la waveform et le transport sous la ligne de flottaison. */}
           <View
             style={{
-              aspectRatio: 1,
+              width: 132,
+              height: 132,
+              alignSelf: "center",
               borderRadius: rayons.xl,
               backgroundColor: "rgba(251,191,36,0.06)",
               borderWidth: 1,
@@ -384,9 +352,9 @@ export function LecteurAudioModal({
             ) : (
               <View
                 style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: 48,
+                  width: 72,
+                  height: 72,
+                  borderRadius: 36,
                   backgroundColor: "rgba(255,255,255,0.06)",
                   borderWidth: 1,
                   borderColor: "rgba(255,255,255,0.12)",
@@ -397,14 +365,20 @@ export function LecteurAudioModal({
                   shadowRadius: 20,
                 }}
               >
-                <Ionicons name="disc" size={44} color={couleurs.warmGold} />
+                <Ionicons name="disc" size={34} color={couleurs.warmGold} />
               </View>
             )}
           </View>
 
           {/* Waveform + temps */}
           <View style={{ marginTop: 20 }}>
-            <Waveforme enLecture={enLecture} ratio={ratio} />
+            <Waveform
+              pics={pics}
+              progression={ratio}
+              surDeplacer={(r, definitif) => {
+                if (definitif) player.seekTo(Math.min(duree, Math.max(0, r * duree)));
+              }}
+            />
             <View
               style={{
                 flexDirection: "row",
@@ -507,6 +481,12 @@ export function LecteurAudioModal({
           </View>
         </View>
       </View>
+
+      <LaboAudio
+        piste={laboOuvert ? (enregistrement ?? null) : null}
+        visible={laboOuvert && !!enregistrement}
+        onFermer={() => setLaboOuvert(false)}
+      />
     </Modal>
   );
 }
