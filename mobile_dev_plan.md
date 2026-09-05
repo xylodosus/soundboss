@@ -622,6 +622,28 @@ npx expo prebuild    # génère android/ios natifs (avant build EAS)
 npx expo install <pkg>   # installer une dep (versions compatibles SDK 54)
 ```
 
+## 4 undecies. Plafond mémoire validé et décalage à l'ajout d'une piste (5 sept. 2026)
+
+**447 Mo tiennent**, sur Pocophone F1 comme sur Tecno Camon 50 Pro : les cinq
+pistes de `02 Piste 2` (488 s) se lisent sans ralentissement. Le plafond de
+460 Mo est donc vérifié, plus supposé.
+
+**Décalage à l'ajout d'une piste, sur un morceau long seulement.** Cause :
+`positionRef` est alimentée par `onPositionChanged`, dont les événements sont
+traités sur le fil JavaScript. Décoder un stem de huit minutes le bloque
+plusieurs secondes, et la valeur devient périmée d'autant — la lecture repartait
+donc en arrière. Sur ALLELUIA (196 s) le décodage est trop bref pour que ça se
+voie.
+
+Correctif : calculer la position sur **l'horloge du contexte audio**, qui ne
+cale jamais, à partir de l'instant de démarrage et de l'offset. `positionRef`
+reste pour l'affichage et pour le cas d'une boucle, qu'un calcul linéaire ne
+sait pas décrire.
+
+**L'instrumental ne se cumule pas avec les autres.** Ce n'est pas un instrument
+mais le mixage de tout sauf la voix : le jouer avec la basse, la batterie et les
+mélodies ferait entendre chacune deux fois. « Tout activer » l'exclut donc.
+
 ## 6. Notes & pièges
 
 ### Une clé étrangère de plus casse l'imbrication PostgREST (5 sept. 2026)

@@ -221,6 +221,9 @@ export function LaboAudio({
   /** Un gain par piste, pour couper une voix sans toucher aux autres. */
   const gainsPistesRef = useRef<Map<string, GainNode>>(new Map());
   const coupesRef = useRef<Set<string>>(new Set());
+  /** Instant du contexte auquel la lecture a démarré, et position de départ. */
+  const departRef = useRef(0);
+  const offsetDepartRef = useRef(0);
   // Un AudioBufferSourceNode ne se relit pas : chaque reprise en crée un neuf,
   // démarré à cet offset. C'est donc ici, et non dans le nœud, que vit la
   // position de lecture entre deux pauses.
@@ -278,6 +281,8 @@ export function LaboAudio({
       // créer cinq nœuds prend quelques millisecondes, et démarrer chacun à sa
       // création les décalerait les uns des autres de façon audible.
       const depart = contexte.currentTime + 0.15;
+      departRef.current = depart;
+      offsetDepartRef.current = offset;
       const bornes = boucleRef.current;
       const entree = filtresRef.current[0] ?? gainMaitre;
 
@@ -594,16 +599,40 @@ export function LaboAudio({
     tonaliteManuelle ?? sectionA(sections, position)?.id ?? piste?.tonalite ?? null;
   const resume = resumeSections(sections);
 
+  /**
+   * Position réelle, lue sur l'horloge du contexte audio.
+   *
+   * `positionRef` est alimentée par des événements traités sur le fil
+   * JavaScript : décoder une piste de huit minutes le bloque plusieurs
+   * secondes, et la valeur devient périmée d'autant. Relancer la lecture
+   * dessus faisait reculer le morceau — visible sur un long morceau,
+   * imperceptible sur un court.
+   *
+   * L'horloge audio, elle, ne cale jamais. On ne s'en sert pas quand une
+   * boucle tourne : le calcul linéaire ne connaît pas les retours en arrière.
+   */
+  function positionReelle(): number {
+    const contexte = contextePartage;
+    if (!contexte || !enLecture || boucle) return positionRef.current;
+    const ecoule = (contexte.currentTime - departRef.current) * tempoRef.current;
+    if (ecoule <= 0) return offsetDepartRef.current;
+    return Math.min(duree, offsetDepartRef.current + ecoule);
+  }
+
   /** Remplace les pistes jouées et relance la lecture si elle était en cours. */
-  function poserPistes(nouvelles: { id: string; tampon: AudioBuffer }[]) {
+  function poserPistes(
+    nouvelles: { id: string; tampon: AudioBuffer }[],
+    positionReprise?: number
+  ) {
     const jouait = enLecture;
+    const reprise = positionReprise ?? positionRef.current;
     libererSource();
     pistesRef.current = nouvelles;
     if (nouvelles.length === 0) {
       setEnLecture(false);
       return;
     }
-    if (jouait) demarrer(positionRef.current);
+    if (jouait) demarrer(reprise);
     else setEnLecture(false);
   }
 
@@ -630,7 +659,7 @@ export function LaboAudio({
     if (pistesActives.includes(stemId)) {
       const restantes = pistesActives.filter((id) => id !== stemId);
       setPistesActives(restantes);
-      poserPistes(pistesJouees(restantes));
+      poserPistes(pistesJouees(restantes), positionReelle());
       // Le tampon reste en cache : le réactiver doit être immédiat.
       return;
     }
@@ -663,7 +692,9 @@ export function LaboAudio({
       }
       const suivantes = [...pistesActives, stemId];
       setPistesActives(suivantes);
-      poserPistes(pistesJouees(suivantes));
+      // Position lue sur l'horloge audio, immunisée contre le blocage du fil
+      // JavaScript qu'a provoqué le décodage qui vient de s'achever.
+      poserPistes(pistesJouees(suivantes), positionReelle());
     } catch (e) {
       setMessageStems(e instanceof Error ? e.message : String(e));
     } finally {
@@ -722,6 +753,22 @@ export function LaboAudio({
       .filter((s) => ids.includes(s.id))
       .map((s) => ({ id: s.id, tampon: tampons.get(s.id) }))
       .filter((p): p is { id: string; tampon: AudioBuffer } => !!p.tampon);
+  }
+
+  /**
+   * Active les pistes qui composent le morceau, sans l'instrumental.
+   *
+   * L'instrumental n'est pas un instrument : c'est le mixage de tout sauf la
+   * voix. Le jouer en même temps que la basse, la batterie et les mélodies
+   * ferait entendre chacune **deux fois**. Il s'active donc à la place des
+   * autres, pas avec elles.
+   */
+  async function activerToutes() {
+    for (const stem of stemsOrdonnes) {
+      if (stem.type === "instrumental") continue;
+      if (pistesActives.includes(stem.id)) continue;
+      await basculerPiste(stem.id);
+    }
   }
 
   /** Revient au mixage complet, en libérant les pistes séparées. */
@@ -1154,9 +1201,20 @@ export function LaboAudio({
                     </Texte>
                   </View>
                 ) : stemsOrdonnes.length === 0 ? (
-                  <View style={{ gap: espacement.sm }}>
-                    <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                      {"Ce morceau n'a pas encore été séparé en pistes."}
+                  <View
+                    style={{
+                      alignItems: "center",
+                      gap: espacement.md,
+                      paddingVertical: espacement.xl,
+                    }}
+                  >
+                    <Ionicons name="git-branch-outline" size={40} color={couleurs.warmGold} />
+                    <Texte
+                      variante="petit"
+                      couleur={couleurs.texteSecondaire}
+                      style={{ textAlign: "center" }}
+                    >
+                      {"Sépare ce morceau en pistes — voix, basse, batterie, mélodies — pour travailler chaque partie isolément."}
                     </Texte>
                     <View style={{ flexDirection: "row" }}>
                       <Puce
@@ -1199,8 +1257,14 @@ export function LaboAudio({
                               pistesActives.length > 1 ? "s" : ""
                             } — ${(memoireChargee / 1024 / 1024).toFixed(0)} Mo`}
                       </Texte>
-                      {pistesActives.length > 0 && (
+                      {pistesActives.length > 0 ? (
                         <Puce libelle="Tout libérer" actif={false} onPress={revenirAuMixage} />
+                      ) : (
+                        <Puce
+                          libelle="Tout activer"
+                          actif={false}
+                          onPress={() => void activerToutes()}
+                        />
                       )}
                       <Puce
                         libelle={telechargement ? "En cours…" : "Tout télécharger"}
