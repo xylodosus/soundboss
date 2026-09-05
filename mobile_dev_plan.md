@@ -446,6 +446,42 @@ tous les builds preview soient passés.
 Repli si Xcode 26.2 cassait autre chose : patcher le fichier pour retirer les
 deux branches, que le labo n'utilise pas.
 
+## 4 octies. Tonalité par tranches (5 sept. 2026)
+
+Confrontation à l'oreille sur six morceaux, après le relevé du chef de groupe :
+
+| Morceau | Réel | Détecté | |
+|---|---|---|---|
+| HOSANNA reprise | Sol majeur | Sol majeur | exact |
+| DEBOUT | Mi majeur | Mi majeur | exact |
+| ABBA | Ré majeur | Ré majeur | exact |
+| HOSANNA.wma | Mi → **Fa#** majeur | Fa# majeur | la seconde des deux |
+| JE VEUX VIVRE | Do → Do# majeur | Sol# majeur | faux |
+
+**Quatre exactes sur quatre morceaux qui ne modulent pas ; les deux seuls
+échecs sont les deux qui modulent.** Ce n'est pas une faiblesse diffuse de la
+méthode mais une limite nommée : une case unique ne peut pas décrire une pièce
+qui change de tonalité. Un tiers du corpus le fait — le gospel monte volontiers
+d'un ton au dernier refrain.
+
+Le conteneur accumule désormais le chromagramme **par tranches de 30 s** et
+détecte sur chacune. Un seul parcours du signal sert les deux usages :
+additionnées, les tranches donnent la tonalité dominante ; séparées, la
+chronologie, écrite en JSONB dans `tonalite_sections`.
+
+Deux règles de lissage, qui ne sont pas cosmétiques : une tranche muette hérite
+de la précédente (un pont sans harmonie suspend la tonalité, il ne la change
+pas), et une tonalité isolée entre deux voisines identiques est écartée — une
+modulation dure, c'est ce qui la distingue d'un accord de passage mal
+interprété.
+
+Côté labo, la tonalité d'origine **suit la section jouée** et le résumé annonce
+la modulation (« Mi majeur, puis Fa# majeur à 3:00 »). Une correction manuelle
+l'emporte et fige l'origine.
+
+Le JSONB est **validé** à la lecture, jamais converti de force : la colonne peut
+contenir un schéma d'une version antérieure du conteneur.
+
 ## 5. Commandes utiles
 
 ```bash

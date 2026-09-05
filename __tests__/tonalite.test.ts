@@ -2,6 +2,9 @@ import {
   TONALITES,
   demiTonsEntre,
   libelleTonalite,
+  parseSections,
+  resumeSections,
+  sectionA,
   tonalitesDuMode,
   transposer,
 } from "../src/lib/tonalite";
@@ -80,5 +83,81 @@ describe("tonalitesDuMode", () => {
 
   it("propose les deux modes quand aucune tonalité n'est connue", () => {
     expect(tonalitesDuMode(null)).toHaveLength(24);
+  });
+});
+
+describe("sectionA", () => {
+  const sections = [
+    { debut: 0, fin: 90, id: "Mi:majeur", confiance: 0.1 },
+    { debut: 90, fin: 180, id: "Fa#:majeur", confiance: 0.2 },
+  ];
+
+  it("rend la section qui contient la position", () => {
+    expect(sectionA(sections, 10)?.id).toBe("Mi:majeur");
+    expect(sectionA(sections, 120)?.id).toBe("Fa#:majeur");
+  });
+
+  it("place la borne du côté de la section qui commence", () => {
+    expect(sectionA(sections, 90)?.id).toBe("Fa#:majeur");
+  });
+
+  it("retient la dernière section au-delà de la fin", () => {
+    // La dernière tranche est tronquée : la lecture dépasse souvent sa borne.
+    expect(sectionA(sections, 500)?.id).toBe("Fa#:majeur");
+  });
+
+  it("retient la première avant le début", () => {
+    expect(sectionA(sections, -5)?.id).toBe("Mi:majeur");
+  });
+
+  it("rend null sans section", () => {
+    expect(sectionA([], 10)).toBeNull();
+    expect(sectionA(null, 10)).toBeNull();
+  });
+});
+
+describe("resumeSections", () => {
+  it("ne dit rien quand le morceau ne module pas", () => {
+    expect(resumeSections([{ debut: 0, fin: 90, id: "Mi:majeur", confiance: 0.1 }])).toBe("");
+  });
+
+  it("annonce la modulation et son instant", () => {
+    expect(
+      resumeSections([
+        { debut: 0, fin: 90, id: "Mi:majeur", confiance: 0.1 },
+        { debut: 90, fin: 180, id: "Fa#:majeur", confiance: 0.2 },
+      ])
+    ).toBe("Mi majeur, puis Fa# majeur à 1:30");
+  });
+
+  it("ne dit rien sans section", () => {
+    expect(resumeSections(null)).toBe("");
+  });
+});
+
+describe("parseSections", () => {
+  it("lit une chronologie bien formée", () => {
+    const brut = [{ debut: 0, fin: 90, id: "Mi:majeur", confiance: 0.1 }];
+    expect(parseSections(brut)).toEqual(brut);
+  });
+
+  it("écarte les entrées dont la tonalité est inconnue", () => {
+    expect(
+      parseSections([
+        { debut: 0, fin: 90, id: "Mi:majeur", confiance: 0.1 },
+        { debut: 90, fin: 180, id: "Xx:majeur", confiance: 0.2 },
+      ])
+    ).toHaveLength(1);
+  });
+
+  it("écarte les entrées mal formées plutôt que de faire confiance au JSONB", () => {
+    expect(parseSections([{ debut: "0", fin: 90, id: "Mi:majeur" }])).toBeNull();
+    expect(parseSections([null])).toBeNull();
+  });
+
+  it("rend null sur autre chose qu'un tableau", () => {
+    expect(parseSections(null)).toBeNull();
+    expect(parseSections({ debut: 0 })).toBeNull();
+    expect(parseSections("Mi:majeur")).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Modal, Pressable, ScrollView, View } from "react-native";
 import Slider from "@react-native-community/slider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,6 +27,9 @@ import { BPM_MAX, BPM_MIN, clicsDansHorizon } from "@/lib/metronome";
 import {
   demiTonsEntre,
   libelleTonalite,
+  parseSections,
+  resumeSections,
+  sectionA,
   tonalitesDuMode,
   transposer,
 } from "@/lib/tonalite";
@@ -121,6 +124,8 @@ type Piste = {
   bpm: number | null;
   tonalite: string | null;
   tonalite_confiance: number | null;
+  /** JSONB : validé à l'usage, jamais converti de force. */
+  tonalite_sections: unknown;
   /** Tant qu'elle est nulle, le conteneur n'a pas encore converti le fichier. */
   analyzed_at: string | null;
 };
@@ -160,7 +165,9 @@ export function LaboAudio({
   // du morceau, à en dériver le tempo joué, et à battre la mesure.
   const [bpmOrigine, setBpmOrigine] = useState(0);
   const [phase, setPhase] = useState(0);
-  const [tonaliteOrigine, setTonaliteOrigine] = useState<string | null>(null);
+  // Correction manuelle. Tant qu'elle est nulle, l'origine suit la chronologie
+  // détectée, qui change au fil de la lecture quand le morceau module.
+  const [tonaliteManuelle, setTonaliteManuelle] = useState<string | null>(null);
   const [choix, setChoix] = useState<"origine" | "cible" | null>(null);
   const [tentative, setTentative] = useState(0);
   const [corrigerTempo, setCorrigerTempo] = useState(false);
@@ -283,9 +290,7 @@ export function LaboAudio({
     setEgaliseur(BANDES.map(() => 0));
     setEgaliseurActif(true);
     setPostGain(0);
-    // Proposition du conteneur, corrigeable : les profils de Krumhansl-Schmuckler
-    // confondent volontiers une tonalité avec sa relative mineure.
-    setTonaliteOrigine(piste.tonalite);
+    setTonaliteManuelle(null);
 
     (async () => {
       try {
@@ -471,6 +476,13 @@ export function LaboAudio({
       demarrer(positionRef.current);
     }
   }
+
+  // Une correction manuelle l'emporte ; sinon on suit la section jouée, et à
+  // défaut la tonalité dominante du morceau.
+  const sections = useMemo(() => parseSections(piste?.tonalite_sections), [piste]);
+  const tonaliteOrigine =
+    tonaliteManuelle ?? sectionA(sections, position)?.id ?? piste?.tonalite ?? null;
+  const resume = resumeSections(sections);
 
   function deplacerBorne(borne: "debut" | "fin", secondes: number, definitif = true) {
     if (!boucle) return;
@@ -742,7 +754,9 @@ export function LaboAudio({
               >
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>
                   {tonaliteOrigine
-                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)} — appuyer pour corriger`
+                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)}${
+                        resume && !tonaliteManuelle ? ` — ${resume}` : " — appuyer pour corriger"
+                      }`
                     : "Indiquer la tonalité d'origine pour choisir par nom"}
                 </Texte>
               </Pressable>
@@ -867,7 +881,7 @@ export function LaboAudio({
             if (choix === "origine") {
               // On déclare la tonalité du morceau, pas celle qu'on entend après
               // transposition : la transposition courante n'y touche pas.
-              setTonaliteOrigine(id);
+              setTonaliteManuelle(id);
             } else {
               setTransposition(demiTonsEntre(tonaliteOrigine, id));
             }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { NOTES, chromaDepuisSignal, detecterTonalite, PROFILS } from '../src/tonalite.ts';
+import {
+  NOTES,
+  chromaDepuisSignal,
+  detecterTonalite,
+  PROFILS,
+  sectionsTonales,
+} from '../src/tonalite.ts';
 
 const FE = 11025;
 
@@ -68,5 +74,53 @@ describe('detecterTonalite', () => {
 
   it('refuse de trancher sur un chroma vide', () => {
     expect(detecterTonalite(new Float64Array(12))).toBeNull();
+  });
+});
+
+describe('sectionsTonales', () => {
+  const profil = (demiTons: number, mode: 'majeur' | 'mineur' = 'majeur') =>
+    Float64Array.from(
+      PROFILS[mode].map((_, i) => PROFILS[mode][(i - demiTons + 12) % 12]),
+    );
+
+  it('rend une seule section quand la tonalité ne bouge pas', () => {
+    const sections = sectionsTonales([profil(0), profil(0), profil(0), profil(0)], 30);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]).toMatchObject({ id: 'Do:majeur', debut: 0, fin: 120 });
+  });
+
+  it('sépare deux sections quand le morceau module', () => {
+    const sections = sectionsTonales(
+      [profil(4), profil(4), profil(4), profil(6), profil(6), profil(6)],
+      30,
+    );
+    expect(sections.map((s) => s.id)).toEqual(['Mi:majeur', 'Fa#:majeur']);
+    expect(sections[0]).toMatchObject({ debut: 0, fin: 90 });
+    expect(sections[1]).toMatchObject({ debut: 90, fin: 180 });
+  });
+
+  it('absorbe une tranche isolée : une modulation dure, un accident non', () => {
+    const sections = sectionsTonales(
+      [profil(0), profil(0), profil(7), profil(0), profil(0)],
+      30,
+    );
+    expect(sections).toHaveLength(1);
+    expect(sections[0].id).toBe('Do:majeur');
+  });
+
+  it('fait hériter une tranche muette de la précédente', () => {
+    const sections = sectionsTonales(
+      [profil(0), profil(0), new Float64Array(12), profil(0)],
+      30,
+    );
+    expect(sections).toHaveLength(1);
+  });
+
+  it('rend un tableau vide sans tranche', () => {
+    expect(sectionsTonales([], 30)).toEqual([]);
+  });
+
+  it('ne rend rien quand aucune tranche ne se laisse trancher', () => {
+    expect(sectionsTonales([new Float64Array(12), new Float64Array(12)], 30)).toEqual([]);
   });
 });

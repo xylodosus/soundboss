@@ -57,8 +57,51 @@ export interface TonaliteDetectee {
   confiance: number;
 }
 
+export interface SectionTonale {
+  /** Début et fin en secondes depuis le début du morceau. */
+  debut: number;
+  fin: number;
+  id: string;
+  confiance: number;
+}
+
 function frequenceMidi(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+/** Durée d'une tranche d'analyse, en secondes. */
+export const SECONDES_PAR_TRANCHE = 30;
+
+/**
+ * Cumul de l'énergie par classe de hauteur, **une entrée par tranche**.
+ *
+ * C'est le cœur : additionner toutes les tranches redonne le chromagramme
+ * global. Les garder séparées permet de voir une modulation, qu'une réponse
+ * unique ne peut pas décrire — sur le corpus SoundBoss, les deux seuls morceaux
+ * mal détectés étaient exactement les deux qui changent de tonalité.
+ */
+export function chromaParTranches(
+  signal: Float32Array,
+  frequence: number,
+  secondesParTranche = SECONDES_PAR_TRANCHE
+): Float64Array[] {
+  if (signal.length < TAILLE_FENETRE + SAUT * (FENETRES_MIN - 1)) return [];
+
+  const echantillonsParTranche = Math.max(1, Math.round(frequence * secondesParTranche));
+  const nbTranches = Math.max(1, Math.ceil(signal.length / echantillonsParTranche));
+  const tranches = Array.from({ length: nbTranches }, () => new Float64Array(12));
+  const fenetresParTranche = new Array(nbTranches).fill(0);
+
+  parcourirFenetres(signal, frequence, (debut, contributions) => {
+    const i = Math.min(nbTranches - 1, Math.floor(debut / echantillonsParTranche));
+    for (let c = 0; c < 12; c++) tranches[i][c] += contributions[c];
+    fenetresParTranche[i] += 1;
+  });
+
+  // Une tranche trop courte — la dernière, le plus souvent — n'a pas de quoi
+  // trancher : la rendre vide vaut mieux qu'une réponse tirée du vide.
+  const minimum = Math.max(8, Math.floor(FENETRES_MIN / 4));
+  return tranches.map((c, i) => (fenetresParTranche[i] >= minimum ? c : new Float64Array(12)));
 }
 
 /** Cumul de l'énergie par classe de hauteur sur tout le signal. */
@@ -66,6 +109,22 @@ export function chromaDepuisSignal(signal: Float32Array, frequence: number): Flo
   const chroma = new Float64Array(12);
   if (signal.length < TAILLE_FENETRE + SAUT * (FENETRES_MIN - 1)) return chroma;
 
+  parcourirFenetres(signal, frequence, (_debut, contributions) => {
+    for (let c = 0; c < 12; c++) chroma[c] += contributions[c];
+  });
+  return chroma;
+}
+
+/**
+ * Parcourt le signal fenêtre par fenêtre et remet à l'appelant la contribution
+ * de chacune, par classe de hauteur. Le tableau passé est **réutilisé** d'une
+ * fenêtre à l'autre : à l'appelant de l'accumuler, pas de le garder.
+ */
+function parcourirFenetres(
+  signal: Float32Array,
+  frequence: number,
+  surFenetre: (debut: number, contributions: Float64Array) => void
+): void {
   // Fenêtre de Hann : sans elle, les discontinuités aux bords étalent chaque
   // partiel sur tout le spectre et le chromagramme se transforme en bouillie.
   const fenetre = new Float64Array(TAILLE_FENETRE);
@@ -85,6 +144,7 @@ export function chromaDepuisSignal(signal: Float32Array, frequence: number): Flo
 
   const re = new Float64Array(TAILLE_FENETRE);
   const im = new Float64Array(TAILLE_FENETRE);
+  const contributions = new Float64Array(12);
 
   for (let debut = 0; debut + TAILLE_FENETRE <= signal.length; debut += SAUT) {
     for (let i = 0; i < TAILLE_FENETRE; i++) {
@@ -93,14 +153,14 @@ export function chromaDepuisSignal(signal: Float32Array, frequence: number): Flo
     }
     fft(re, im);
     const mags = magnitudes(re, im);
+    contributions.fill(0);
     for (const { classe, debut: d, fin: f } of bornes) {
       let somme = 0;
       for (let k = d; k <= f; k++) somme += mags[k];
-      chroma[classe] += somme;
+      contributions[classe] += somme;
     }
+    surFenetre(debut, contributions);
   }
-
-  return chroma;
 }
 
 function correlation(a: ArrayLike<number>, b: ArrayLike<number>): number {
@@ -166,7 +226,9 @@ export function detecterTonalite(chroma: Float64Array): TonaliteDetectee | null 
  * Décodé en mono 11 025 Hz : la tonalité se lit dans le médium, et diviser par
  * quatre le volume de données divise d'autant le temps d'analyse.
  */
-export async function detectTonalite(chemin: string): Promise<TonaliteDetectee | null> {
+export async function detectTonalite(
+  chemin: string
+): Promise<(TonaliteDetectee & { sections: SectionTonale[] }) | null> {
   const frequence = 11025;
   const morceaux: Buffer[] = [];
 
@@ -192,5 +254,70 @@ export async function detectTonalite(chemin: string): Promise<TonaliteDetectee |
     utilisable.buffer.slice(utilisable.byteOffset, utilisable.byteOffset + utilisable.length),
   );
 
-  return detecterTonalite(chromaDepuisSignal(signal, frequence));
+  // Les tranches servent deux fois : additionnées elles donnent la tonalité
+  // dominante, séparées elles donnent la chronologie. Un seul parcours du
+  // signal pour les deux.
+  const tranches = chromaParTranches(signal, frequence);
+  if (tranches.length === 0) return null;
+
+  const global = new Float64Array(12);
+  for (const tranche of tranches) {
+    for (let c = 0; c < 12; c++) global[c] += tranche[c];
+  }
+
+  const dominante = detecterTonalite(global);
+  if (!dominante) return null;
+  return { ...dominante, sections: sectionsTonales(tranches) };
+}
+
+/**
+ * Chronologie des tonalités d'un morceau.
+ *
+ * Deux règles de lissage, et elles ne sont pas cosmétiques :
+ *
+ * — une tranche muette hérite de la précédente : un pont sans harmonie ne
+ *   change pas la tonalité, il la suspend ;
+ * — une tonalité isolée entre deux voisines identiques est écartée. Une
+ *   modulation dure — c'est ce qui la distingue d'un accord de passage mal
+ *   interprété. Sans cette règle, un morceau stable produirait une chronologie
+ *   hachée que personne ne lirait.
+ */
+export function sectionsTonales(
+  tranches: Float64Array[],
+  secondesParTranche = SECONDES_PAR_TRANCHE
+): SectionTonale[] {
+  if (tranches.length === 0) return [];
+
+  const brut = tranches.map((c) => detecterTonalite(c));
+
+  // Héritage des tranches indécidables.
+  const herite: (TonaliteDetectee | null)[] = [];
+  for (let i = 0; i < brut.length; i++) {
+    herite[i] = brut[i] ?? (i > 0 ? herite[i - 1] : null);
+  }
+
+  // Écartement des tonalités isolées.
+  const lisse = herite.map((v, i) => {
+    const avant = herite[i - 1];
+    const apres = herite[i + 1];
+    if (!avant || !apres || !v) return v;
+    if (avant.id === apres.id && v.id !== avant.id) return avant;
+    return v;
+  });
+
+  const sections: SectionTonale[] = [];
+  for (let i = 0; i < lisse.length; i++) {
+    const v = lisse[i];
+    if (!v) continue;
+    const derniere = sections[sections.length - 1];
+    const debut = i * secondesParTranche;
+    const fin = (i + 1) * secondesParTranche;
+    if (derniere && derniere.id === v.id && derniere.fin === debut) {
+      derniere.fin = fin;
+      derniere.confiance = Math.max(derniere.confiance, v.confiance);
+    } else {
+      sections.push({ debut, fin, id: v.id, confiance: v.confiance });
+    }
+  }
+  return sections;
 }

@@ -179,6 +179,10 @@ export async function analyzeMedia(mediaId: string): Promise<AnalyzeResult> {
       bpm,
       tonalite: tonalite?.id ?? null,
       tonalite_confiance: tonalite?.confiance ?? null,
+      // Chronologie des modulations. Une seule case ne peut pas décrire un
+      // morceau qui change de tonalité en cours de route, et un tiers du
+      // corpus SoundBoss le fait.
+      tonalite_sections: tonalite?.sections?.length ? tonalite.sections : null,
       // Taille du fichier FINAL, retraité ou non. Le code d'origine ne la
       // renseignait qu'après réencodage : elle restait donc nulle pour tout
       // fichier déjà dans un bon conteneur, c'est-à-dire la majorité.

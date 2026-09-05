@@ -76,3 +76,75 @@ export function tonalitesDuMode(origine: string | null): Tonalite[] {
   const a = tonalite(origine);
   return a ? TONALITES.filter((t) => t.mode === a.mode) : TONALITES;
 }
+
+/** Chronologie produite par le conteneur : `[{ debut, fin, id, confiance }]`. */
+export type SectionTonale = {
+  debut: number;
+  fin: number;
+  id: string;
+  confiance: number;
+};
+
+/**
+ * Section en cours à cette position de lecture.
+ *
+ * Aux extrémités on retient la section la plus proche plutôt que rien : la
+ * dernière tranche d'analyse est tronquée, donc la lecture dépasse presque
+ * toujours sa borne de fin, et afficher « aucune tonalité » sur les dernières
+ * secondes serait un défaut visible pour une raison invisible.
+ */
+export function sectionA(
+  sections: SectionTonale[] | null | undefined,
+  position: number
+): SectionTonale | null {
+  if (!sections || sections.length === 0) return null;
+  for (const s of sections) {
+    if (position >= s.debut && position < s.fin) return s;
+  }
+  return position < sections[0].debut ? sections[0] : sections[sections.length - 1];
+}
+
+/** Résumé lisible d'une modulation. Chaîne vide quand le morceau ne module pas. */
+export function resumeSections(sections: SectionTonale[] | null | undefined): string {
+  if (!sections || sections.length < 2) return "";
+  const morceaux = sections.map((s, i) =>
+    i === 0
+      ? libelleTonalite(s.id)
+      : `puis ${libelleTonalite(s.id)} à ${horodatage(s.debut)}`
+  );
+  return morceaux.join(", ");
+}
+
+function horodatage(secondes: number): string {
+  const m = Math.floor(secondes / 60);
+  const s = Math.floor(secondes % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * Valide une chronologie venue du JSONB.
+ *
+ * La colonne peut contenir n'importe quoi — un schéma de conteneur qui change,
+ * une écriture manuelle. On vérifie plutôt que de convertir de force, et une
+ * entrée dont la tonalité n'existe pas dans notre nomenclature est écartée :
+ * elle ne pourrait ni s'afficher ni servir au calcul de transposition.
+ */
+export function parseSections(valeur: unknown): SectionTonale[] | null {
+  if (!Array.isArray(valeur) || valeur.length === 0) return null;
+  const sections: SectionTonale[] = [];
+  for (const brut of valeur) {
+    if (!brut || typeof brut !== "object") return null;
+    const { debut, fin, id, confiance } = brut as Record<string, unknown>;
+    if (typeof debut !== "number" || typeof fin !== "number" || typeof id !== "string") {
+      return null;
+    }
+    if (!PAR_ID.has(id)) continue;
+    sections.push({
+      debut,
+      fin,
+      id,
+      confiance: typeof confiance === "number" ? confiance : 0,
+    });
+  }
+  return sections.length > 0 ? sections : null;
+}

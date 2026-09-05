@@ -3096,6 +3096,7 @@ export type Database = {
           titre: string | null
           tonalite: string | null
           tonalite_confiance: number | null
+          tonalite_sections: Json | null
           uploaded_by: string | null
           url: string
         }
@@ -3113,6 +3114,7 @@ export type Database = {
           titre?: string | null
           tonalite?: string | null
           tonalite_confiance?: number | null
+          tonalite_sections?: Json | null
           uploaded_by?: string | null
           url: string
         }
@@ -3130,6 +3132,7 @@ export type Database = {
           titre?: string | null
           tonalite?: string | null
           tonalite_confiance?: number | null
+          tonalite_sections?: Json | null
           uploaded_by?: string | null
           url?: string
         }
