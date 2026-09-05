@@ -640,6 +640,20 @@ cale jamais, à partir de l'instant de démarrage et de l'offset. `positionRef`
 reste pour l'affichage et pour le cas d'une boucle, qu'un calcul linéaire ne
 sait pas décrire.
 
+**Ce correctif n'a pas suffi, et la vraie cause était ailleurs.** Ajouter une
+piste arrêtait les cinq sources pour les recréer toutes. Chaque recréation coûte
+des dizaines de millisecondes — avec un étireur temporel à allouer quand la
+correction de hauteur est active — et les dernières rataient le rendez-vous
+commun de 150 ms.
+
+Le motif recommandé par les implémentations Web Audio multipistes est de
+**greffer la nouvelle source sans toucher aux autres**, à un offset calculé pour
+l'instant du rendez-vous : `position courante + marge × tempo`. Le retrait ne
+stoppe que la source concernée.
+
+Vérifié le 5 septembre sur Pocophone F1 : les cinq pistes de `02 Piste 2`
+(488 s), instrumental compris, s'activent en cours de lecture sans décalage.
+
 **L'instrumental ne se cumule pas avec les autres.** Ce n'est pas un instrument
 mais le mixage de tout sauf la voix : le jouer avec la basse, la batterie et les
 mélodies ferait entendre chacune deux fois. « Tout activer » l'exclut donc.
