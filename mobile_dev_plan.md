@@ -672,6 +672,32 @@ audios et méritent une écoute — décision du chef de groupe, 5 septembre 202
 (et vérifier si `style` en est un aussi), ouvrant le labo sans onglet Pistes,
 comme pour un fichier de groupe.
 
+## 4 terdecies. Affinage de second niveau — état au 5 sept. 2026
+
+**Serveur : écrit, jamais éprouvé.** Les quatre types de découpe sont en place
+(`main`, `vocal-stem`, `melodic-stem`, `drum-stem`), la hiérarchie est portée
+par `enregistrement_stems.parent_id`, la RPC contrôle que le stem parent existe
+avant d'engager la dépense, et le quota journalier s'applique.
+
+**Un bug corrigé avant tout essai :** `separerStems` envoyait à Fadr le
+**morceau complet** quel que soit le type demandé. Or `drum-stem` attend un
+fichier ne contenant que de la batterie. Un affinage aurait découpé le mixage
+entier et facturé une tâche pour un résultat absurde. La source est désormais
+le stem parent.
+
+**Client : rien.** Aucun point d'entrée n'existe pour demander un affinage —
+`useDemanderStems` accepte le type mais l'interface envoie toujours `main`, et
+la liste des pistes ne montre pas la hiérarchie.
+
+À faire côté client : une action « Affiner » sur les stems éligibles — voix,
+batterie, mélodies —, l'affichage des enfants sous leur parent, et un avertissement
+de coût : chaque affinage est une tâche facturée au même tarif à la minute, et
+un stem dure aussi longtemps que le morceau.
+
+**Réserve de qualité :** les stems sont stockés en mono 22 050 Hz. Un affinage
+repart donc d'une source dégradée, là où la découpe principale part du fichier
+d'origine. À évaluer sur un premier essai réel.
+
 ## 6. Notes & pièges
 
 ### Une clé étrangère de plus casse l'imbrication PostgREST (5 sept. 2026)

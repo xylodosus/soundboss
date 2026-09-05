@@ -80,11 +80,15 @@ export async function insertStem(stem: StemRow): Promise<string> {
 }
 
 /** Stems déjà produits pour un enregistrement, pour rattacher un affinage. */
-export async function listStems(enregistrementId: string): Promise<{ id: string; type: string }[]> {
+export async function listStems(
+  enregistrementId: string,
+): Promise<{ id: string; type: string; url: string }[]> {
+  // `url` est indispensable : un affinage se fait sur le stem parent, pas sur
+  // le morceau complet.
   const url =
     `${config.supabase.url}/rest/v1/enregistrement_stems` +
-    `?enregistrement_id=eq.${enregistrementId}&select=id,type`;
+    `?enregistrement_id=eq.${enregistrementId}&select=id,type,url`;
   const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Listing stems échoué (${res.status})`);
-  return (await res.json()) as { id: string; type: string }[];
+  return (await res.json()) as { id: string; type: string; url: string }[];
 }

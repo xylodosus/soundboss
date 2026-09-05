@@ -76,8 +76,14 @@ export async function separerStems(
       );
     }
 
+    // Un affinage porte sur le stem parent — `drum-stem` attend un fichier qui
+    // ne contient que de la batterie. Envoyer le mixage entier aurait produit
+    // un découpage absurde, et facturé une tâche pour rien.
+    const parent = parentId ? existants.find((s) => s.id === parentId) : null;
+    const cleSource = parent?.url ?? media.url;
+
     const fichierSource = join(dir, 'source.m4a');
-    await downloadToFile(media.url, fichierSource);
+    await downloadToFile(cleSource, fichierSource);
     const octets = await readFile(fichierSource);
 
     // --- Dépôt chez Fadr ---
