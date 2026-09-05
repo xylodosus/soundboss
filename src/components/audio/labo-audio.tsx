@@ -48,6 +48,7 @@ import {
   memoireEstimee,
   ordonnerStems,
   peutCharger,
+  titreStem,
   type EtatMixage,
 } from "@/lib/stems";
 import { Mixeur } from "@/components/audio/mixeur";
@@ -878,7 +879,7 @@ export function LaboAudio({
       await ajouterEnregistrement({
         seanceId,
         url: stem.url,
-        titre: `${piste?.titre ?? "Audio"} — ${libelleStem(stem.type)}`,
+        titre: titreStem(piste?.titre, stem.type),
         dureeSecondes: stem.duree_secondes,
         pupitreIds,
       });
@@ -898,7 +899,7 @@ export function LaboAudio({
     if (!stem || !groupeId) return;
     try {
       await ajouterRessource({
-        nom: `${piste?.titre ?? "Audio"} — ${libelleStem(stem.type)}`,
+        nom: titreStem(piste?.titre, stem.type),
         type: "audio",
         url: stem.url,
         format: "m4a",

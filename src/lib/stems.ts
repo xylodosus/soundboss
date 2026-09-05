@@ -127,3 +127,16 @@ export function gainEffectif(id: string, etat: EtatMixage): number {
   const volume = etat.volumes[id];
   return typeof volume === "number" ? Math.min(1, Math.max(0, volume)) : 1;
 }
+
+/**
+ * Titre d'une piste versée dans les audios ou les fichiers du groupe.
+ *
+ * L'extension du fichier source est retirée : ces titres viennent souvent d'un
+ * nom de fichier, et « HOSANNA reprise.mp3 - Stem Basse » se lit mal. Seule une
+ * extension plausible est enlevée — deux à quatre caractères sans espace —
+ * pour ne pas amputer un titre comme « Op. 27 no 2 ».
+ */
+export function titreStem(titreSource: string | null | undefined, type: string): string {
+  const base = (titreSource ?? "Audio").replace(/\.[A-Za-z0-9]{2,4}$/, "").trim() || "Audio";
+  return `${base} - Stem ${libelleStem(type)}`;
+}

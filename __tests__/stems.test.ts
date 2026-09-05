@@ -4,6 +4,7 @@ import {
   memoireEstimee,
   ordonnerStems,
   peutCharger,
+  titreStem,
 } from "../src/lib/stems";
 
 describe("libelleStem", () => {
@@ -129,5 +130,29 @@ describe("gainEffectif", () => {
 
   it("respecte le volume d'une piste en solo", () => {
     expect(gainEffectif("a", etat({ volumes: { a: 0.5 }, solos: new Set(["a"]) }))).toBeCloseTo(0.5);
+  });
+});
+
+describe("titreStem", () => {
+  it("compose le titre attendu", () => {
+    expect(titreStem("HOSANNA reprise", "bass")).toBe("HOSANNA reprise - Stem Basse");
+  });
+
+  it("retire l'extension du fichier source", () => {
+    // Le titre vient souvent d'un nom de fichier : « .mp3 » n'a rien à faire
+    // au milieu d'un libellé.
+    expect(titreStem("HOSANNA reprise.mp3", "drums")).toBe("HOSANNA reprise - Stem Batterie");
+  });
+
+  it("garde un point qui n'est pas une extension", () => {
+    expect(titreStem("Op. 27 no 2", "vocals")).toBe("Op. 27 no 2 - Stem Voix");
+  });
+
+  it("reprend tel quel un type inconnu", () => {
+    expect(titreStem("Morceau", "theremin")).toBe("Morceau - Stem theremin");
+  });
+
+  it("se rabat sur un titre neutre quand il manque", () => {
+    expect(titreStem(null, "bass")).toBe("Audio - Stem Basse");
   });
 });
