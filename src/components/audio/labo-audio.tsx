@@ -121,6 +121,8 @@ type Piste = {
   bpm: number | null;
   tonalite: string | null;
   tonalite_confiance: number | null;
+  /** Tant qu'elle est nulle, le conteneur n'a pas encore converti le fichier. */
+  analyzed_at: string | null;
 };
 
 /**
@@ -572,7 +574,9 @@ export function LaboAudio({
           {etat === "erreur" && (
             <View style={{ paddingVertical: espacement.xl, gap: espacement.sm }}>
               <Texte variante="petit" couleur={couleurs.danger}>
-                {"Impossible d'ouvrir ce morceau dans le labo."}
+                {piste?.analyzed_at
+                  ? "Impossible d'ouvrir ce morceau dans le labo."
+                  : "Ce morceau est encore en préparation. Certains formats doivent être convertis avant d'être lisibles."}
               </Texte>
               {message && (
                 <Texte variante="micro" couleur={couleurs.texteSecondaire}>
