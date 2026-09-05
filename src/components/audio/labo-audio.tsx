@@ -243,6 +243,8 @@ export function LaboAudio({
   /** Un gain par piste, pour couper une voix sans toucher aux autres. */
   const gainsPistesRef = useRef<Map<string, GainNode>>(new Map());
   /** Instant du contexte auquel la lecture a démarré, et position de départ. */
+  const pisteRef = useRef(piste);
+  pisteRef.current = piste;
   const departRef = useRef(0);
   const offsetDepartRef = useRef(0);
   // Un AudioBufferSourceNode ne se relit pas : chaque reprise en crée un neuf,
@@ -431,6 +433,7 @@ export function LaboAudio({
   // Chargement : URL signée, pics, puis décodage. Le décodage est long (~5,5 s
   // sur cinq minutes), d'où un état explicite plutôt qu'un écran figé.
   useEffect(() => {
+    const piste = pisteRef.current;
     if (!visible || !piste) return;
     let annule = false;
 
@@ -551,7 +554,11 @@ export function LaboAudio({
     return () => {
       annule = true;
     };
-  }, [visible, piste, tentative]);
+    // Dépendance sur l'IDENTIFIANT du morceau, jamais sur l'objet : la requête
+    // se rafraîchit au lancement d'une extraction puis à sa fin, et un nouvel
+    // objet faisait croire à un changement de morceau — tout était remis à
+    // plat, y compris l'onglet ouvert, en plein milieu du travail.
+  }, [visible, piste?.id, tentative]);
 
   // À la fermeture on démonte le graphe, mais on garde le tampon décodé : c'est
   // tout l'intérêt du cache. Il part avec libererCache(), à l'ouverture d'un
