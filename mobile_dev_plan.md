@@ -575,6 +575,30 @@ morceau de cinq minutes donnera ~2,4 Mo par stem, soit ~26 Mo décodé. Cinq
 stems ensemble : ~130 Mo, l'ordre de grandeur d'un seul morceau stéréo
 aujourd'hui. Le plafond exact reste à mesurer sur appareil.
 
+## 4 decies. Mémoire des pistes séparées — mesure du 5 sept. 2026
+
+Cinq stems de `HOSANNA reprise.mp3` (102 s) chargés ensemble : **93 Mo**, et le
+Pocophone F1 tient.
+
+**Enseignement contre-intuitif :** les stems sont stockés en mono 22 050 Hz,
+mais ils sont décodés à `contexte.sampleRate`, soit 48 000 Hz — le moteur natif
+ne rééchantillonne pas, correctif du lot E1. **Le mono économise le stockage et
+la bande passante, jamais la mémoire décodée.**
+
+Coût réel : ~0,9 Mo par seconde de morceau pour cinq pistes. Donc :
+
+| Durée | Cinq pistes en mémoire |
+|---|---|
+| 102 s | 93 Mo (mesuré) |
+| 245 s | ~220 Mo |
+| 300 s | ~275 Mo |
+| 488 s | ~450 Mo |
+
+Au-delà de trois ou quatre minutes, cinq pistes simultanées deviennent
+intenables sur un appareil modeste. Le plafond ne peut donc pas être un nombre
+fixe de pistes : il doit dépendre de la durée. À trancher avec une mesure sur
+un morceau plus long.
+
 ## 5. Commandes utiles
 
 ```bash

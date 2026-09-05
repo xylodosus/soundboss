@@ -190,6 +190,7 @@ export function LaboAudio({
   const [coupes, setCoupes] = useState<Set<string>>(() => new Set());
   const [memoireStems, setMemoireStems] = useState(0);
   const [messageStems, setMessageStems] = useState<string | null>(null);
+  const [onglet, setOnglet] = useState<Onglet>("lecteur");
 
   const gainRef = useRef<GainNode | null>(null);
   const filtresRef = useRef<BiquadFilterNode[]>([]);
@@ -342,6 +343,7 @@ export function LaboAudio({
     setCoupes(new Set());
     setMemoireStems(0);
     setMessageStems(null);
+    setOnglet("lecteur");
     setTonaliteManuelle(null);
 
     (async () => {
@@ -742,6 +744,10 @@ export function LaboAudio({
               contentContainerStyle={{ gap: espacement.lg, paddingBottom: 50 }}
               showsVerticalScrollIndicator={false}
             >
+              {/* Waveform et transport restent au-dessus des onglets : ils
+                  commandent ce qui joue, quel que soit l'onglet ouvert. Les
+                  dupliquer dans « Lecteur » et « Pistes » aurait donné deux
+                  boutons de lecture pour une seule lecture. */}
               <Waveform
                 pics={pics}
                 progression={duree > 0 ? position / duree : 0}
@@ -805,265 +811,284 @@ export function LaboAudio({
                 />
               </View>
 
-              <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
+              <Onglets valeur={onglet} surChanger={setOnglet} />
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-                  Pistes séparées
-                </Texte>
-                {stemsOrdonnes.length > 0 ? (
-                  <Puce
-                    libelle={chargementStems ? "Chargement…" : modeStems ? "Actives" : "Activer"}
-                    actif={modeStems}
-                    onPress={() => {
-                      if (!chargementStems) void basculerStems();
-                    }}
-                  />
-                ) : (
-                  <Puce
-                    libelle={demandeEnCours ? "Demande…" : "Séparer le morceau"}
-                    actif={false}
-                    onPress={() => {
-                      if (demandeEnCours || !piste) return;
-                      demanderStems(
-                        { enregistrementId: piste.id },
-                        {
-                          onSuccess: (r) => setMessageStems(r.message),
-                          onError: (e) =>
-                            setMessageStems(e instanceof Error ? e.message : String(e)),
-                        }
-                      );
-                    }}
-                  />
-                )}
-              </View>
+              {onglet === "lecteur" && (
+                <View style={{ gap: espacement.lg }}>
 
-              {messageStems && (
-                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                  {messageStems}
-                </Texte>
-              )}
+                <ReglageLabo
+                  libelle="Tempo"
+                  valeurAffichee={
+                    bpmOrigine > 0 ? `${Math.round(bpmOrigine * tempo)} BPM` : `${tempo.toFixed(2)}x`
+                  }
+                  auNeutre={tempo === 1}
+                  onMoins={() => setTempo((v) => pasTempo(v, -1, bpmOrigine))}
+                  onPlus={() => setTempo((v) => pasTempo(v, 1, bpmOrigine))}
+                  onNeutre={() => setTempo(1)}
+                />
 
-              {modeStems &&
-                stemsOrdonnes.map((stem) => {
-                  const coupe = coupes.has(stem.id);
-                  return (
-                    <View
-                      key={stem.id}
-                      style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}
-                    >
-                      <Texte
-                        variante="petit"
-                        couleur={coupe ? couleurs.texteSecondaire : couleurs.texte}
-                        style={{ flex: 1 }}
-                      >
-                        {libelleStem(stem.type)}
-                      </Texte>
+                {/* Valeur de référence, pas un réglage de lecture : au même niveau
+                    que « Tempo » elle affichait le même nombre avec les mêmes
+                    boutons, et rien ne les distinguait. */}
+                <Pressable
+                  onPress={() => setCorrigerTempo((v) => !v)}
+                  accessibilityRole="button"
+                  style={{ minHeight: 44, justifyContent: "center" }}
+                >
+                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                    {bpmOrigine > 0
+                      ? `Tempo du morceau : ${bpmOrigine} BPM — appuyer pour corriger`
+                      : "Tempo du morceau inconnu — appuyer pour l'indiquer"}
+                  </Texte>
+                </Pressable>
+
+                {corrigerTempo && (
+                  <View style={{ gap: espacement.sm }}>
+                    <ReglageLabo
+                      libelle="Corriger"
+                      valeurAffichee={bpmOrigine > 0 ? `${bpmOrigine} BPM` : "—"}
+                      auNeutre={bpmOrigine === (piste?.bpm ?? 0)}
+                      onMoins={() => setBpmOrigine((v) => Math.max(BPM_MIN, (v || 100) - 1))}
+                      onPlus={() => setBpmOrigine((v) => Math.min(BPM_MAX, (v || 100) + 1))}
+                      onNeutre={() => setBpmOrigine(piste?.bpm ?? 0)}
+                    />
+                    {/* La détection se trompe surtout d'une octave rythmique :
+                        ABBA se lit 170 ou 85 selon ce qu'on appelle le temps. */}
+                    <View style={{ flexDirection: "row", gap: espacement.sm }}>
                       <Puce
-                        libelle={coupe ? "Coupée" : "Active"}
-                        actif={!coupe}
-                        onPress={() => basculerCoupure(stem.id)}
+                        libelle="Moitié"
+                        actif={false}
+                        onPress={() => setBpmOrigine((v) => Math.max(BPM_MIN, Math.round(v / 2)))}
+                      />
+                      <Puce
+                        libelle="Double"
+                        actif={false}
+                        onPress={() => setBpmOrigine((v) => Math.min(BPM_MAX, v * 2))}
                       />
                     </View>
-                  );
-                })}
-
-              {modeStems && memoireStems > 0 && (
-                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                  {`${stemsOrdonnes.length} pistes en mémoire — ${(
-                    memoireStems /
-                    1024 /
-                    1024
-                  ).toFixed(0)} Mo`}
-                </Texte>
-              )}
-
-              <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
-
-              <ReglageLabo
-                libelle="Tempo"
-                valeurAffichee={
-                  bpmOrigine > 0 ? `${Math.round(bpmOrigine * tempo)} BPM` : `${tempo.toFixed(2)}x`
-                }
-                auNeutre={tempo === 1}
-                onMoins={() => setTempo((v) => pasTempo(v, -1, bpmOrigine))}
-                onPlus={() => setTempo((v) => pasTempo(v, 1, bpmOrigine))}
-                onNeutre={() => setTempo(1)}
-              />
-
-              {/* Valeur de référence, pas un réglage de lecture : au même niveau
-                  que « Tempo » elle affichait le même nombre avec les mêmes
-                  boutons, et rien ne les distinguait. */}
-              <Pressable
-                onPress={() => setCorrigerTempo((v) => !v)}
-                accessibilityRole="button"
-                style={{ minHeight: 44, justifyContent: "center" }}
-              >
-                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                  {bpmOrigine > 0
-                    ? `Tempo du morceau : ${bpmOrigine} BPM — appuyer pour corriger`
-                    : "Tempo du morceau inconnu — appuyer pour l'indiquer"}
-                </Texte>
-              </Pressable>
-
-              {corrigerTempo && (
-                <View style={{ gap: espacement.sm }}>
-                  <ReglageLabo
-                    libelle="Corriger"
-                    valeurAffichee={bpmOrigine > 0 ? `${bpmOrigine} BPM` : "—"}
-                    auNeutre={bpmOrigine === (piste?.bpm ?? 0)}
-                    onMoins={() => setBpmOrigine((v) => Math.max(BPM_MIN, (v || 100) - 1))}
-                    onPlus={() => setBpmOrigine((v) => Math.min(BPM_MAX, (v || 100) + 1))}
-                    onNeutre={() => setBpmOrigine(piste?.bpm ?? 0)}
-                  />
-                  {/* La détection se trompe surtout d'une octave rythmique :
-                      ABBA se lit 170 ou 85 selon ce qu'on appelle le temps. */}
-                  <View style={{ flexDirection: "row", gap: espacement.sm }}>
-                    <Puce
-                      libelle="Moitié"
-                      actif={false}
-                      onPress={() => setBpmOrigine((v) => Math.max(BPM_MIN, Math.round(v / 2)))}
-                    />
-                    <Puce
-                      libelle="Double"
-                      actif={false}
-                      onPress={() => setBpmOrigine((v) => Math.min(BPM_MAX, v * 2))}
-                    />
                   </View>
-                </View>
-              )}
+                )}
 
-              <ReglageLabo
-                libelle="Tonalité"
-                valeurAffichee={
-                  tonaliteOrigine
-                    ? libelleTonalite(transposer(tonaliteOrigine, transposition))
-                    : demiTons(transposition)
-                }
-                auNeutre={transposition === 0}
-                onMoins={() => setTransposition((v) => Math.max(-DEMI_TONS_MAX, v - 1))}
-                onPlus={() => setTransposition((v) => Math.min(DEMI_TONS_MAX, v + 1))}
-                onNeutre={() => setTransposition(0)}
-                onValeur={tonaliteOrigine ? () => setChoix("cible") : undefined}
-              />
-
-              {/* Le conteneur ne détecte pas encore la tonalité : tant qu'elle
-                  n'est pas déclarée, seuls les demi-tons ont un sens. */}
-              <Pressable
-                onPress={() => setChoix("origine")}
-                accessibilityRole="button"
-                style={{ minHeight: 44, justifyContent: "center" }}
-              >
-                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                  {tonaliteOrigine
-                    ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)}${
-                        resume && !tonaliteManuelle ? ` — ${resume}` : " — appuyer pour corriger"
-                      }`
-                    : "Indiquer la tonalité d'origine pour choisir par nom"}
-                </Texte>
-              </Pressable>
-
-              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-                  Boucle
-                </Texte>
-                <Puce
-                  libelle="A"
-                  actif={!!boucle}
-                  onPress={() =>
-                    setBoucle((b) => ({
-                      a: positionRef.current,
-                      // Sans borne de fin, la boucle n'a pas de sens : on prend
-                      // la fin du morceau tant que B n'est pas posé.
-                      b: b && b.b > positionRef.current ? b.b : duree,
-                    }))
+                <ReglageLabo
+                  libelle="Tonalité"
+                  valeurAffichee={
+                    tonaliteOrigine
+                      ? libelleTonalite(transposer(tonaliteOrigine, transposition))
+                      : demiTons(transposition)
                   }
+                  auNeutre={transposition === 0}
+                  onMoins={() => setTransposition((v) => Math.max(-DEMI_TONS_MAX, v - 1))}
+                  onPlus={() => setTransposition((v) => Math.min(DEMI_TONS_MAX, v + 1))}
+                  onNeutre={() => setTransposition(0)}
+                  onValeur={tonaliteOrigine ? () => setChoix("cible") : undefined}
                 />
-                <Puce
-                  libelle="B"
-                  actif={!!boucle}
-                  onPress={() =>
-                    setBoucle((b) =>
-                      // Poser B avant A n'aurait pas de sens : on ignore.
-                      b && positionRef.current > b.a ? { a: b.a, b: positionRef.current } : b
+
+                {/* Le conteneur ne détecte pas encore la tonalité : tant qu'elle
+                    n'est pas déclarée, seuls les demi-tons ont un sens. */}
+                <Pressable
+                  onPress={() => setChoix("origine")}
+                  accessibilityRole="button"
+                  style={{ minHeight: 44, justifyContent: "center" }}
+                >
+                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                    {tonaliteOrigine
+                      ? `Tonalité d'origine : ${libelleTonalite(tonaliteOrigine)}${
+                          resume && !tonaliteManuelle ? ` — ${resume}` : " — appuyer pour corriger"
+                        }`
+                      : "Indiquer la tonalité d'origine pour choisir par nom"}
+                  </Texte>
+                </Pressable>
+
+                <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                  <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                    Boucle
+                  </Texte>
+                  <Puce
+                    libelle="A"
+                    actif={!!boucle}
+                    onPress={() =>
+                      setBoucle((b) => ({
+                        a: positionRef.current,
+                        // Sans borne de fin, la boucle n'a pas de sens : on prend
+                        // la fin du morceau tant que B n'est pas posé.
+                        b: b && b.b > positionRef.current ? b.b : duree,
+                      }))
+                    }
+                  />
+                  <Puce
+                    libelle="B"
+                    actif={!!boucle}
+                    onPress={() =>
+                      setBoucle((b) =>
+                        // Poser B avant A n'aurait pas de sens : on ignore.
+                        b && positionRef.current > b.a ? { a: b.a, b: positionRef.current } : b
+                      )
+                    }
+                  />
+                  <Puce libelle="Effacer" actif={false} onPress={() => setBoucle(null)} />
+                </View>
+
+                <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                  <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                    Métronome
+                  </Texte>
+                  <Puce
+                    libelle={metronome ? "Actif" : "Inactif"}
+                    actif={metronome}
+                    onPress={() => {
+                      if (!metronome && bpmOrigine === 0) setBpmOrigine(100);
+                      setMetronome((v) => !v);
+                    }}
+                  />
+                  <Puce
+                    libelle="Caler"
+                    actif={false}
+                    onPress={() => {
+                      setPhase(positionRef.current);
+                      dernierClicRef.current = -1;
+                    }}
+                  />
+                </View>
+
+                <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
+
+                <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                  <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                    Égaliseur
+                  </Texte>
+                  <Puce
+                    libelle={egaliseurActif ? "Actif" : "Contourné"}
+                    actif={egaliseurActif}
+                    onPress={() => setEgaliseurActif((v) => !v)}
+                  />
+                  <Puce
+                    libelle="À plat"
+                    actif={false}
+                    onPress={() => {
+                      setEgaliseur(BANDES.map(() => 0));
+                      setPostGain(0);
+                    }}
+                  />
+                </View>
+
+                <Egaliseur
+                  gains={egaliseur}
+                  actif={egaliseurActif}
+                  surChanger={(i, g) =>
+                    setEgaliseur((precedents) =>
+                      precedents.map((v, j) => (j === i ? Math.min(GAIN_MAX, Math.max(-GAIN_MAX, g)) : v))
                     )
                   }
                 />
-                <Puce libelle="Effacer" actif={false} onPress={() => setBoucle(null)} />
-              </View>
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-                  Métronome
-                </Texte>
-                <Puce
-                  libelle={metronome ? "Actif" : "Inactif"}
-                  actif={metronome}
-                  onPress={() => {
-                    if (!metronome && bpmOrigine === 0) setBpmOrigine(100);
-                    setMetronome((v) => !v);
-                  }}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                  <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                    Volume de sortie
+                  </Texte>
+                  <Texte variante="petit" poids="semibold" couleur={postGain === 0 ? couleurs.texteSecondaire : couleurs.warmGold}>
+                    {`${postGain > 0 ? "+" : ""}${postGain.toFixed(1)} dB`}
+                  </Texte>
+                </View>
+                <Slider
+                  minimumValue={-POST_GAIN_MAX}
+                  maximumValue={POST_GAIN_MAX}
+                  step={0.5}
+                  value={postGain}
+                  onValueChange={setPostGain}
+                  minimumTrackTintColor={couleurs.warmGold}
+                  maximumTrackTintColor={couleurs.bordureForte}
+                  thumbTintColor={couleurs.warmGold}
+                  accessibilityLabel="Volume de sortie de l'égaliseur"
                 />
-                <Puce
-                  libelle="Caler"
-                  actif={false}
-                  onPress={() => {
-                    setPhase(positionRef.current);
-                    dernierClicRef.current = -1;
-                  }}
-                />
-              </View>
+                </View>
+              )}
 
-              <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
+              {onglet === "pistes" && (
+                <View style={{ gap: espacement.lg }}>
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-                  Égaliseur
-                </Texte>
-                <Puce
-                  libelle={egaliseurActif ? "Actif" : "Contourné"}
-                  actif={egaliseurActif}
-                  onPress={() => setEgaliseurActif((v) => !v)}
-                />
-                <Puce
-                  libelle="À plat"
-                  actif={false}
-                  onPress={() => {
-                    setEgaliseur(BANDES.map(() => 0));
-                    setPostGain(0);
-                  }}
-                />
-              </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+                  <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+                    Pistes séparées
+                  </Texte>
+                  {stemsOrdonnes.length > 0 ? (
+                    <Puce
+                      libelle={chargementStems ? "Chargement…" : modeStems ? "Actives" : "Activer"}
+                      actif={modeStems}
+                      onPress={() => {
+                        if (!chargementStems) void basculerStems();
+                      }}
+                    />
+                  ) : (
+                    <Puce
+                      libelle={demandeEnCours ? "Demande…" : "Séparer le morceau"}
+                      actif={false}
+                      onPress={() => {
+                        if (demandeEnCours || !piste) return;
+                        demanderStems(
+                          { enregistrementId: piste.id },
+                          {
+                            onSuccess: (r) => setMessageStems(r.message),
+                            onError: (e) =>
+                              setMessageStems(e instanceof Error ? e.message : String(e)),
+                          }
+                        );
+                      }}
+                    />
+                  )}
+                </View>
 
-              <Egaliseur
-                gains={egaliseur}
-                actif={egaliseurActif}
-                surChanger={(i, g) =>
-                  setEgaliseur((precedents) =>
-                    precedents.map((v, j) => (j === i ? Math.min(GAIN_MAX, Math.max(-GAIN_MAX, g)) : v))
-                  )
-                }
-              />
+                {messageStems && (
+                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                    {messageStems}
+                  </Texte>
+                )}
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-                <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-                  Volume de sortie
-                </Texte>
-                <Texte variante="petit" poids="semibold" couleur={postGain === 0 ? couleurs.texteSecondaire : couleurs.warmGold}>
-                  {`${postGain > 0 ? "+" : ""}${postGain.toFixed(1)} dB`}
-                </Texte>
-              </View>
-              <Slider
-                minimumValue={-POST_GAIN_MAX}
-                maximumValue={POST_GAIN_MAX}
-                step={0.5}
-                value={postGain}
-                onValueChange={setPostGain}
-                minimumTrackTintColor={couleurs.warmGold}
-                maximumTrackTintColor={couleurs.bordureForte}
-                thumbTintColor={couleurs.warmGold}
-                accessibilityLabel="Volume de sortie de l'égaliseur"
-              />
+                {modeStems &&
+                  stemsOrdonnes.map((stem) => {
+                    const coupe = coupes.has(stem.id);
+                    return (
+                      <View
+                        key={stem.id}
+                        style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}
+                      >
+                        <Texte
+                          variante="petit"
+                          couleur={coupe ? couleurs.texteSecondaire : couleurs.texte}
+                          style={{ flex: 1 }}
+                        >
+                          {libelleStem(stem.type)}
+                        </Texte>
+                        <Puce
+                          libelle={coupe ? "Coupée" : "Active"}
+                          actif={!coupe}
+                          onPress={() => basculerCoupure(stem.id)}
+                        />
+                      </View>
+                    );
+                  })}
+
+                {modeStems && memoireStems > 0 && (
+                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                    {`${stemsOrdonnes.length} pistes en mémoire — ${(
+                      memoireStems /
+                      1024 /
+                      1024
+                    ).toFixed(0)} Mo`}
+                  </Texte>
+                )}
+                </View>
+              )}
+
+              {onglet === "creation" && (
+                <View style={{ gap: espacement.sm, paddingVertical: espacement.xl }}>
+                  <Texte variante="petit" couleur={couleurs.texteSecondaire}>
+                    La génération musicale arrive dans un prochain lot.
+                  </Texte>
+                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                    {"Elle produira des maquettes à partir d'une description, pour préparer un arrangement avant la répétition."}
+                  </Texte>
+                </View>
+              )}
             </ScrollView>
           )}
         </View>
@@ -1163,6 +1188,61 @@ function pasTempo(tempo: number, sens: number, bpmOrigine: number): number {
 function demiTons(n: number): string {
   if (n === 0) return "0";
   return `${n > 0 ? "+" : ""}${n} ${Math.abs(n) > 1 ? "tons" : "ton"}`;
+}
+
+type Onglet = "lecteur" | "pistes" | "creation";
+
+const ONGLETS: { id: Onglet; libelle: string }[] = [
+  { id: "lecteur", libelle: "Lecteur" },
+  { id: "pistes", libelle: "Pistes" },
+  { id: "creation", libelle: "Création" },
+];
+
+function Onglets({
+  valeur,
+  surChanger,
+}: {
+  valeur: Onglet;
+  surChanger: (o: Onglet) => void;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        backgroundColor: couleurs.surfaceCarte,
+        borderRadius: rayons.pill,
+        padding: 4,
+      }}
+    >
+      {ONGLETS.map((o) => {
+        const actif = o.id === valeur;
+        return (
+          <Pressable
+            key={o.id}
+            onPress={() => surChanger(o.id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: actif }}
+            style={{
+              flex: 1,
+              minHeight: 40,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: rayons.pill,
+              backgroundColor: actif ? couleurs.warmGold : "transparent",
+            }}
+          >
+            <Texte
+              variante="petit"
+              poids="semibold"
+              couleur={actif ? couleurs.charcoal : couleurs.texteSecondaire}
+            >
+              {o.libelle}
+            </Texte>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
 function Puce({
