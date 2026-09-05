@@ -82,13 +82,18 @@ export async function insertStem(stem: StemRow): Promise<string> {
 /** Stems déjà produits pour un enregistrement, pour rattacher un affinage. */
 export async function listStems(
   enregistrementId: string,
-): Promise<{ id: string; type: string; url: string }[]> {
-  // `url` est indispensable : un affinage se fait sur le stem parent, pas sur
-  // le morceau complet.
+): Promise<{ id: string; type: string; url: string; fadr_asset_id: string | null }[]> {
+  // `url` sert de repli, `fadr_asset_id` est la voie normale : Fadr détient
+  // déjà le stem en qualité pleine, inutile de lui renvoyer notre copie mono.
   const url =
     `${config.supabase.url}/rest/v1/enregistrement_stems` +
-    `?enregistrement_id=eq.${enregistrementId}&select=id,type,url`;
+    `?enregistrement_id=eq.${enregistrementId}&select=id,type,url,fadr_asset_id`;
   const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Listing stems échoué (${res.status})`);
-  return (await res.json()) as { id: string; type: string; url: string }[];
+  return (await res.json()) as {
+    id: string;
+    type: string;
+    url: string;
+    fadr_asset_id: string | null;
+  }[];
 }

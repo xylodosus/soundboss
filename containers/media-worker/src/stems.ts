@@ -77,19 +77,25 @@ export async function separerStems(
     }
 
     // Un affinage porte sur le stem parent — `drum-stem` attend un fichier qui
-    // ne contient que de la batterie. Envoyer le mixage entier aurait produit
-    // un découpage absurde, et facturé une tâche pour rien.
-    const parent = parentId ? existants.find((s) => s.id === parentId) : null;
-    const cleSource = parent?.url ?? media.url;
+    // ne contient que de la batterie, jamais le mixage entier.
+    const parent = parentId ? existants.find((p) => p.id === parentId) : null;
 
-    const fichierSource = join(dir, 'source.m4a');
-    await downloadToFile(cleSource, fichierSource);
-    const octets = await readFile(fichierSource);
+    let assetId: string;
+    if (parent?.fadr_asset_id) {
+      // Fadr détient déjà ce stem, en qualité pleine : on le redécoupe sur
+      // place. Rien à téléverser, et surtout pas notre copie mono à 22 050 Hz,
+      // qui donnerait une source appauvrie à la seconde séparation.
+      assetId = parent.fadr_asset_id;
+    } else {
+      const cleSource = parent?.url ?? media.url;
+      const fichierSource = join(dir, 'source.m4a');
+      await downloadToFile(cleSource, fichierSource);
+      const octets = await readFile(fichierSource);
 
-    // --- Dépôt chez Fadr ---
-    const { url: urlDepot, s3Path } = await creerUrlDepot(cle, `soundboss-${mediaId}`, 'm4a');
-    await deposer(urlDepot, octets, 'audio/mp4');
-    const assetId = await creerAsset(cle, `soundboss-${mediaId}`, 'm4a', 'soundboss', s3Path);
+      const { url: urlDepot, s3Path } = await creerUrlDepot(cle, `soundboss-${mediaId}`, 'm4a');
+      await deposer(urlDepot, octets, 'audio/mp4');
+      assetId = await creerAsset(cle, `soundboss-${mediaId}`, 'm4a', 'soundboss', s3Path);
+    }
 
     // --- Découpe et scrutation ---
     const tacheId = await lancerSeparation(cle, assetId, stemType);
