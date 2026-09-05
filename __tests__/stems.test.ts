@@ -25,6 +25,8 @@ describe("libelleStem", () => {
     expect(libelleStem("kick")).toBe("Grosse caisse");
     expect(libelleStem("snare")).toBe("Caisse claire");
     expect(libelleStem("lead vocals")).toBe("Voix principale");
+    // Nom réellement produit par l'API, différent de sa documentation.
+    expect(libelleStem("drums-other")).toBe("Autres percussions");
     expect(libelleStem("background vocals")).toBe("Chœurs");
   });
 

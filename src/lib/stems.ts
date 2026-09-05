@@ -18,6 +18,10 @@ const LIBELLES: Record<string, string> = {
   "background vocals": "Chœurs",
   kick: "Grosse caisse",
   snare: "Caisse claire",
+  // L'API produit « drums-other » là où sa documentation annonce
+  // « other drums » — constaté au premier affinage réel, 5 septembre. Les deux
+  // sont traduits, comme pour other/melodies.
+  "drums-other": "Autres percussions",
   "other drums": "Autres percussions",
   piano: "Piano",
   "electric guitar": "Guitare électrique",
@@ -54,6 +58,7 @@ const ORDRE = [
   "drums",
   "kick",
   "snare",
+  "drums-other",
   "other drums",
   // L'instrumental n'est pas un instrument mais le mixage de tout sauf la voix :
   // sa place est en fin de liste, à part.

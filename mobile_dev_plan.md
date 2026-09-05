@@ -685,6 +685,14 @@ fichier ne contenant que de la batterie. Un affinage aurait découpé le mixage
 entier et facturé une tâche pour un résultat absurde. La source est désormais
 le stem parent.
 
+**Premier affinage réel réussi (5 sept.).** `drum-stem` sur HOSANNA reprise a
+produit `kick`, `snare` et **`drums-other`** — la documentation annonçait
+« other drums ». Deuxième écart de nommage après `other` pour « melodies ».
+
+Fadr accepte de redécouper un asset qu'il détient déjà : aucun téléversement,
+aucune perte de qualité, et les assets ne sont pas expirés. La conservation
+d'une copie pleine dans R2 devient donc inutile pour cet usage.
+
 **Client : rien.** Aucun point d'entrée n'existe pour demander un affinage —
 `useDemanderStems` accepte le type mais l'interface envoie toujours `main`, et
 la liste des pistes ne montre pas la hiérarchie.
