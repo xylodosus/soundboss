@@ -814,17 +814,40 @@ une trentaine de titres.
    remise aux gros volumes. Un gros client cumulerait donc les deux effets. À
    vérifier que 500 Go à 80 crédits reste soutenable.
 
-**Questions ouvertes :**
+### Règles arrêtées le 5 septembre
 
-- **Arrondi** de la facturation à la minute : à la minute supérieure ? Les
-  chiffres ci-dessus le supposent, et c'est ce qui protège la marge sur les
-  morceaux courts.
-- **Prélèvement mensuel** du stockage : quel comportement si le solde est
-  insuffisant ? Délai de grâce, passage en lecture seule, suppression ? Aucune
-  de ces réponses n'est neutre pour un groupe qui perdrait l'accès à ses
-  répétitions.
-- **Décompte du stockage** : le quota se mesure-t-il sur le total courant ou sur
-  un pic mensuel ?
+**Arrondi à la minute supérieure.** 1 min 14 s consomme 2 crédits. C'est ce que
+supposent les marges calculées plus haut, et ce qui protège la rentabilité sur
+les morceaux courts.
+
+**Solde insuffisant au prélèvement mensuel du stockage :** sept jours de grâce,
+avec rappels par notification. Passé ce délai sans rechargement, **toute
+création et toute modification** sont bloquées dans le groupe ou l'espace
+concerné.
+
+⚠️ **La suppression doit rester permise pendant le blocage.** Sinon un groupe
+saturé se retrouve enfermé : il ne peut plus rien créer, ne peut pas alléger son
+stockage, et n'a d'autre issue que de payer. Ce serait une contrainte, pas une
+incitation. La lecture reste évidemment ouverte : un groupe ne doit jamais
+perdre l'accès à ses répétitions pour quelques crédits manquants.
+
+**Quota mesuré au total courant**, pas à un pic mensuel.
+
+### À construire : suppression des fichiers et des pistes
+
+Aucun moyen de supprimer des pistes extraites n'existe aujourd'hui. Tant que le
+stockage est gratuit, c'est sans conséquence ; dès qu'il se facture, la
+suppression devient la seule porte de sortie d'un groupe saturé.
+
+À prévoir dans le même lot que la facturation :
+
+- supprimer un stem, et par cascade ses enfants — `parent_id` a déjà
+  `on delete cascade` ;
+- supprimer l'arbre entier d'un enregistrement en un geste, l'usage courant
+  étant « j'ai extrait pour travailler, je n'en ai plus besoin » ;
+- retirer les octets de R2 et pas seulement la ligne en base, sans quoi le
+  stockage réel ne baisserait pas — le conteneur a déjà `deleteObject` ;
+- recalculer le quota après suppression, puisqu'il se mesure au total courant.
 
 ## 6. Notes & pièges
 
