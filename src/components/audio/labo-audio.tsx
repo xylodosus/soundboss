@@ -178,6 +178,7 @@ export function LaboAudio({
   seanceId,
   groupeId,
   pupitres = [],
+  avecStems = true,
 }: {
   piste: Piste | null;
   visible: boolean;
@@ -186,6 +187,12 @@ export function LaboAudio({
   seanceId?: string;
   groupeId?: string;
   pupitres?: { id: string; nom: string; couleur?: string | null }[];
+  /**
+   * Faux pour un audio qui n'est pas un enregistrement de répétition — un
+   * fichier de groupe, une note vocale. Ces audios n'ont pas de ligne dans
+   * `seance_enregistrements`, donc ni pistes séparées ni statut à interroger.
+   */
+  avecStems?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [etat, setEtat] = useState<Etat>("chargement");
@@ -657,11 +664,11 @@ export function LaboAudio({
   // Une correction manuelle l'emporte ; sinon on suit la section jouée, et à
   // défaut la tonalité dominante du morceau.
   const sections = useMemo(() => parseSections(piste?.tonalite_sections), [piste]);
-  const { data: stems = [] } = useStemsEnregistrement(piste?.id ?? "", visible && !!piste);
+  const { data: stems = [] } = useStemsEnregistrement(piste?.id ?? "", visible && !!piste && avecStems);
   const { mutate: demanderStems, isPending: demandeEnCours } = useDemanderStems();
   const { mutateAsync: ajouterEnregistrement } = useAjouterEnregistrement();
   const { mutateAsync: ajouterRessource } = useAjouterRessource(groupeId ?? "");
-  const { data: statutStems } = useStatutStems(piste?.id ?? "", visible && !!piste);
+  const { data: statutStems } = useStatutStems(piste?.id ?? "", visible && !!piste && avecStems);
   const extractionEnCours = statutStems?.stems_statut === "en_cours";
   const stemsOrdonnes = useMemo(() => ordonnerStems(stems), [stems]);
   const clientRequetes = useQueryClient();
@@ -1119,7 +1126,7 @@ export function LaboAudio({
                 />
               </View>
 
-              <Onglets valeur={onglet} surChanger={setOnglet} />
+              <Onglets valeur={onglet} surChanger={setOnglet} avecStems={avecStems} />
 
               {onglet === "lecteur" && (
                 <View style={{ gap: espacement.lg }}>
@@ -1354,6 +1361,7 @@ export function LaboAudio({
                     <View style={{ flexDirection: "row" }}>
                       <Puce
                         libelle={demandeEnCours ? "Demande…" : "Extraire les pistes"}
+                        principal
                         actif={false}
                         onPress={() => {
                           if (demandeEnCours || !piste) return;
@@ -1388,10 +1396,8 @@ export function LaboAudio({
                     <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
                       <Texte variante="micro" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
                         {pistesActives.length === 0
-                          ? "Aucune piste chargée — appuie sur un nom pour l'activer."
-                          : `${pistesActives.length} piste${
-                              pistesActives.length > 1 ? "s" : ""
-                            } — ${(memoireChargee / 1024 / 1024).toFixed(0)} Mo`}
+                          ? "Appuie sur un nom pour activer une piste."
+                          : ""}
                       </Texte>
                       {pistesActives.length > 0 ? (
                         <Puce libelle="Tout libérer" actif={false} onPress={revenirAuMixage} />
@@ -1596,10 +1602,13 @@ const ONGLETS: { id: Onglet; libelle: string }[] = [
 function Onglets({
   valeur,
   surChanger,
+  avecStems,
 }: {
   valeur: Onglet;
   surChanger: (o: Onglet) => void;
+  avecStems: boolean;
 }) {
+  const visibles = avecStems ? ONGLETS : ONGLETS.filter((o) => o.id !== "pistes");
   return (
     <View
       style={{
@@ -1609,7 +1618,7 @@ function Onglets({
         padding: 4,
       }}
     >
-      {ONGLETS.map((o) => {
+      {visibles.map((o) => {
         const actif = o.id === valeur;
         return (
           <Pressable
@@ -1644,10 +1653,13 @@ function Puce({
   libelle,
   actif,
   onPress,
+  principal = false,
 }: {
   libelle: string;
   actif: boolean;
   onPress: () => void;
+  /** Action principale de l'écran : fond plein, pas simple contour. */
+  principal?: boolean;
 }) {
   return (
     <Pressable
@@ -1659,10 +1671,18 @@ function Puce({
         justifyContent: "center",
         paddingHorizontal: espacement.lg,
         borderRadius: rayons.pill,
-        backgroundColor: actif ? couleurs.warmGold15 : couleurs.surfaceCarte,
+        backgroundColor: principal
+          ? couleurs.warmGold
+          : actif
+            ? couleurs.warmGold15
+            : couleurs.surfaceCarte,
       }}
     >
-      <Texte variante="petit" poids="semibold" couleur={actif ? couleurs.warmGold : couleurs.texte}>
+      <Texte
+        variante="petit"
+        poids="semibold"
+        couleur={principal ? couleurs.charcoal : actif ? couleurs.warmGold : couleurs.texte}
+      >
         {libelle}
       </Texte>
     </Pressable>

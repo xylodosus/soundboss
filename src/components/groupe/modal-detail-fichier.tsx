@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useLecteurAudio } from "@/lib/audio-context";
+import { LaboAudio } from "@/components/audio/labo-audio";
 import { useDialogue } from "@/lib/dialogue";
 import { urlLectureR2 } from "@/lib/r2";
 import { telechargerEtPartager } from "@/lib/telechargement";
@@ -49,7 +49,7 @@ export function ModalDetailFichier({
   visible: boolean;
   onFermer: () => void;
 }) {
-  const { ouvrirPiste } = useLecteurAudio();
+  const [laboOuvert, setLaboOuvert] = useState(false);
   const dialogue = useDialogue();
   const [enTelechargement, setEnTelechargement] = useState(false);
   const [lecturePdf, setLecturePdf] = useState(false);
@@ -112,7 +112,11 @@ export function ModalDetailFichier({
           </View>
 
           <ScrollView bounces={false} style={{ flexShrink: 1 }}>
-            <ApercuFichier fichier={fichier} onEcouter={ouvrirPiste} onLirePdf={() => setLecturePdf(true)} />
+            <ApercuFichier
+              fichier={fichier}
+              onEcouter={() => setLaboOuvert(true)}
+              onLirePdf={() => setLecturePdf(true)}
+            />
 
             <View style={{ gap: 10, marginTop: 16 }}>
               <LigneInfo label="Taille" valeur={tailleLisible(fichier.tailleOctets)} />
@@ -141,6 +145,31 @@ export function ModalDetailFichier({
       </Pressable>
 
       {lecturePdf && <LecteurPdf cle={fichier.cle} nom={fichier.nom} onFermer={() => setLecturePdf(false)} />}
+
+      {/* Un fichier de groupe n'est pas un enregistrement de répétition : ni
+          pics, ni tempo, ni tonalité, ni pistes séparées. Le labo se réduit
+          alors à son onglet Lecteur, ce qui reste tout son outillage. */}
+      <LaboAudio
+        piste={
+          laboOuvert
+            ? {
+                id: fichier.cle,
+                titre: fichier.nom,
+                url: fichier.cle,
+                peaks_url: null,
+                duree_secondes: null,
+                bpm: null,
+                tonalite: null,
+                tonalite_confiance: null,
+                tonalite_sections: null,
+                analyzed_at: null,
+              }
+            : null
+        }
+        visible={laboOuvert}
+        onFermer={() => setLaboOuvert(false)}
+        avecStems={false}
+      />
     </Modal>
   );
 }
@@ -216,12 +245,7 @@ function ApercuFichier({
   onLirePdf,
 }: {
   fichier: FichierDetail;
-  onEcouter: (piste: {
-    cle: string;
-    titre: string;
-    sousTitre?: string;
-    imageCle?: string | null;
-  }) => void;
+  onEcouter: () => void;
   onLirePdf: () => void;
 }) {
   if (fichier.type === "image") {
@@ -267,14 +291,7 @@ function ApercuFichier({
         <Bouton
           variante="secondaire"
           titre="Écouter"
-          onPress={() =>
-            onEcouter({
-              cle: fichier.cle,
-              titre: fichier.nom,
-              sousTitre: "Fichier du groupe",
-              imageCle: fichier.imageCle,
-            })
-          }
+          onPress={onEcouter}
         >
           <Ionicons name="play" size={14} color={couleurs.warmGold} />
         </Bouton>
