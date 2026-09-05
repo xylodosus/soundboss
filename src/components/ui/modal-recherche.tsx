@@ -1,5 +1,13 @@
-import { useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -42,10 +50,23 @@ export function ModalRecherche({
   placeholder?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const champRef = useRef<TextInput>(null);
   const assezLong = terme.trim().length >= LONGUEUR_MIN;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onFermer} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onFermer}
+      statusBarTranslucent
+      // Le focus se demande APRÈS la présentation, pas pendant : sur Android,
+      // `autoFocus` donne bien le focus au champ mais le clavier ne se lève pas
+      // tant que la fenêtre de la modale n'est pas installée. Le court délai
+      // laisse l'animation d'ouverture se terminer.
+      onShow={() => {
+        setTimeout(() => champRef.current?.focus(), Platform.OS === "android" ? 150 : 0);
+      }}
+    >
       <View style={{ flex: 1, backgroundColor: couleurs.fond, paddingTop: insets.top }}>
         <View
           style={{
@@ -70,11 +91,11 @@ export function ModalRecherche({
           >
             <Ionicons name="search" size={18} color={couleurs.texteSecondaire} />
             <TextInput
+              ref={champRef}
               value={terme}
               onChangeText={surTerme}
               placeholder={placeholder}
               placeholderTextColor={couleurs.texteSecondaire}
-              autoFocus
               returnKeyType="search"
               style={{ flex: 1, color: couleurs.texte, paddingVertical: 10 }}
               accessibilityLabel="Terme de recherche"
