@@ -770,8 +770,8 @@ Marge vérifiée sur le corpus réel, Fadr coûtant 0,05 $ la minute :
 | PARDONNE NOUS | 4,08 min | 5 cr = 0,83 $ | 0,204 $ | ×4,1 |
 | 02 Piste 2 | 8,13 min | 9 cr = 1,50 $ | 0,407 $ | ×3,7 |
 
-**Stockage.** 1 Go offert par groupe, 500 Mo par utilisateur. Au-delà, extension
-mensuelle payée en crédits :
+**Stockage.** **3 Go offerts par groupe, 1 Go par utilisateur.** Au-delà,
+extension mensuelle payée en crédits :
 
 | Volume | Crédits/mois | Revenu | Coût R2 | Rapport |
 |---|---|---|---|---|
@@ -787,32 +787,52 @@ prix en crédits.
 qui paie sur ses crédits ; le **stockage suit le groupe**, propriétaire des
 fichiers.
 
+### Pourquoi le stockage est le pilier, et non l'extraction
+
+Une première analyse concluait que le stockage ne valait pas d'être optimisé :
+extraire l'arbre complet d'un morceau rapporte 1,87 $ net, stocker ses 32 Mo
+coûte 0,00048 $ par mois, et il faudrait **324 ans** pour que l'un érode
+l'autre. La marge du stockage est donc économiquement sans objet.
+
+**Cette lecture passait à côté de l'essentiel.** Ce qui compte n'est pas la
+marge mais la **certitude du revenu** : l'accumulation de fichiers est assurée,
+l'usage de l'extraction ne l'est pas. Un abonnement mensuel payé par beaucoup de
+groupes vaut mieux qu'un multiple de quatre sur une fonctionnalité dont
+l'adoption reste à démontrer. Le palier gratuit se calibre donc pour la
+conversion, pas pour la générosité.
+
+**Ce que tiennent 3 Go**, à ~1,5 Mo la minute d'audio (mesuré sur le corpus) :
+
+| Usage | Durée avant saturation |
+|---|---|
+| 4 morceaux isolés par semaine | 2,5 ans |
+| 1 h de répétition enregistrée par semaine | 8 mois |
+| 2 h de répétition par semaine | 4 mois |
+| Morceaux + extraction de 5 pistes | 11 mois |
+| **1 vidéo de répétition par semaine** | **2,4 mois** |
+
+Un groupe occasionnel ne paiera jamais — il n'aurait pas payé de toute façon. Un
+groupe sérieux atteint le seuil entre quatre et huit mois, soit précisément la
+fenêtre où il a mesuré la valeur du service.
+
+**La vidéo est l'accélérateur le plus puissant** : dix minutes consomment un
+dixième du palier. Pour la conversion, encourager le dépôt de vidéos pèsera plus
+lourd que l'extraction de pistes.
+
+Ordre de grandeur : **10 $ par an et par groupe** au premier palier, soit
+**1 000 $ récurrents annuels pour cent groupes payants**.
+
 ### Ce que les chiffres révèlent, et qu'il faudra trancher
 
-**Le palier gratuit se remplit vite dès qu'on extrait.** Mesures réelles : un
-morceau de quatre minutes pèse ~4 Mo, ses cinq pistes ~10 Mo de plus, son arbre
-complet ~32 Mo.
+**On facture l'extraction, puis le stockage qu'elle crée.** C'est défendable,
+mais il n'existe aujourd'hui **aucun moyen de supprimer des pistes**. Si le
+stockage devient payant, la suppression cesse d'être un confort pour devenir une
+nécessité — sinon la seule issue d'un groupe saturé est de payer.
 
-| Contenu | 1 Go (groupe) | 500 Mo (perso) |
-|---|---|---|
-| morceaux seuls | 256 | 128 |
-| + 5 pistes | 73 | 37 |
-| + arbre complet | 28 | 14 |
-
-Un groupe qui décompose systématiquement ses morceaux sature son gigaoctet en
-une trentaine de titres.
-
-**Deux tensions à résoudre avant de construire :**
-
-1. **On facture l'extraction, puis le stockage qu'elle crée.** C'est défendable,
-   mais il n'existe aujourd'hui **aucun moyen de supprimer des pistes**. Si le
-   stockage devient payant, la suppression cesse d'être un confort pour devenir
-   une nécessité — sinon la seule issue d'un groupe saturé est de payer.
-
-2. **La marge du stockage se contracte quand le volume monte** (×2,8 à 20 Go,
-   ×1,8 à 500 Go), là où les packs de crédits font l'inverse en accordant une
-   remise aux gros volumes. Un gros client cumulerait donc les deux effets. À
-   vérifier que 500 Go à 80 crédits reste soutenable.
+**La marge du stockage se contracte au volume** (×2,8 à 20 Go, ×1,8 à 500 Go),
+là où les packs de crédits accordent une remise aux gros acheteurs. Les deux
+effets se cumulent, mais sur des sommes si faibles que la correction ne vaut pas
+la complexité : la grille reste telle quelle.
 
 ### Règles arrêtées le 5 septembre
 
