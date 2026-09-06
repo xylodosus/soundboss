@@ -54,9 +54,51 @@
 | 11 | Wallet + Profil + Notifications + Paramètres | ✅ fait |
 | 12 | Push notifications (expo-notifications, tokens, rappels) | ✅ fait (client + serveur) |
 | 13 | Mode clair + i18n (fr/en/wo/ln) | ⏳ à faire |
-| 14 | Offline-first + EAS build | 🟡 Android + iOS livrés, offline à faire |
+| 14 | Offline-first + EAS build | 🟡 Android + iOS livrés (push iOS confirmé 6/09), offline à faire |
 | 15 | Invitations par code, dossiers perso, bibliothèque ressources | ✅ fait |
-| 16 | Monétisation crédits (IA / Labo Audio, quotas, masterclass) | ⏳ à faire |
+| 16 | Monétisation crédits (IA / Labo Audio, quotas, masterclass) | ⏳ modèle arrêté, rien d'implémenté |
+| E | Labo audio (moteur, EQ, stems, génération) | ✅ E1 à E5 livrés |
+
+## 3 bis. Reste à faire — état au 6 sept. 2026
+
+Par ordre d'urgence. Cette liste est la référence : ce qui n'y figure pas n'est
+pas une tâche.
+
+**Étapes du plan**
+
+- **13 — Mode clair & i18n** : rien de commencé.
+- **14 — Offline-first** : il manque la persistance React Query
+  (`query-async-storage-persister` + `persistQueryClient`). Le `gcTime: 24 h`
+  est déjà posé dans `app/_layout.tsx`.
+- **16 — Monétisation par crédits** : modèle entièrement arrêté (§ 4 quindecies),
+  rien d'implémenté.
+
+**Préalables à la facturation**
+
+- **Suppression des fichiers et des pistes** (§ 4 terdecies) : sans elle, un
+  groupe saturé n'a d'autre issue que de payer. Retirer les octets de R2, pas
+  seulement la ligne en base.
+
+**Dettes techniques**
+
+- **Jobs de génération sans échéance** : un rappel Kie.ai perdu laisse un job en
+  `processing` indéfiniment, rien ne le clôt.
+- **`seance_enregistrements.pupitre_id`** à supprimer, remplacée par
+  `pupitre_ids`.
+- **Chaîne push serveur non versionnée** : triggers, `ff_enqueue_notif` et
+  `send-push` n'existent que sur le projet distant, à exporter dans `supabase/`.
+
+**Confort**
+
+- **Écoute des ressources de type `loop`** (§ 4 duodecies) : décision du chef de
+  groupe du 5 septembre, reportée depuis.
+
+**Question ouverte**
+
+- La durée d'une reprise **chantée** reste-t-elle bornée par la longueur de la
+  source, une fois l'ossature en place ? Un essai en mode Écrire les paroles,
+  3 mn demandées sur un enregistrement court, tranchera. Si oui, masquer aussi
+  le sélecteur dès qu'un point de départ est coché.
 
 ### ✅ Améliorations transverses (session 16/08)
 
@@ -264,7 +306,7 @@ Le `data.url` posé par les triggers (`/groupes/<id>/chat`,
   (micro, photos), `NSCameraUsageDescription` retirée (caméra non utilisée),
   `ITSAppUsesNonExemptEncryption: false`, `autoIncrement` sur le profil
   production (évite le rejet pour numéro de build dupliqué).
-  ⏳ Reste à confirmer : réception d'un push sur un iPhone TestFlight.
+  ✅ **Confirmé le 6/09** : réception d'un push sur iPhone TestFlight.
 - ✅ **expo-updates** : plugin + `runtimeVersion: appVersion` + URL
   `u.expo.dev/cc17c254-…` dans `app.json` ; `google-services.json` en place ;
   bundle `com.soundboss.app` (iOS + Android).
@@ -695,6 +737,141 @@ d'auteur, l'audio proposé pourrait être rejeté. »
    valide. Une vérification qui ne reproduit pas l'usage qu'elle contrôle ne
    vérifie rien.
 
+## 4 duodevicies. Lot E5 abouti — sources de génération (6 sept. 2026)
+
+L'onglet Création ne proposait qu'un point de départ : le morceau ouvert dans
+le labo, à prendre ou à laisser. Il en accepte désormais quatre provenances,
+toutes ramenées à une clé R2, seule chose dont la génération ait besoin.
+
+`sourcesDisponibles()` assemble et **dédoublonne** les listes : l'audio ouvert
+dans le labo est presque toujours aussi un audio de la répétition, il serait
+sinon proposé deux fois. La première provenance gagne, l'ordre décrit donc une
+priorité.
+
+| Provenance | Origine |
+|---|---|
+| Ouvert dans le labo | `labo` |
+| Audios de la répétition | `seance_enregistrements` |
+| Fichiers audio du groupe | `ressources` de type `audio` |
+| Enregistrement micro immédiat | `ModalEnregistrement` |
+
+**Portée volontairement réduite** sur les fichiers de groupe : ils sont lus
+avec les droits d'un simple membre. Un chef verra donc ici moins de fichiers
+que dans l'onglet Fichiers — ceux qu'il a partagés à un seul pupitre
+n'apparaissent pas. Omettre vaut mieux qu'exposer. Pour la portée complète, il
+faudrait faire descendre `estGestionnaire` jusqu'au labo, ce qui traverse aussi
+l'ouverture depuis le lecteur.
+
+**L'audio du micro est conservé** dans « Mes audios » du demandeur
+(`useAjouterAudioPersonnel`, qui crée le dossier s'il manque), avec sa durée et
+sa taille. Sans cette ligne en base il aurait vécu sur R2 sans exister pour
+l'application : hors de tout quota, et impossible à supprimer par celui qui
+l'a produit.
+
+**Carte du point de départ** : la surface coche et décoche, la croix écarte
+l'audio. Confondre les deux gestes faisait disparaître la carte au second appui.
+
+## 4 undevicies. Enregistrement au micro — la jauge était fictive (6 sept. 2026)
+
+Le composant n'affichait pas un niveau imprécis, il affichait
+`Math.random()` toutes les 400 ms. Cause : `RecordingPresets.HIGH_QUALITY` ne
+contient pas `isMeteringEnabled`, et côté natif Android
+`getAudioRecorderLevels()` rend `null` d'emblée si l'option est absente. Le
+`metering` n'a donc jamais existé, et le code retombait toujours sur son repli
+décoratif. Les barres affichées après la prise étaient elles aussi une formule
+fixe, identique pour tout enregistrement.
+
+- `isMeteringEnabled` activé, relevé du statut ramené de 500 à **100 ms** ;
+- **échantillonnage piloté par timer**, pas par les changements de `metering` :
+  `useAudioRecorderState` ne re-rend qu'au-delà de 0,1 dB d'écart, le tracé se
+  figerait dans les passages silencieux ;
+- `MediaRecorder.getMaxAmplitude()` rend le pic depuis le dernier appel et
+  remet le compteur à zéro : à 100 ms, chaque relevé est un vrai pic de tranche ;
+- réduction **par pics et non par moyenne** pour la relecture : la moyenne
+  effacerait une attaque de caisse claire ;
+- **sans metering, aucun tracé** n'est affiché plutôt qu'un tracé inventé.
+
+**Paliers de couleur** (0 dBFS est un plafond absolu, au-delà l'échantillon est
+tronqué) : vert sous −12 dBFS, ambre de −12 à −6, rouge au-delà. Les barres de
+la waveform suivent les mêmes paliers, chacune classée selon son propre niveau —
+sans quoi le rouge aurait dit « enregistrement en cours » sur la waveform et
+« saturation » sur la jauge, côte à côte.
+
+Le bouton MUTE a été retiré : `coupeSon` ne changeait que l'icône, `expo-audio`
+n'expose aucune coupure d'entrée sur un `AudioRecorder`.
+
+## 4 vicies. Durée des générations chantées (6 sept. 2026)
+
+Deux causes distinctes, découvertes l'une après l'autre.
+
+**1. Le paramètre était ignoré.** La doc Kie.ai : « Duration is selectable;
+valid only when `custom_mode` is `true` and `model` is `V5_5` ». En mode
+Décrire, `customMode` vaut `false` : la durée partait et n'était jamais
+regardée. Le sélecteur n'apparaît donc plus que là où l'API l'applique, et
+`dureeApplicable()` l'écarte côté conteneur.
+
+**2. Le champ Description partait comme paroles.** Toujours la doc : en
+`customMode`, « the prompt will be strictly used as the lyrics and sung in the
+generated track ». Or `customMode` s'activait **tout seul** dès qu'un style ou
+un titre était saisi. La description se retrouvait chantée mot pour mot.
+
+| Mode | `prompt` | Champs requis |
+|---|---|---|
+| `customMode: false` | idée directrice, paroles écrites par Suno | `prompt` |
+| `customMode: true`, chanté | **paroles exactes** | `style`, `title`, `prompt` |
+| `customMode: true`, instrumental | ignoré | `style`, `title` |
+
+Le mode est devenu explicite (pastilles **Décrire** / **Écrire les paroles**),
+et le champ Style est passé en multiligne.
+
+**3. Mesure décisive du chef de groupe.** Même audio, `duration: 180` :
+**2 mn 57 en instrumental, 16 s avec voix**. La durée est donc bien honorée —
+c'est la matière chantée qui manque. Suno s'arrête au dernier mot, et sans
+`[Outro]` il coupe net.
+
+`structurerParoles()` complète des paroles nues d'une ossature — `[Intro]`,
+`[Verse 1]`, `[Instrumental Break]` avec indication de longueur, `[Outro]` —
+**sans ajouter un seul mot chanté** ; un test reconstruit ce qui sera chanté et
+exige que ce soit exactement le texte de l'auteur. Elle ne s'applique qu'en
+personnalisé chanté avec durée demandée, et laisse intact un texte déjà balisé.
+Côté app, six pastilles insèrent les sections et une alerte prévient quand le
+texte ne peut visiblement pas porter la durée choisie (seuil large, 60 %).
+
+⚠️ **L'ossature aide, elle ne fabrique pas de paroles.** Le seul vrai levier
+reste d'écrire davantage, ce que l'alerte dit sans détour.
+
+**Refus de Suno traduits** — deux motifs distincts, le brut est consigné en base
+et jamais affiché :
+
+- `matches an existing recording` : l'enregistrement source est au catalogue ;
+- `contains copyrighted lyrics` : le **texte chanté** appartient à une œuvre
+  protégée. Une reprise de cantique populaire échoue ainsi même chantée par une
+  voix originale.
+
+**Les échecs quittent l'historique** : montrés à leur seul demandeur, une seule
+fois, avec un bouton pour les écarter. La ligne survit en base pour le suivi
+des coûts.
+
+## 4 unetvicies. Harmonisation de l'interface (6 sept. 2026)
+
+- **Barre d'onglets partagée** (`BarreOnglets`) : à largeur partagée,
+  « Générations IA » était écrasé sur un quart d'écran dans l'espace perso. Les
+  pastilles se dimensionnent sur leur libellé et la rangée défile. La page de
+  groupe et l'espace perso entretenaient deux barres divergentes.
+- **Onglet Générations IA** repris sur le vocabulaire de carte de l'app.
+  Les versions n'étaient pas seulement dépareillées, c'étaient **des cartes dans
+  une carte**. Durées en `m:ss`. L'onglet Création affichait une seconde liste
+  rendue autrement : il réutilise le composant.
+- **Boutons d'ajout face aux titres de section** : « + Morceau » s'étirait sur
+  toute la largeur parce qu'il était enfant direct d'une colonne flex. Son
+  libellé perd son `+`, `BoutonAjout` dessinant déjà l'icône.
+- **États vides guidés** sur la page projet (Répertoire, Répétitions liées) et
+  sur le programme de la répétition perso.
+- **Lecteur simple coupé à l'ouverture du labo** : les deux ne partagent aucun
+  moteur — `expo-audio` d'un côté, `react-native-audio-api` de l'autre — et le
+  même morceau jouait deux fois, décalé. ✅ vérifié le 6/09, l'empilement de
+  modales ne pose pas de problème.
+
 ## 5. Commandes utiles
 
 ```bash
@@ -1014,3 +1191,35 @@ n'apparaissait nulle part ailleurs.
   sur un émulateur (`adb install`), lancer et lire `adb logcat` (`FATAL EXCEPTION`).
   ✅ **Corrigé et vérifié le 21/08** : build `preview` installé sur appareil
   réel — l'app démarre, la connexion et l'affichage fonctionnent.
+
+### Le rendu web statique fait échouer l'export OTA (6 sept. 2026)
+
+`eas update` échouait sur « Node.js 20 detected without native WebSocket
+support ». La cause n'était pas dans l'OTA : `web.output: "static"` fait
+**pré-rendre chaque route dans Node**, ce qui évalue `src/lib/supabase.ts` et
+construit le client au chargement du module. `@supabase/realtime-js` exige un
+`WebSocket` global, natif seulement depuis Node 22.
+
+**Correctif** : `"platforms": ["ios", "android"]` dans `app.json`. L'app ne
+cible pas le web — aucun `Platform.OS === "web"`, et elle dépend de
+`expo-secure-store`, `react-native-audio-api` et `expo-media-library`, tous
+natifs. Vérifié : `metadata.json` ne contient plus que les deux plateformes.
+
+**À retenir** : un `createClient` au niveau du module ne survivra jamais à un
+pré-rendu serveur. Si une version web est un jour souhaitée, il faudra rendre
+sa construction paresseuse.
+
+### Clé admin Firebase — pas de rotation nécessaire (décidé le 6 sept. 2026)
+
+Signalée plusieurs sessions comme « à révoquer », sans motif retrouvé. Après
+vérification, **aucune exposition** : jamais commitée, absente du disque,
+`.gitignore` la couvre, `~/Documents` n'est pas synchronisé vers iCloud et
+aucune destination Time Machine n'est configurée. Une clé se remplace quand on
+a lieu de croire qu'elle a fuité, ou par politique de rotation périodique — ni
+l'un ni l'autre ici. **Item clos, ne pas le rouvrir sans motif nouveau.**
+
+Pour mémoire, si une rotation devenait nécessaire : l'ordre compte. Créer la
+nouvelle clé dans Google Cloud, la déposer via `eas credentials` (Android →
+Google Service Account → FCM V1), vérifier qu'un push arrive, **puis seulement**
+supprimer l'ancienne. Les push Android passent par Expo, qui a besoin de ces
+identifiants FCM v1.
