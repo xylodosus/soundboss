@@ -1476,7 +1476,11 @@ export function LaboAudio({
               )}
 
               {onglet === "creation" && (
-                <OngletCreation actif={visible && onglet === "creation"} />
+                <OngletCreation
+                  actif={visible && onglet === "creation"}
+                  groupeId={groupeId}
+                  source={piste ? { cle: piste.url, titre: piste.titre ?? "Audio" } : null}
+                />
               )}
             </ScrollView>
           )}

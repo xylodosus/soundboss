@@ -203,7 +203,9 @@ export type Database = {
           cout_api_reel: number | null
           created_at: string | null
           credits_cout: number
+          groupe_id: string | null
           id: string
+          lu_at: string | null
           input_fichier_url: string | null
           input_params: Json
           message_erreur: string | null
@@ -227,7 +229,9 @@ export type Database = {
           cout_api_reel?: number | null
           created_at?: string | null
           credits_cout?: number
+          groupe_id?: string | null
           id?: string
+          lu_at?: string | null
           input_fichier_url?: string | null
           input_params?: Json
           message_erreur?: string | null
@@ -251,7 +255,9 @@ export type Database = {
           cout_api_reel?: number | null
           created_at?: string | null
           credits_cout?: number
+          groupe_id?: string | null
           id?: string
+          lu_at?: string | null
           input_fichier_url?: string | null
           input_params?: Json
           message_erreur?: string | null
@@ -4202,13 +4208,19 @@ export type Database = {
         Args: {
           p_custom_mode?: boolean
           p_duree?: number
+          p_groupe_id?: string
           p_instrumental?: boolean
           p_modele?: string
           p_projet_id?: string
           p_prompt: string
+          p_source_url?: string
           p_style?: string
           p_titre?: string
         }
+        Returns: Json
+      }
+      marquer_generation_lue: {
+        Args: { p_job_id: string }
         Returns: Json
       }
       demander_stems: {

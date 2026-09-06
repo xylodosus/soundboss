@@ -7,7 +7,12 @@ import { EtatVide } from "@/components/ui/etat-vide";
 import { useDemanderGeneration, useGenerations } from "@/lib/queries/generation";
 import { couleurs, espacement, rayons } from "@/lib/theme";
 
-const DUREES = [30, 60, 120, 180] as const;
+const DUREES: { secondes: number; libelle: string }[] = [
+  { secondes: 30, libelle: "30 s" },
+  { secondes: 60, libelle: "1 mn" },
+  { secondes: 120, libelle: "2 mn" },
+  { secondes: 180, libelle: "3 mn" },
+];
 
 /**
  * Onglet Création : génération musicale par Suno.
@@ -16,20 +21,48 @@ const DUREES = [30, 60, 120, 180] as const;
  * rappelle. L'écran scrute donc la base tant qu'un job tourne — sans quoi il
  * resterait muet plusieurs minutes.
  */
-export function OngletCreation({ actif }: { actif: boolean }) {
+export function OngletCreation({
+  actif,
+  groupeId,
+  source,
+}: {
+  actif: boolean;
+  /** Génération de groupe : visible par tous ses membres. */
+  groupeId?: string;
+  /** Morceau ouvert dans le labo, proposé comme point de départ d'une reprise. */
+  source?: { cle: string; titre: string } | null;
+}) {
   const [invite, setInvite] = useState("");
   const [style, setStyle] = useState("");
   const [titre, setTitre] = useState("");
   const [instrumental, setInstrumental] = useState(false);
   const [duree, setDuree] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [reprise, setReprise] = useState(false);
+  /**
+   * Empreinte de la demande envoyée. Le bouton reste inactif tant que rien n'a
+   * changé : deux appuis de suite lanceraient deux générations facturées pour
+   * une seule intention.
+   */
+  const [derniereEnvoyee, setDerniereEnvoyee] = useState<string | null>(null);
 
-  const { data: generations = [] } = useGenerations(actif);
+  const { data: generations = [] } = useGenerations(groupeId ?? null, actif);
+  const uneTourne = generations.some((g) => g.statut === "queued" || g.statut === "processing");
   const { mutate: demander, isPending } = useDemanderGeneration();
 
   const personnalise = style.trim().length > 0 || titre.trim().length > 0;
-  const peutLancer =
-    !isPending && (invite.trim().length > 0 || (personnalise && instrumental));
+  const empreinte = JSON.stringify({
+    invite: invite.trim(),
+    style: style.trim(),
+    titre: titre.trim(),
+    instrumental,
+    duree,
+    reprise,
+  });
+  const dejaEnvoyee = empreinte === derniereEnvoyee;
+  // Une reprise part d'un audio : le style seul peut suffire à la décrire.
+  const aDeQuoiPartir = invite.trim().length > 0 || (personnalise && instrumental) || reprise;
+  const peutLancer = !isPending && !dejaEnvoyee && aDeQuoiPartir;
 
   function lancer() {
     setMessage(null);
@@ -43,11 +76,13 @@ export function OngletCreation({ actif }: { actif: boolean }) {
         style: style.trim() || null,
         titre: titre.trim() || null,
         duree,
+        groupeId,
+        sourceUrl: reprise && source ? source.cle : null,
       },
       {
         onSuccess: (r) => {
           setMessage(r.message);
-          if (r.success) setInvite("");
+          if (r.success) setDerniereEnvoyee(empreinte);
         },
         onError: (e) => setMessage(e instanceof Error ? e.message : String(e)),
       }
@@ -56,10 +91,52 @@ export function OngletCreation({ actif }: { actif: boolean }) {
 
   return (
     <View style={{ gap: espacement.lg }}>
+      {source && (
+        <Pressable
+          onPress={() => setReprise((v) => !v)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: reprise }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: espacement.md,
+            minHeight: 56,
+            paddingHorizontal: espacement.md,
+            borderRadius: rayons.md,
+            backgroundColor: reprise ? couleurs.warmGold15 : couleurs.surfaceCarte,
+            borderWidth: 1,
+            borderColor: reprise ? "rgba(251,191,36,0.35)" : couleurs.bordure,
+          }}
+        >
+          <Ionicons
+            name="repeat-outline"
+            size={20}
+            color={reprise ? couleurs.warmGold : couleurs.texteSecondaire}
+          />
+          <View style={{ flex: 1 }}>
+            <Texte variante="petit" poids="semibold" couleur={reprise ? couleurs.warmGold : couleurs.texte}>
+              {reprise ? "Reprise de ce morceau" : "Partir de ce morceau"}
+            </Texte>
+            <Texte variante="micro" couleur={couleurs.texteSecondaire} numberOfLines={1}>
+              {source.titre}
+            </Texte>
+          </View>
+          <Ionicons
+            name={reprise ? "checkmark-circle" : "ellipse-outline"}
+            size={20}
+            color={reprise ? couleurs.warmGold : couleurs.texteSecondaire}
+          />
+        </Pressable>
+      )}
+
       <Champ
         valeur={invite}
         surChanger={setInvite}
-        placeholder="Décris le morceau : « gospel joyeux en si bémol, chœur et orgue Hammond »"
+        placeholder={
+          reprise
+            ? "Dans quel style le réarranger ? « version afrobeat, batterie et cuivres »"
+            : "Décris le morceau : « gospel joyeux en si bémol, chœur et orgue Hammond »"
+        }
         multiligne
         label="Description"
       />
@@ -90,10 +167,10 @@ export function OngletCreation({ actif }: { actif: boolean }) {
         </Texte>
         {DUREES.map((d) => (
           <Puce
-            key={d}
-            libelle={`${d}s`}
-            actif={duree === d}
-            onPress={() => setDuree((v) => (v === d ? null : d))}
+            key={d.secondes}
+            libelle={d.libelle}
+            actif={duree === d.secondes}
+            onPress={() => setDuree((v) => (v === d.secondes ? null : d.secondes))}
           />
         ))}
       </View>
@@ -117,7 +194,9 @@ export function OngletCreation({ actif }: { actif: boolean }) {
         </Texte>
       </Pressable>
 
-      {message && (
+      {/* « Elle prend quelques minutes » n'a plus de sens une fois la génération
+          terminée : le message s'efface avec elle. */}
+      {message && (dejaEnvoyee ? uneTourne : true) && (
         <Texte variante="micro" couleur={couleurs.texteSecondaire}>
           {message}
         </Texte>
