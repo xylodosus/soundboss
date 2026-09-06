@@ -662,6 +662,37 @@ volume d'extraction devient significatif.
 rappel se perdait, le job resterait en `processing` indéfiniment. L'extraction,
 elle, a son échéance.
 
+## 4 septendecies. Reprise d'un morceau — limite découverte (6 sept. 2026)
+
+La chaîne technique fonctionne : R2 signe une URL autonome, Kie.ai la suit,
+la tâche part et le rappel revient. **Mais Suno refuse le contenu reconnu.**
+
+```
+Kie.ai 413 : This audio matches an existing recording in our catalog.
+```
+
+Suno compare l'empreinte de la source à son catalogue et rejette toute
+correspondance. **La reprise ne vaut donc que pour du matériel original** — une
+composition du groupe, ou une idée enregistrée au micro.
+
+Conséquence sur la vision produit : le cas d'usage « enregistrer une idée au
+micro puis la faire arranger » devient le **chemin principal** de la
+fonctionnalité, et non un cas secondaire. Une chorale qui reprend du répertoire
+connu verra ses enregistrements refusés.
+
+**À vérifier :** un refus 413 est-il facturé ? La tâche a bien reçu un
+`provider_job_id`, donc Kie.ai l'a acceptée avant de la rejeter.
+
+**Deux erreurs de ma part sur ce chemin, notées pour mémoire :**
+
+1. J'ignorais `code` et `msg` à la racine du rappel, transformant l'explication
+   de Kie.ai en « sans rendre de piste ». Le rappel brut est désormais
+   journalisé et son message repris.
+2. Le garde-fou ajouté ensuite contrôlait la source en `HEAD` alors que l'URL
+   est signée **pour un GET** : R2 répondait 403 sur un lien parfaitement
+   valide. Une vérification qui ne reproduit pas l'usage qu'elle contrôle ne
+   vérifie rien.
+
 ## 5. Commandes utiles
 
 ```bash

@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Texte } from "@/components/ui/texte";
 import { EtatVide } from "@/components/ui/etat-vide";
 import { useDemanderGeneration, useGenerations } from "@/lib/queries/generation";
+import { messageErreurGeneration } from "@/lib/generation-erreurs";
 import { couleurs, espacement, rayons } from "@/lib/theme";
 
 const DUREES: { secondes: number; libelle: string }[] = [
@@ -129,6 +130,12 @@ export function OngletCreation({
         </Pressable>
       )}
 
+      {reprise && (
+        <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+          {"La reprise ne fonctionne que sur du matériel original : un enregistrement reconnu comme un morceau du commerce sera refusé."}
+        </Texte>
+      )}
+
       <Champ
         valeur={invite}
         surChanger={setInvite}
@@ -239,14 +246,17 @@ export function OngletCreation({
                     {g.input_params?.title || g.input_params?.prompt || "Génération"}
                   </Texte>
                 </View>
-                <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+                <Texte
+                  variante="micro"
+                  couleur={g.statut === "failed" ? couleurs.danger : couleurs.texteSecondaire}
+                >
                   {enCours
                     ? "En cours — quelques minutes."
                     : g.statut === "completed"
                       ? `${pistes.length} version${pistes.length > 1 ? "s" : ""} disponible${
                           pistes.length > 1 ? "s" : ""
                         }`
-                      : (g.message_erreur ?? "Échec")}
+                      : messageErreurGeneration(g.message_erreur)}
                 </Texte>
               </View>
             );
