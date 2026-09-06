@@ -130,10 +130,15 @@ export function OngletCreation({
         </Pressable>
       )}
 
+      {/* Informatif et non dissuasif : un rejet n'est pas facturé, l'essai ne
+          coûte donc rien. */}
       {reprise && (
-        <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-          {"La reprise ne fonctionne que sur du matériel original : un enregistrement reconnu comme un morceau du commerce sera refusé."}
-        </Texte>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: espacement.sm }}>
+          <Ionicons name="information-circle-outline" size={16} color={couleurs.texteSecondaire} />
+          <Texte variante="micro" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+            {"En vertu du respect des droits d'auteur, l'audio proposé pourrait être rejeté."}
+          </Texte>
+        </View>
       )}
 
       <Champ

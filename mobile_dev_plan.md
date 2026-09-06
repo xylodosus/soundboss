@@ -680,8 +680,10 @@ micro puis la faire arranger » devient le **chemin principal** de la
 fonctionnalité, et non un cas secondaire. Une chorale qui reprend du répertoire
 connu verra ses enregistrements refusés.
 
-**À vérifier :** un refus 413 est-il facturé ? La tâche a bien reçu un
-`provider_job_id`, donc Kie.ai l'a acceptée avant de la rejeter.
+**Un refus 413 n'est pas facturé** (vérifié au tableau de bord Kie.ai le
+6 septembre). L'essai ne coûte donc rien, et l'avertissement affiché avant une
+reprise est informatif plutôt que dissuasif : « En vertu du respect des droits
+d'auteur, l'audio proposé pourrait être rejeté. »
 
 **Deux erreurs de ma part sur ce chemin, notées pour mémoire :**
 

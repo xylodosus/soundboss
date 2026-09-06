@@ -13,7 +13,7 @@ const TRADUCTIONS: { motif: RegExp; message: string }[] = [
     // que pour du matériel original.
     motif: /matches an existing recording|existing recording in our catalog/i,
     message:
-      "Ce morceau est reconnu comme un enregistrement connu, et la reprise en est refusée. Essaie avec une création du groupe ou une idée enregistrée au micro.",
+      "Cet audio a été rejeté au titre des droits d'auteur : il correspond à un enregistrement existant. Rien ne t'a été facturé. Essaie avec une création du groupe ou une idée enregistrée au micro.",
   },
   {
     motif: /insufficient credits/i,

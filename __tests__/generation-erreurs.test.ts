@@ -4,9 +4,12 @@ describe("messageErreurGeneration", () => {
   it("explique le refus pour contenu reconnu", () => {
     // Constaté le 6 septembre : Suno refuse toute source dont l'empreinte
     // correspond à un enregistrement de son catalogue.
-    expect(
-      messageErreurGeneration("Kie.ai 413 : This audio matches an existing recording in our catalog.")
-    ).toMatch(/enregistrement connu|original/i);
+    const message = messageErreurGeneration(
+      "Kie.ai 413 : This audio matches an existing recording in our catalog."
+    );
+    expect(message).toMatch(/droits d'auteur/i);
+    // Le rejet n'étant pas facturé, le dire évite une inquiétude inutile.
+    expect(message).toMatch(/facturé/i);
   });
 
   it("explique un solde insuffisant", () => {
