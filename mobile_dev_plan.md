@@ -611,6 +611,39 @@ qu'une piste seule reste parfaitement jouable.
 L'usage courant réclame d'ailleurs une ou deux pistes, pas cinq : chanter sur
 l'`instrumental`, ou isoler la basse pour la travailler.
 
+## 4 sexdecies. Lot E5 — premier essai réel de génération (6 sept. 2026)
+
+Instrumental de 30 s demandé, modèle V5_5, mode personnalisé.
+
+| Étape | Résultat |
+|---|---|
+| Acceptation par Kie.ai | `processing`, tâche `408f77a4…` |
+| Rappel reçu et traité | **60 secondes** au total |
+| Pistes produites | **deux** : 30,1 s / 503 Ko et 26,2 s / 437 Ko |
+
+**Ce que l'essai établit :**
+
+1. **Le rappel traverse Bunny.** C'était l'inconnue : contrairement à Fadr, que
+   l'on scrute, c'est Kie.ai qui doit joindre le conteneur. `PUBLIC_BASE_URL`
+   est correcte et les appels entrants passent.
+2. **Une demande rend deux pistes**, pas une. À intégrer au modèle de
+   facturation *et* au stockage : une génération de trois minutes déposera
+   ~6 Mo dans R2, les deux versions confondues.
+3. **La durée demandée est approximative** : 30 s réclamées, 30,1 et 26,2
+   obtenues. Ne pas la présenter comme un réglage exact.
+
+**Aucune table créée** : `ai_jobs` couvrait déjà le besoin, jusqu'à `credits_cout`
+et `cout_api_reel` côte à côte.
+
+**Reste ouvert :** le tarif réel par génération, à lire dans le tableau de bord
+Kie.ai. Les 2 crédits inscrits dans `demander_generation` sont une supposition,
+pas un calcul — à ajuster pour retrouver le rapport de marge de l'extraction
+(~×4).
+
+**Faiblesse connue :** aucun délai d'expiration sur un job de génération. Si un
+rappel se perdait, le job resterait en `processing` indéfiniment. L'extraction,
+elle, a son échéance.
+
 ## 5. Commandes utiles
 
 ```bash
