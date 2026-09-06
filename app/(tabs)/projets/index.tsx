@@ -12,12 +12,14 @@ import { ModalNouveauProjet } from "@/components/projet/modal-nouveau-projet";
 import { OngletRessources } from "@/components/ressources/onglet-ressources";
 import { OngletFichiersPersonnels } from "@/components/personnel/onglet-fichiers-personnels";
 import { ModalRecherche } from "@/components/ui/modal-recherche";
+import { OngletGenerations } from "@/components/audio/onglet-generations";
 import { useRecherchePersonnelle } from "@/lib/queries/recherche";
 
 const ONGLETS = [
   { id: "projets", label: "Projets" },
   { id: "fichiers", label: "Fichiers" },
   { id: "ressources", label: "Ressources" },
+  { id: "generations", label: "Générations IA" },
 ] as const;
 
 type OngletId = (typeof ONGLETS)[number]["id"];
@@ -170,6 +172,12 @@ export default function MesProjets() {
           {onglet === "ressources" && (
             <View style={{ padding: 20, paddingTop: 8 }}>
               <OngletRessources />
+            </View>
+          )}
+
+          {onglet === "generations" && (
+            <View style={{ padding: 20, paddingTop: 8 }}>
+              <OngletGenerations />
             </View>
           )}
         </View>

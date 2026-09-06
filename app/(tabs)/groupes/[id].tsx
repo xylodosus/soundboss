@@ -17,6 +17,7 @@ import { OngletProjets } from "@/components/projet/onglet-projets";
 import { OngletSeances } from "@/components/groupe/onglet-seances";
 import { OngletFichiers } from "@/components/groupe/onglet-fichiers";
 import { OngletStockage } from "@/components/groupe/onglet-stockage";
+import { OngletGenerations } from "@/components/audio/onglet-generations";
 
 const ONGLETS = [
   { id: "projets", label: "Projets", icone: "albums-outline" as const },
@@ -25,6 +26,7 @@ const ONGLETS = [
   { id: "fichiers", label: "Fichiers", icone: "folder-open-outline" as const },
   { id: "pupitres", label: "Pupitres", icone: "musical-notes-outline" as const },
   { id: "membres", label: "Membres", icone: "people-outline" as const },
+  { id: "generations", label: "Générations IA", icone: "sparkles-outline" as const },
   { id: "stockage", label: "Stockage", icone: "pie-chart-outline" as const },
 ];
 
@@ -249,6 +251,7 @@ export default function DetailGroupe() {
           {onglet === "projets" && <OngletProjets groupeId={id} estGestionnaire={estGestionnaire} />}
           {onglet === "seances" && <OngletSeances groupeId={id} estGestionnaire={estGestionnaire} />}
           {onglet === "fichiers" && <OngletFichiers groupeId={id} estGestionnaire={estGestionnaire} photoGroupe={groupe.photo_url} />}
+          {onglet === "generations" && <OngletGenerations groupeId={id} />}
           {onglet === "stockage" && estChef && <OngletStockage groupeId={id} />}
           {onglet === "chat" && (
             <View style={{ alignItems: "center", paddingVertical: 40 }}>
