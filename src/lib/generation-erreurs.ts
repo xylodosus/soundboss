@@ -34,3 +34,25 @@ export function messageErreurGeneration(brut: string | null | undefined): string
   const trouvee = TRADUCTIONS.find((t) => t.motif.test(brut));
   return trouvee ? trouvee.message : brut;
 }
+
+export type TonGeneration = "attente" | "succes" | "echec";
+
+/** Étiquette d'état d'une génération, telle qu'affichée sur la pastille. */
+export function etatGeneration(
+  statut: string | null | undefined,
+  nbPistes: number
+): { libelle: string; ton: TonGeneration } {
+  if (statut === "queued") return { libelle: "En file", ton: "attente" };
+  if (statut === "processing") return { libelle: "En cours", ton: "attente" };
+  if (statut === "failed") return { libelle: "Échec", ton: "echec" };
+  if (statut === "completed") {
+    // Une demande rend deux versions, mais rien ne garantit qu'elles arrivent
+    // toutes les deux : l'étiquette dit ce qui est réellement écoutable.
+    if (nbPistes === 0) return { libelle: "Aucune version", ton: "echec" };
+    return {
+      libelle: `${nbPistes} version${nbPistes > 1 ? "s" : ""}`,
+      ton: "succes",
+    };
+  }
+  return { libelle: "En cours", ton: "attente" };
+}

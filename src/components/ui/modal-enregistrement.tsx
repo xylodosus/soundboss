@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { File } from "expo-file-system";
 import { Ionicons } from "@expo/vector-icons";
 import {
   requestRecordingPermissionsAsync,
@@ -44,8 +45,16 @@ export function ModalEnregistrement({
   visible: boolean;
   onFermer: () => void;
   dossier: string;
-  /** dureeSecondes : requise pour le seuil des 30 % d'écoute. */
-  onAjouter: (url: string, titre: string, dureeSecondes?: number) => void;
+  /**
+   * dureeSecondes : requise pour le seuil des 30 % d'écoute.
+   * tailleOctets : nécessaire au décompte du stockage côté appelant.
+   */
+  onAjouter: (
+    url: string,
+    titre: string,
+    dureeSecondes?: number,
+    tailleOctets?: number
+  ) => void;
 }) {
   const insets = useSafeAreaInsets();
   // isMeteringEnabled est absent des presets : sans lui, statut.metering reste
@@ -172,7 +181,7 @@ export function ModalEnregistrement({
         dossier
       );
       // durationMillis est en millisecondes ; la base attend des secondes.
-      onAjouter(key, "Audio du micro", Math.round(dureeFinale / 1000));
+      onAjouter(key, "Audio du micro", Math.round(dureeFinale / 1000), tailleDe(uri));
       onFermer();
     } catch {
       setErreur("Impossible d'envoyer l'enregistrement.");
@@ -542,6 +551,15 @@ export function ModalEnregistrement({
       </View>
     </Modal>
   );
+}
+
+/** Taille du fichier local, pour le décompte du stockage. Null si illisible. */
+function tailleDe(uri: string): number | undefined {
+  try {
+    return new File(uri).size ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function Spinner() {

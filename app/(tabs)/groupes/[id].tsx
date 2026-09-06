@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } fr
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useGroupe } from "@/lib/queries/groupes";
-import { couleurs, police, rayons } from "@/lib/theme";
+import { couleurs, rayons } from "@/lib/theme";
 import { Ecran } from "@/components/ui/ecran";
 import { VisuelGroupe } from "@/components/ui/avatar";
 import { ModalRecherche } from "@/components/ui/modal-recherche";
@@ -18,17 +18,18 @@ import { OngletSeances } from "@/components/groupe/onglet-seances";
 import { OngletFichiers } from "@/components/groupe/onglet-fichiers";
 import { OngletStockage } from "@/components/groupe/onglet-stockage";
 import { OngletGenerations } from "@/components/audio/onglet-generations";
+import { BarreOnglets, type OngletBarre } from "@/components/ui/barre-onglets";
 
 const ONGLETS = [
-  { id: "projets", label: "Projets", icone: "albums-outline" as const },
-  { id: "seances", label: "Répétitions", icone: "calendar-outline" as const },
-  { id: "chat", label: "Discussion", icone: "chatbubble-ellipses-outline" as const },
-  { id: "fichiers", label: "Fichiers", icone: "folder-open-outline" as const },
-  { id: "pupitres", label: "Pupitres", icone: "musical-notes-outline" as const },
-  { id: "membres", label: "Membres", icone: "people-outline" as const },
-  { id: "generations", label: "Générations IA", icone: "sparkles-outline" as const },
-  { id: "stockage", label: "Stockage", icone: "pie-chart-outline" as const },
-];
+  { id: "projets", label: "Projets", icone: "albums-outline" },
+  { id: "seances", label: "Répétitions", icone: "calendar-outline" },
+  { id: "chat", label: "Discussion", icone: "chatbubble-ellipses-outline" },
+  { id: "fichiers", label: "Fichiers", icone: "folder-open-outline" },
+  { id: "pupitres", label: "Pupitres", icone: "musical-notes-outline" },
+  { id: "membres", label: "Membres", icone: "people-outline" },
+  { id: "generations", label: "Générations IA", icone: "sparkles-outline" },
+  { id: "stockage", label: "Stockage", icone: "pie-chart-outline" },
+] as const satisfies readonly OngletBarre<string>[];
 
 export default function DetailGroupe() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -205,44 +206,11 @@ export default function DetailGroupe() {
         </View>
 
         {/* Onglets */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 6 }}
-        >
-          {ONGLETS.filter((o) => o.id !== "stockage" || estChef).map((o) => {
-            const actif = onglet === o.id;
-            return (
-              <Pressable
-                key={o.id}
-                onPress={() => setOnglet(o.id)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  borderRadius: rayons.pill,
-                  backgroundColor: actif ? couleurs.warmGold : "rgba(255,255,255,0.06)",
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                }}
-              >
-                <Ionicons
-                  name={o.icone}
-                  size={15}
-                  color={actif ? couleurs.charcoal : couleurs.muted}
-                />
-                <Texte
-                  variante="petit"
-                  poids={actif ? "bold" : "medium"}
-                  couleur={actif ? couleurs.charcoal : couleurs.texteSecondaire}
-                  style={{ fontFamily: actif ? police.bold : police.medium }}
-                >
-                  {o.label}
-                </Texte>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <BarreOnglets
+          onglets={ONGLETS.filter((o) => o.id !== "stockage" || estChef)}
+          valeur={onglet}
+          surChanger={setOnglet}
+        />
 
         {/* Contenu */}
         <View style={{ padding: 20 }}>

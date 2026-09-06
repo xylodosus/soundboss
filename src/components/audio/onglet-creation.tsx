@@ -1,21 +1,22 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
+import { Pressable, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Texte } from "@/components/ui/texte";
-import { EtatVide } from "@/components/ui/etat-vide";
+import { OngletGenerations } from "@/components/audio/onglet-generations";
 import { ModalChoix } from "@/components/ui/modal-choix";
 import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
 import { useDemanderGeneration, useGenerations } from "@/lib/queries/generation";
+import { useAjouterAudioPersonnel } from "@/lib/queries/dossiers";
 import { useEnregistrementsSeance } from "@/lib/queries/seances";
 import { useRessources } from "@/lib/queries/ressources";
-import { messageErreurGeneration } from "@/lib/generation-erreurs";
 import {
   type OrigineSource,
   type SourceGeneration,
   libelleOrigine,
   sourcesDisponibles,
 } from "@/lib/sources-generation";
+import { formatDateHeure } from "@/lib/format";
 import { couleurs, espacement, rayons } from "@/lib/theme";
 
 const ICONE_ORIGINE: Record<OrigineSource, "musical-notes-outline" | "recording-outline" | "folder-open-outline" | "mic-outline"> = {
@@ -86,6 +87,24 @@ export function OngletCreation({
   const affiche = depart ?? suggestion;
   const uneTourne = generations.some((g) => g.statut === "queued" || g.statut === "processing");
   const { mutate: demander, isPending } = useDemanderGeneration();
+  const { mutate: rangerAudio } = useAjouterAudioPersonnel();
+
+  /**
+   * L'audio enregistré au micro est conservé dans « Mes audios » du demandeur.
+   * Sans cela il vivrait sur R2 sans ligne en base : hors quota, et impossible
+   * à supprimer pour celui qui l'a produit.
+   */
+  function surEnregistrement(cle: string, dureeSecondes?: number, tailleOctets?: number) {
+    const nom = `Enregistrement ${formatDateHeure(new Date().toISOString())}`;
+    setDepart({ cle, titre: nom, origine: "micro" });
+    rangerAudio({
+      nom,
+      url: cle,
+      dureeSecondes: dureeSecondes ?? null,
+      tailleBytes: tailleOctets ?? null,
+      format: "m4a",
+    });
+  }
 
   const personnalise = style.trim().length > 0 || titre.trim().length > 0;
   const empreinte = JSON.stringify({
@@ -279,58 +298,9 @@ export function OngletCreation({
 
       <View style={{ height: 1, backgroundColor: couleurs.bordure }} />
 
-      {generations.length === 0 ? (
-        <EtatVide
-          icone="sparkles-outline"
-          titre="Aucune génération"
-          message="Décris un morceau et lance la génération : elle prend quelques minutes et deux versions te seront proposées."
-        />
-      ) : (
-        <View style={{ gap: espacement.sm }}>
-          {generations.map((g) => {
-            const enCours = g.statut === "queued" || g.statut === "processing";
-            const pistes = g.resultat?.pistes ?? [];
-            return (
-              <View
-                key={g.id}
-                style={{
-                  backgroundColor: couleurs.surfaceCarte,
-                  borderRadius: rayons.md,
-                  padding: espacement.md,
-                  gap: espacement.xs,
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-                  {enCours ? (
-                    <ActivityIndicator size="small" color={couleurs.warmGold} />
-                  ) : (
-                    <Ionicons
-                      name={g.statut === "completed" ? "checkmark-circle" : "alert-circle"}
-                      size={16}
-                      color={g.statut === "completed" ? couleurs.success : couleurs.danger}
-                    />
-                  )}
-                  <Texte variante="petit" poids="semibold" numberOfLines={1} style={{ flex: 1 }}>
-                    {g.input_params?.title || g.input_params?.prompt || "Génération"}
-                  </Texte>
-                </View>
-                <Texte
-                  variante="micro"
-                  couleur={g.statut === "failed" ? couleurs.danger : couleurs.texteSecondaire}
-                >
-                  {enCours
-                    ? "En cours — quelques minutes."
-                    : g.statut === "completed"
-                      ? `${pistes.length} version${pistes.length > 1 ? "s" : ""} disponible${
-                          pistes.length > 1 ? "s" : ""
-                        }`
-                      : messageErreurGeneration(g.message_erreur)}
-                </Texte>
-              </View>
-            );
-          })}
-        </View>
-      )}
+      {/* Même liste que l'onglet Générations IA, même composant : deux rendus
+          concurrents du même objet finiraient par diverger. */}
+      <OngletGenerations groupeId={groupeId} />
 
       <ModalChoix
         visible={choixOuvert}
@@ -354,8 +324,8 @@ export function OngletCreation({
         visible={microOuvert}
         onFermer={() => setMicroOuvert(false)}
         dossier="generation/sources"
-        onAjouter={(cle, titreAudio) =>
-          setDepart({ cle, titre: titreAudio, origine: "micro" })
+        onAjouter={(cle, _titreAudio, dureeSecondes, tailleOctets) =>
+          surEnregistrement(cle, dureeSecondes, tailleOctets)
         }
       />
     </View>

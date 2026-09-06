@@ -3,7 +3,7 @@ import { useRouter, type Href } from "expo-router";
 import { KeyboardAvoidingView, Platform, FlatList, Pressable, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useProjetsPersonnels } from "@/lib/queries/projets";
-import { couleurs, police, rayons } from "@/lib/theme";
+import { couleurs } from "@/lib/theme";
 import { Ecran } from "@/components/ui/ecran";
 import { Texte } from "@/components/ui/texte";
 import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
@@ -13,14 +13,15 @@ import { OngletRessources } from "@/components/ressources/onglet-ressources";
 import { OngletFichiersPersonnels } from "@/components/personnel/onglet-fichiers-personnels";
 import { ModalRecherche } from "@/components/ui/modal-recherche";
 import { OngletGenerations } from "@/components/audio/onglet-generations";
+import { BarreOnglets, type OngletBarre } from "@/components/ui/barre-onglets";
 import { useRecherchePersonnelle } from "@/lib/queries/recherche";
 
 const ONGLETS = [
-  { id: "projets", label: "Projets" },
-  { id: "fichiers", label: "Fichiers" },
-  { id: "ressources", label: "Ressources" },
-  { id: "generations", label: "Générations IA" },
-] as const;
+  { id: "projets", label: "Projets", icone: "albums-outline" },
+  { id: "fichiers", label: "Fichiers", icone: "folder-open-outline" },
+  { id: "ressources", label: "Ressources", icone: "library-outline" },
+  { id: "generations", label: "Générations IA", icone: "sparkles-outline" },
+] as const satisfies readonly OngletBarre<string>[];
 
 type OngletId = (typeof ONGLETS)[number]["id"];
 
@@ -95,44 +96,8 @@ export default function MesProjets() {
           </View>
 
           {/* Onglets */}
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 6,
-              paddingHorizontal: 20,
-              paddingBottom: 10,
-            }}
-          >
-            {ONGLETS.map((o) => {
-              const actif = onglet === o.id;
-              return (
-                <Pressable
-                  key={o.id}
-                  onPress={() => setOnglet(o.id)}
-                  accessibilityRole="button"
-                  accessibilityState={actif ? { selected: true } : undefined}
-                  accessibilityLabel={`Onglet ${o.label}`}
-                  style={{
-                    flex: 1,
-                    borderRadius: rayons.pill,
-                    borderWidth: 1,
-                    borderColor: actif ? couleurs.warmGold : "rgba(255,255,255,0.1)",
-                    backgroundColor: actif ? "rgba(251,191,36,0.14)" : "transparent",
-                    paddingVertical: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <Texte
-                    variante="petit"
-                    poids={actif ? "bold" : "medium"}
-                    couleur={actif ? couleurs.warmGold : couleurs.texteSecondaire}
-                    style={{ fontFamily: actif ? police.bold : police.medium }}
-                  >
-                    {o.label}
-                  </Texte>
-                </Pressable>
-              );
-            })}
+          <View style={{ paddingBottom: 10 }}>
+            <BarreOnglets onglets={ONGLETS} valeur={onglet} surChanger={setOnglet} />
           </View>
 
           {/* Contenu */}

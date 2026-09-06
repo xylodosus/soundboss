@@ -5,12 +5,15 @@ import { supabase, utilisateurId } from "@/lib/supabase";
 type Dossier = Database["public"]["Tables"]["dossiers_personnels"]["Row"];
 type Ressource = Database["public"]["Tables"]["ressources"]["Row"];
 
+/** Dossier d'accueil des audios enregistrés au micro. */
+export const DOSSIER_AUDIOS = "Mes audios";
+
 /** Dossiers par défaut créés pour chaque utilisateur. */
 export const DOSSIERS_PAR_DEFAUT = [
   "Mes documents",
   "Mes loops",
   "Mes partitions",
-  "Mes audios",
+  DOSSIER_AUDIOS,
   "Mes styles",
 ] as const;
 
@@ -170,6 +173,75 @@ export function useAjouterFichierPersonnel(dossierId: string | null) {
       if (error) throw new Error("Impossible d'ajouter le fichier.");
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: clefsDossiers.fichiers(dossierId) });
+      queryClient.invalidateQueries({ queryKey: clefsDossiers.liste });
+    },
+  });
+}
+
+/**
+ * Range un audio enregistré au micro dans « Mes audios ».
+ *
+ * Sans cette ligne en base, le fichier existerait sur R2 sans exister pour
+ * l'application : hors de tout quota de stockage, et impossible à supprimer
+ * pour celui qui l'a enregistré.
+ */
+export function useAjouterAudioPersonnel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      nom,
+      url,
+      dureeSecondes,
+      tailleBytes,
+      format,
+    }: {
+      nom: string;
+      url: string;
+      dureeSecondes?: number | null;
+      tailleBytes?: number | null;
+      format?: string | null;
+    }) => {
+      const userId = await utilisateurId();
+
+      // Le dossier peut manquer : les défauts ne sont créés qu'à la première
+      // ouverture de l'onglet Fichiers, qu'on n'a pas forcément visitée.
+      const { data: existant } = await supabase
+        .from("dossiers_personnels")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("nom", DOSSIER_AUDIOS)
+        .maybeSingle();
+
+      let dossierId = existant?.id ?? null;
+      if (!dossierId) {
+        const { data: cree, error } = await supabase
+          .from("dossiers_personnels")
+          .insert({ user_id: userId, nom: DOSSIER_AUDIOS })
+          .select("id")
+          .single();
+        if (error) throw new Error("Impossible de créer le dossier « Mes audios ».");
+        dossierId = cree.id;
+      }
+
+      const { error } = await supabase.from("ressources").insert({
+        nom,
+        type: "audio",
+        url,
+        format: format ?? null,
+        duree_secondes: dureeSecondes ?? null,
+        taille_bytes: tailleBytes ?? null,
+        partage_type: "personnel",
+        partage_user_id: userId,
+        dossier_id: dossierId,
+        visibilite: "publique",
+        uploaded_by: userId,
+      });
+      if (error) throw new Error("Impossible d'enregistrer l'audio.");
+
+      return dossierId;
+    },
+    onSuccess: (dossierId) => {
       queryClient.invalidateQueries({ queryKey: clefsDossiers.fichiers(dossierId) });
       queryClient.invalidateQueries({ queryKey: clefsDossiers.liste });
     },
