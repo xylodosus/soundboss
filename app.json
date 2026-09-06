@@ -1,5 +1,6 @@
 {
   "expo": {
+    "platforms": ["ios", "android"],
     "name": "SoundBoss",
     "slug": "soundboss",
     "version": "1.0.1",
