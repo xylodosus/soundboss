@@ -60,7 +60,6 @@ export function ModalEnregistrement({
   const statut = useAudioRecorderState(recorder, INTERVALLE_MS);
 
   const [erreur, setErreur] = useState<string | null>(null);
-  const [coupeSon, setCoupeSon] = useState(false);
   const [termine, setTermine] = useState(false);
   const [dureeFinale, setDureeFinale] = useState(0);
   const [echantillons, setEchantillons] = useState<number[]>([]);
@@ -454,7 +453,6 @@ export function ModalEnregistrement({
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "space-around",
                 paddingHorizontal: 24,
                 paddingTop: 20,
                 paddingBottom: 8,
@@ -463,35 +461,8 @@ export function ModalEnregistrement({
                 marginTop: 16,
               }}
             >
-              {/* Mute (visuel) */}
-              <Pressable
-                onPress={() => setCoupeSon((v) => !v)}
-                accessibilityRole="button"
-                accessibilityLabel={coupeSon ? "Réactiver le micro" : "Couper le micro"}
-                style={{ alignItems: "center", gap: 6 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: couleurs.surfaceCarte,
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.06)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons
-                    name={coupeSon ? "mic-off" : "mic"}
-                    size={18}
-                    color={coupeSon ? couleurs.danger : couleurs.texteSecondaire}
-                  />
-                </View>
-                <Texte variante="micro" poids="bold" couleur={couleurs.texteSecondaire} style={{ letterSpacing: 1 }}>
-                  {coupeSon ? "OFF" : "MUTE"}
-                </Texte>
-              </Pressable>
+              {/* Contrepoids de la colonne Terminer : garde le micro au centre */}
+              <View style={{ flex: 1 }} />
 
               {/* Bouton principal : démarrer / arrêter */}
               <Pressable
@@ -534,35 +505,37 @@ export function ModalEnregistrement({
               </Pressable>
 
               {/* Check : sauvegarde l'enregistrement */}
-              <Pressable
-                onPress={sauvegarder}
-                disabled={envoi || duree <= 0}
-                accessibilityRole="button"
-                accessibilityLabel="Sauvegarder l'enregistrement"
-                style={{ alignItems: "center", gap: 6, opacity: duree > 0 && !envoi ? 1 : 0.4 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(52,211,153,0.12)",
-                    borderWidth: 1,
-                    borderColor: "rgba(52,211,153,0.35)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
+              <View style={{ flex: 1, alignItems: "flex-end" }}>
+                <Pressable
+                  onPress={sauvegarder}
+                  disabled={envoi || duree <= 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sauvegarder l'enregistrement"
+                  style={{ alignItems: "center", gap: 6, opacity: duree > 0 && !envoi ? 1 : 0.4 }}
                 >
-                  {envoi ? (
-                    <Spinner />
-                  ) : (
-                    <Ionicons name="checkmark" size={20} color="#34D399" />
-                  )}
-                </View>
-                <Texte variante="micro" poids="bold" couleur="#34D399" style={{ letterSpacing: 1 }}>
-                  TERMINER
-                </Texte>
-              </Pressable>
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: "rgba(52,211,153,0.12)",
+                      borderWidth: 1,
+                      borderColor: "rgba(52,211,153,0.35)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {envoi ? (
+                      <Spinner />
+                    ) : (
+                      <Ionicons name="checkmark" size={20} color="#34D399" />
+                    )}
+                  </View>
+                  <Texte variante="micro" poids="bold" couleur="#34D399" style={{ letterSpacing: 1 }}>
+                    TERMINER
+                  </Texte>
+                </Pressable>
+              </View>
             </View>
           </>
         )}
