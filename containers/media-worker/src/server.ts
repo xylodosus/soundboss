@@ -12,7 +12,7 @@ import { config } from './config.ts';
 import { analyzeMedia } from './analyze.ts';
 import { separerStems } from './stems.ts';
 import { finirJobGeneration, lancerJobGeneration } from './generation.ts';
-import { estCallbackFinal, pistesDuCallback } from './suno.ts';
+import { erreurDuCallback, estCallbackFinal, pistesDuCallback } from './suno.ts';
 import { getJobParTacheFournisseur } from './db.ts';
 import { STEM_TYPES, type StemType } from './fadr.ts';
 import { listUnanalyzed } from './db.ts';
@@ -74,9 +74,15 @@ app.post('/callbacks/suno', async (c) => {
   }
   if (job.statut === 'completed') return c.json({ success: true }, 200);
 
+  // Journalisé tronqué : sans cela, un rappel sans piste ne laissait aucune
+  // trace de ce que Kie.ai avait dit, et le diagnostic était impossible.
+  console.log('[callback suno]', tacheId, JSON.stringify(corps).slice(0, 800));
+
+  const erreur = erreurDuCallback(corps) ?? erreurDuCallback(donnees);
+
   queueMicrotask(async () => {
     try {
-      await finirJobGeneration(job.id, pistesDuCallback(donnees));
+      await finirJobGeneration(job.id, erreur ? [] : pistesDuCallback(donnees), erreur);
       console.log('[callback suno] job terminé', job.id);
     } catch (e: any) {
       console.error('[callback suno] échec', job.id, describeError(e));

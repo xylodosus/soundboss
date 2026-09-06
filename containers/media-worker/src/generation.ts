@@ -38,7 +38,19 @@ export async function lancerJobGeneration(jobId: string): Promise<{ tacheId?: st
     // le chercher lui-même. Il lui faut donc une URL signée, autonome, et non
     // notre clé R2 — que lui seul ne saurait pas lire.
     const cleSource = typeof params.sourceUrl === 'string' ? params.sourceUrl : null;
-    const urlSource = cleSource ? await urlSignee(cleSource) : undefined;
+    let urlSource: string | undefined;
+    if (cleSource) {
+      urlSource = await urlSignee(cleSource);
+      // Kie.ai va chercher la source lui-même : si notre lien signé n'est pas
+      // suivable, la tâche partirait, serait facturée, et reviendrait vide. Un
+      // appel de vérification coûte une seconde et évite ça.
+      const controle = await fetch(urlSource, { method: 'HEAD' }).catch(() => null);
+      if (!controle || !controle.ok) {
+        throw new Error(
+          `Le lien signé de la source n'est pas accessible (${controle?.status ?? 'réseau'}).`,
+        );
+      }
+    }
 
     const tacheId = await lancerGeneration(
       cle,
@@ -71,11 +83,15 @@ export async function lancerJobGeneration(jobId: string): Promise<{ tacheId?: st
  * **quatorze jours**. Garder leurs URL reviendrait à livrer une musique qui
  * disparaît au bout de deux semaines.
  */
-export async function finirJobGeneration(jobId: string, pistes: PisteGeneree[]): Promise<void> {
-  if (pistes.length === 0) {
+export async function finirJobGeneration(
+  jobId: string,
+  pistes: PisteGeneree[],
+  motifEchec?: string | null,
+): Promise<void> {
+  if (motifEchec || pistes.length === 0) {
     await patchJobIA(jobId, {
       statut: 'failed',
-      message_erreur: 'Kie.ai a signalé la fin sans rendre de piste.',
+      message_erreur: (motifEchec ?? 'Kie.ai a signalé la fin sans rendre de piste.').slice(0, 500),
       completed_at: new Date().toISOString(),
     });
     return;

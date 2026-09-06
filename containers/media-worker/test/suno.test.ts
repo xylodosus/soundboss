@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MODELES,
+  erreurDuCallback,
   estCallbackFinal,
   parseTacheId,
   pistesDuCallback,
@@ -91,5 +92,24 @@ describe('validerDemande', () => {
 
   it('refuse un modèle inconnu plutôt que de laisser l’API le rejeter', () => {
     expect(() => validerDemande({ prompt: 'x', model: 'V9' })).toThrow(/mod/i);
+  });
+});
+
+describe('erreurDuCallback', () => {
+  it('rend le message quand Kie.ai signale un échec', () => {
+    expect(
+      erreurDuCallback({ code: 451, msg: 'Audio download failed', data: { callbackType: 'complete' } }),
+    ).toBe('Kie.ai 451 : Audio download failed');
+  });
+
+  it('ne voit pas d’erreur dans un succès', () => {
+    expect(erreurDuCallback({ code: 200, msg: 'All generated successfully' })).toBeNull();
+  });
+
+  it('ne voit pas d’erreur quand le code est absent', () => {
+    // Toutes les formes de rappel ne portent pas de code : l'absence n'est pas
+    // un échec.
+    expect(erreurDuCallback({ data: { callbackType: 'complete' } })).toBeNull();
+    expect(erreurDuCallback(null)).toBeNull();
   });
 });

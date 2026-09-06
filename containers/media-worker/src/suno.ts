@@ -91,6 +91,21 @@ export function estCallbackFinal(corps: unknown): boolean {
   return objet(corps)?.callbackType === 'complete';
 }
 
+/**
+ * Message d'échec porté par un rappel, s'il y en a un.
+ *
+ * Kie.ai place `code` et `msg` à la racine du rappel — « Audio download
+ * failed » par exemple, quand il n'a pas pu aller chercher la source. Les
+ * ignorer transformait une explication en « sans rendre de piste », ce qui
+ * n'aidait personne.
+ */
+export function erreurDuCallback(corps: unknown): string | null {
+  const o = objet(corps);
+  const code = o?.code;
+  if (typeof code !== 'number' || code === 200) return null;
+  return `Kie.ai ${code} : ${String(o?.msg ?? 'sans message')}`;
+}
+
 export interface PisteGeneree {
   id: string;
   url: string;
