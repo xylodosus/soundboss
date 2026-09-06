@@ -1,7 +1,11 @@
 import {
   PLANCHER_DB,
+  SEUIL_ELEVE,
+  SEUIL_SATURATION,
   ajouterEchantillon,
+  dbDepuisNiveau,
   niveauDepuisDb,
+  palierNiveau,
   reduireA,
 } from "../src/lib/niveau-micro";
 
@@ -75,5 +79,42 @@ describe("reduireA", () => {
 
   it("rend un tableau vide pour une cible nulle", () => {
     expect(reduireA([0.1, 0.2], 0)).toEqual([]);
+  });
+});
+
+describe("palierNiveau", () => {
+  it("classe une prise confortable en vert", () => {
+    expect(palierNiveau(-40)).toBe("confortable");
+    expect(palierNiveau(-18)).toBe("confortable");
+  });
+
+  it("bascule en niveau élevé à partir du seuil, pas après", () => {
+    expect(palierNiveau(SEUIL_ELEVE - 0.1)).toBe("confortable");
+    expect(palierNiveau(SEUIL_ELEVE)).toBe("eleve");
+    expect(palierNiveau(-8)).toBe("eleve");
+  });
+
+  it("signale la saturation à partir du seuil, pas après", () => {
+    expect(palierNiveau(SEUIL_SATURATION - 0.1)).toBe("eleve");
+    expect(palierNiveau(SEUIL_SATURATION)).toBe("saturation");
+    expect(palierNiveau(0)).toBe("saturation");
+  });
+
+  it("ne signale rien d'alarmant sans mesure", () => {
+    expect(palierNiveau(null)).toBe("confortable");
+    expect(palierNiveau(Number.NaN)).toBe("confortable");
+  });
+});
+
+describe("dbDepuisNiveau", () => {
+  it("est l'inverse exact de niveauDepuisDb dans la plage utile", () => {
+    for (const db of [-60, -48, -24, -12, -6, 0]) {
+      expect(dbDepuisNiveau(niveauDepuisDb(db))).toBeCloseTo(db, 5);
+    }
+  });
+
+  it("permet de reclasser un échantillon normalisé", () => {
+    expect(palierNiveau(dbDepuisNiveau(niveauDepuisDb(-3)))).toBe("saturation");
+    expect(palierNiveau(dbDepuisNiveau(niveauDepuisDb(-30)))).toBe("confortable");
   });
 });

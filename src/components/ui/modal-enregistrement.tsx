@@ -10,8 +10,8 @@ import {
   useAudioRecorderState,
   RecordingPresets,
 } from "expo-audio";
-import { WaveformMicro } from "@/components/audio/waveform-micro";
-import { ajouterEchantillon, niveauDepuisDb } from "@/lib/niveau-micro";
+import { COULEUR_PALIER, WaveformMicro } from "@/components/audio/waveform-micro";
+import { ajouterEchantillon, niveauDepuisDb, palierNiveau } from "@/lib/niveau-micro";
 import { televerserFichier } from "@/lib/r2";
 import { couleurs, police, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
@@ -21,9 +21,6 @@ const INTERVALLE_MS = 100;
 
 /** Fenêtre gardée en mémoire : 20 min à 10 relevés/s. */
 const CAPACITE_MAX = 12000;
-
-/** Au-dessus de ce niveau d'entrée, l'enregistrement risque d'écrêter. */
-const SEUIL_SATURATION = -6;
 
 function formatChrono(ms: number): string {
   const total = Math.floor(ms / 1000);
@@ -430,17 +427,20 @@ export function ModalEnregistrement({
                     width: `${Math.round(niveauDepuisDb(niveauDb) * 100)}%`,
                     height: "100%",
                     borderRadius: 3,
-                    backgroundColor:
-                      niveauDb != null && niveauDb > SEUIL_SATURATION
-                        ? couleurs.danger
-                        : couleurs.terracottaLight,
+                    backgroundColor: COULEUR_PALIER[palierNiveau(niveauDb)],
                   }}
                 />
               </View>
               <Texte
                 variante="micro"
                 poids="bold"
-                couleur={couleurs.texteSecondaire}
+                couleur={
+                  // Le chiffre ne se colore que quand il y a lieu d'alerter :
+                  // un nombre vert en permanence attirerait l'œil pour rien.
+                  niveauDb == null || palierNiveau(niveauDb) === "confortable"
+                    ? couleurs.texteSecondaire
+                    : COULEUR_PALIER[palierNiveau(niveauDb)]
+                }
                 numberOfLines={1}
                 style={{ width: 52, textAlign: "right", fontVariant: ["tabular-nums"] }}
               >

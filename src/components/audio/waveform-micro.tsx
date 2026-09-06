@@ -1,7 +1,19 @@
 import { memo, useMemo } from "react";
 import { View } from "react-native";
 import { couleurs } from "@/lib/theme";
-import { reduireA } from "@/lib/niveau-micro";
+import {
+  type PalierNiveau,
+  dbDepuisNiveau,
+  palierNiveau,
+  reduireA,
+} from "@/lib/niveau-micro";
+
+/** Vert au repos, ambre quand ça pousse, rouge quand ça écrête. */
+export const COULEUR_PALIER: Record<PalierNiveau, string> = {
+  confortable: couleurs.success,
+  eleve: couleurs.warmGold,
+  saturation: couleurs.danger,
+};
 
 const LARGEUR_BARRE = 3;
 const ECART = 2;
@@ -53,9 +65,10 @@ export const WaveformMicro = memo(function WaveformMicro({
             width: LARGEUR_BARRE,
             height: Math.max(HAUTEUR_MIN, valeur * hauteur),
             borderRadius: LARGEUR_BARRE / 2,
-            backgroundColor: direct ? couleurs.danger : couleurs.warmGold,
-            // Les barres anciennes s'estompent : l'œil suit le bord droit.
-            opacity: direct ? 0.45 + 0.55 * ((i + 1) / barres.length) : 0.85,
+            backgroundColor: COULEUR_PALIER[palierNiveau(dbDepuisNiveau(valeur))],
+            // En direct, les barres anciennes s'estompent : l'œil suit le
+            // bord droit, là où arrive le son.
+            opacity: direct ? 0.5 + 0.5 * ((i + 1) / barres.length) : 0.9,
           }}
         />
       ))}

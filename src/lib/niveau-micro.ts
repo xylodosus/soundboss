@@ -17,6 +17,30 @@ export function niveauDepuisDb(db: number | null | undefined): number {
   return (db - PLANCHER_DB) / -PLANCHER_DB;
 }
 
+/** Inverse de niveauDepuisDb, pour reclasser un échantillon déjà normalisé. */
+export function dbDepuisNiveau(niveau: number): number {
+  return PLANCHER_DB + niveau * -PLANCHER_DB;
+}
+
+/**
+ * Paliers de niveau d'entrée, en dBFS.
+ *
+ * En numérique, 0 dBFS est le plafond absolu : au-delà, l'échantillon est
+ * tronqué et la distorsion est irréversible. On vise donc une prise autour de
+ * −18/−12 dBFS, qui laisse de la marge, et on prévient bien avant le plafond.
+ */
+export const SEUIL_ELEVE = -12;
+export const SEUIL_SATURATION = -6;
+
+export type PalierNiveau = "confortable" | "eleve" | "saturation";
+
+export function palierNiveau(db: number | null | undefined): PalierNiveau {
+  if (typeof db !== "number" || !Number.isFinite(db)) return "confortable";
+  if (db >= SEUIL_SATURATION) return "saturation";
+  if (db >= SEUIL_ELEVE) return "eleve";
+  return "confortable";
+}
+
 /** Ajoute un échantillon en fin de fenêtre glissante, les plus anciens sortant. */
 export function ajouterEchantillon(
   echantillons: number[],
