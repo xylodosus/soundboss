@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,16 +10,20 @@ import {
   useAudioRecorderState,
   RecordingPresets,
 } from "expo-audio";
+import { WaveformMicro } from "@/components/audio/waveform-micro";
+import { ajouterEchantillon, niveauDepuisDb } from "@/lib/niveau-micro";
 import { televerserFichier } from "@/lib/r2";
 import { couleurs, police, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
 
-const NB_BARRES = 40;
+/** Cadence de relevé du niveau d'entrée, en millisecondes. */
+const INTERVALLE_MS = 100;
 
-/** Hauteurs fixes (représentent l'audio enregistré). */
-function hauteurBarre(i: number): number {
-  return 18 + ((i * 37 + 11) % 82);
-}
+/** Fenêtre gardée en mémoire : 20 min à 10 relevés/s. */
+const CAPACITE_MAX = 12000;
+
+/** Au-dessus de ce niveau d'entrée, l'enregistrement risque d'écrêter. */
+const SEUIL_SATURATION = -6;
 
 function formatChrono(ms: number): string {
   const total = Math.floor(ms / 1000);
@@ -47,14 +51,21 @@ export function ModalEnregistrement({
   onAjouter: (url: string, titre: string, dureeSecondes?: number) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const statut = useAudioRecorderState(recorder);
+  // isMeteringEnabled est absent des presets : sans lui, statut.metering reste
+  // indéfini et aucun niveau réel ne remonte du natif.
+  const recorder = useAudioRecorder({
+    ...RecordingPresets.HIGH_QUALITY,
+    isMeteringEnabled: true,
+  });
+  const statut = useAudioRecorderState(recorder, INTERVALLE_MS);
 
   const [erreur, setErreur] = useState<string | null>(null);
   const [coupeSon, setCoupeSon] = useState(false);
   const [termine, setTermine] = useState(false);
   const [dureeFinale, setDureeFinale] = useState(0);
-  const [niveau, setNiveau] = useState(10);
+  const [echantillons, setEchantillons] = useState<number[]>([]);
+  const [mesureDispo, setMesureDispo] = useState(false);
+  const [largeurZone, setLargeurZone] = useState(0);
   const [envoi, setEnvoi] = useState(false);
 
   const enRegistrement = statut?.isRecording ?? false;
@@ -71,8 +82,9 @@ export function ModalEnregistrement({
   const statutLecture = useAudioPlayerStatus(playerLecture);
   const enLecturePrevue = statutLecture?.playing ?? false;
 
-  // Vrai niveau d'entrée quand le metering est dispo (sinon simulation)
-  const niveauDb = statut?.metering ?? null;
+  const niveauDb = typeof statut?.metering === "number" ? statut.metering : null;
+  const niveauRef = useRef(0);
+  niveauRef.current = niveauDepuisDb(niveauDb);
 
   // Permissions + préparation à l'ouverture
   useEffect(() => {
@@ -81,6 +93,7 @@ export function ModalEnregistrement({
     setErreur(null);
     setTermine(false);
     setDureeFinale(0);
+    setEchantillons([]);
     (async () => {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!actif) return;
@@ -101,24 +114,26 @@ export function ModalEnregistrement({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  // Niveau d'entrée : metering réel si dispo, sinon simulation
+  useEffect(() => {
+    if (niveauDb != null) setMesureDispo(true);
+  }, [niveauDb]);
+
+  // Capture des niveaux à cadence fixe, en lisant la dernière mesure connue.
+  // S'appuyer sur les changements de niveauDb ferait figer la waveform pendant
+  // les passages silencieux, où la mesure ne varie plus assez pour re-rendre.
   useEffect(() => {
     if (!enRegistrement) return;
-    if (niveauDb != null) {
-      setNiveau(Math.max(0, Math.min(100, Math.round(((niveauDb + 60) / 60) * 100))));
-      return;
-    }
     const timer = setInterval(() => {
-      setNiveau(15 + Math.random() * 80);
-    }, 400);
-    return () => {
-      clearInterval(timer);
-      setNiveau(10);
-    };
-  }, [enRegistrement, niveauDb]);
+      setEchantillons((precedents) =>
+        ajouterEchantillon(precedents, niveauRef.current, CAPACITE_MAX)
+      );
+    }, INTERVALLE_MS);
+    return () => clearInterval(timer);
+  }, [enRegistrement]);
 
   async function demarrer() {
     setErreur(null);
+    setEchantillons([]);
     try {
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -169,8 +184,6 @@ export function ModalEnregistrement({
       setEnvoi(false);
     }
   }
-
-  const niveauPct = Math.min(100, Math.round(niveau));
 
   return (
     <Modal
@@ -295,8 +308,9 @@ export function ModalEnregistrement({
               </Texte>
             </View>
 
-            {/* Visualisation : waveform seulement si un audio est enregistré */}
+            {/* Visualisation : la waveform trace les niveaux réellement mesurés */}
             <View
+              onLayout={(e) => setLargeurZone(e.nativeEvent.layout.width - 24)}
               style={{
                 height: 180,
                 marginHorizontal: 16,
@@ -310,30 +324,18 @@ export function ModalEnregistrement({
                 overflow: "hidden",
               }}
             >
-              {termine && dureeFinale > 0 ? (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 4,
-                    height: 120,
-                    paddingHorizontal: 8,
-                  }}
-                >
-                  {Array.from({ length: NB_BARRES }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={{
-                        width: 5,
-                        height: `${hauteurBarre(i)}%`,
-                        borderRadius: 3,
-                        backgroundColor: couleurs.warmGold,
-                        opacity: 0.85,
-                      }}
-                    />
-                  ))}
-                </View>
+              {mesureDispo &&
+              largeurZone > 0 &&
+              echantillons.length > 0 &&
+              (termine || enRegistrement) ? (
+                <WaveformMicro
+                  echantillons={echantillons}
+                  largeur={largeurZone}
+                  direct={enRegistrement}
+                />
               ) : enRegistrement ? (
+                // Sans metering (matériel ou OS qui ne le remonte pas), on
+                // n'affiche pas de tracé plutôt qu'un tracé inventé.
                 <View style={{ alignItems: "center", gap: 10 }}>
                   <View
                     style={{
@@ -426,11 +428,13 @@ export function ModalEnregistrement({
               >
                 <View
                   style={{
-                    width: `${Math.min(100, niveauPct)}%`,
+                    width: `${Math.round(niveauDepuisDb(niveauDb) * 100)}%`,
                     height: "100%",
                     borderRadius: 3,
                     backgroundColor:
-                      niveauPct > 80 ? couleurs.danger : couleurs.terracottaLight,
+                      niveauDb != null && niveauDb > SEUIL_SATURATION
+                        ? couleurs.danger
+                        : couleurs.terracottaLight,
                   }}
                 />
               </View>
@@ -439,9 +443,9 @@ export function ModalEnregistrement({
                 poids="bold"
                 couleur={couleurs.texteSecondaire}
                 numberOfLines={1}
-                style={{ width: 44, textAlign: "right", fontVariant: ["tabular-nums"] }}
+                style={{ width: 52, textAlign: "right", fontVariant: ["tabular-nums"] }}
               >
-                {Math.max(-30, Math.round(-3 - (niveauPct / 100) * 27))}dB
+                {niveauDb != null ? `${Math.round(niveauDb)}dB` : "--"}
               </Texte>
             </View>
 
