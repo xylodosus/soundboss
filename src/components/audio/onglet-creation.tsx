@@ -278,7 +278,12 @@ export function OngletCreation({
         <Puce
           libelle="Décrire"
           actif={!modeParoles}
-          onPress={() => setModeParoles(false)}
+          onPress={() => {
+            setModeParoles(false);
+            // La durée n'a pas cours ici : la garder ferait repartir une
+            // demande avec une consigne que l'API n'appliquera pas.
+            setDuree(null);
+          }}
         />
         <Puce
           libelle="Écrire les paroles"
@@ -334,19 +339,24 @@ export function OngletCreation({
         />
       </View>
 
-      <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
-        <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
-          Durée
-        </Texte>
-        {DUREES.map((d) => (
-          <Puce
-            key={d.secondes}
-            libelle={d.libelle}
-            actif={duree === d.secondes}
-            onPress={() => setDuree((v) => (v === d.secondes ? null : d.secondes))}
-          />
-        ))}
-      </View>
+      {/* Kie.ai n'honore la durée qu'en mode personnalisé sur V5_5. Proposer le
+          réglage ailleurs revenait à promettre trois minutes et à en rendre
+          trente secondes. */}
+      {modeParoles && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
+          <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
+            Durée
+          </Texte>
+          {DUREES.map((d) => (
+            <Puce
+              key={d.secondes}
+              libelle={d.libelle}
+              actif={duree === d.secondes}
+              onPress={() => setDuree((v) => (v === d.secondes ? null : d.secondes))}
+            />
+          ))}
+        </View>
+      )}
 
       <Pressable
         onPress={lancer}

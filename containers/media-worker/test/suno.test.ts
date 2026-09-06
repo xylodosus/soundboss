@@ -5,6 +5,7 @@ import {
   estCallbackFinal,
   parseTacheId,
   pistesDuCallback,
+  dureeApplicable,
   validerDemande,
 } from '../src/suno.ts';
 
@@ -111,5 +112,41 @@ describe('erreurDuCallback', () => {
     // un échec.
     expect(erreurDuCallback({ data: { callbackType: 'complete' } })).toBeNull();
     expect(erreurDuCallback(null)).toBeNull();
+  });
+});
+
+describe('dureeApplicable', () => {
+  it('n’est vraie qu’en personnalisé sur V5_5, comme le documente Kie.ai', () => {
+    expect(dureeApplicable(true, 'V5_5')).toBe(true);
+    expect(dureeApplicable(false, 'V5_5')).toBe(false);
+    expect(dureeApplicable(true, 'V5')).toBe(false);
+    expect(dureeApplicable(false, 'V4')).toBe(false);
+  });
+});
+
+describe('validerDemande — durée', () => {
+  it('retient la durée en mode personnalisé', () => {
+    const d = validerDemande({
+      prompt: 'des paroles',
+      customMode: true,
+      style: 'gospel',
+      title: 'Hosanna',
+      duration: 180,
+    });
+    expect(d.duration).toBe(180);
+  });
+
+  it('écarte une durée que l’API ignorerait de toute façon', () => {
+    // Envoyée hors mode personnalisé, elle serait acceptée puis oubliée : la
+    // demande partirait en promettant trois minutes et en rendant trente
+    // secondes.
+    const d = validerDemande({ prompt: 'un gospel joyeux', duration: 180 });
+    expect(d.duration).toBeUndefined();
+  });
+
+  it('écarte une durée hors bornes', () => {
+    const base = { prompt: 'x', customMode: true, style: 'gospel', title: 'T' };
+    expect(validerDemande({ ...base, duration: 5 }).duration).toBeUndefined();
+    expect(validerDemande({ ...base, duration: 400 }).duration).toBeUndefined();
   });
 });

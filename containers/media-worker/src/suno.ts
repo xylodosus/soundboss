@@ -27,6 +27,18 @@ export interface Demande {
   duration?: number;
 }
 
+/**
+ * La durée n'est honorée qu'en mode personnalisé sur V5_5.
+ *
+ * La doc Kie.ai est explicite : « valid only when custom_mode is true and model
+ * is V5_5 ». Ailleurs le paramètre est accepté puis ignoré, et la piste sort à
+ * la longueur que Suno juge bonne — celui qui a demandé trois minutes se croit
+ * trompé. Autant ne pas l'envoyer.
+ */
+export function dureeApplicable(customMode: boolean, model: Modele): boolean {
+  return customMode && model === 'V5_5';
+}
+
 function objet(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
 }
@@ -62,7 +74,10 @@ export function validerDemande(brut: Record<string, unknown>): Demande {
   }
 
   const duration =
-    typeof brut.duration === 'number' && brut.duration >= 10 && brut.duration <= 360
+    dureeApplicable(customMode, model) &&
+    typeof brut.duration === 'number' &&
+    brut.duration >= 10 &&
+    brut.duration <= 360
       ? Math.round(brut.duration)
       : undefined;
 
