@@ -6,6 +6,7 @@ import {
   parseTacheId,
   pistesDuCallback,
   dureeApplicable,
+  structurerParoles,
   validerDemande,
 } from '../src/suno.ts';
 
@@ -148,5 +149,57 @@ describe('validerDemande — durée', () => {
     const base = { prompt: 'x', customMode: true, style: 'gospel', title: 'T' };
     expect(validerDemande({ ...base, duration: 5 }).duration).toBeUndefined();
     expect(validerDemande({ ...base, duration: 400 }).duration).toBeUndefined();
+  });
+});
+
+describe('structurerParoles', () => {
+  it('laisse intactes des paroles déjà balisées', () => {
+    const deja = '[Verse 1]\nSeigneur je te loue\n[Chorus]\nAlléluia';
+    expect(structurerParoles(deja)).toBe(deja);
+  });
+
+  it('déclare les sections que Suno n’ose pas inventer', () => {
+    const sortie = structurerParoles('Ligne une\nLigne deux');
+    expect(sortie).toContain('[Verse 1]');
+    expect(sortie).toContain('[Instrumental Break]');
+    // Sans Outro, Suno coupe net au dernier mot chanté.
+    expect(sortie).toContain('[Outro]');
+  });
+
+  it('n’ajoute aucun mot chanté', () => {
+    const paroles = 'Seigneur je te loue\nDe tout mon cœur';
+    const sortie = structurerParoles(paroles);
+    // Hors balises et indications entre parenthèses, il ne doit rester que le
+    // texte de l'auteur : inventer des paroles serait signer à sa place.
+    const chante = sortie
+      .split('\n')
+      .filter((l) => l.trim() && !l.startsWith('[') && !l.startsWith('('))
+      .join('\n');
+    expect(chante).toBe(paroles);
+  });
+
+  it('ne fabrique rien à partir de rien', () => {
+    expect(structurerParoles('   ')).toBe('');
+  });
+});
+
+describe('validerDemande — ossature des paroles', () => {
+  const base = { customMode: true, style: 'gospel', title: 'Hosanna' };
+
+  it('structure les paroles quand une durée est demandée', () => {
+    const d = validerDemande({ ...base, prompt: 'Un couplet court', duration: 180 });
+    expect(d.prompt).toContain('[Outro]');
+    expect(d.prompt).toContain('Un couplet court');
+  });
+
+  it('laisse le texte tel quel sans durée demandée', () => {
+    // Rien ne dit que l'auteur veuille autre chose que ce qu'il a écrit.
+    const d = validerDemande({ ...base, prompt: 'Un couplet court' });
+    expect(d.prompt).toBe('Un couplet court');
+  });
+
+  it('ne structure pas un instrumental, qui atteint déjà la durée demandée', () => {
+    const d = validerDemande({ ...base, prompt: '', instrumental: true, duration: 180 });
+    expect(d.prompt).toBe('');
   });
 });

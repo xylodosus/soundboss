@@ -16,7 +16,8 @@ import {
   libelleOrigine,
   sourcesDisponibles,
 } from "@/lib/sources-generation";
-import { formatDateHeure } from "@/lib/format";
+import { BALISES, ajouterBalise, parolesTropCourtes } from "@/lib/paroles";
+import { formatDateHeure, formatTemps } from "@/lib/format";
 import { couleurs, espacement, rayons } from "@/lib/theme";
 
 const ICONE_ORIGINE: Record<OrigineSource, "musical-notes-outline" | "recording-outline" | "folder-open-outline" | "mic-outline"> = {
@@ -313,6 +314,53 @@ export function OngletCreation({
               : "Suno écrit les paroles à partir de cette idée."
           }
         />
+      )}
+
+      {modeParoles && !instrumental && (
+        <>
+          {/* Les balises déclarent les sections. Sans elles, Suno enchaîne un
+              couplet et s'arrête ; un refrain répété ou un passage instrumental
+              ne s'inventent pas tout seuls. */}
+          <View style={{ gap: espacement.xs }}>
+            <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+              Sections
+            </Texte>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: espacement.xs }}>
+              {BALISES.map((b) => (
+                <Pressable
+                  key={b.balise}
+                  onPress={() => setInvite((v) => ajouterBalise(v, b.balise))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ajouter la section ${b.libelle}`}
+                  style={{
+                    minHeight: 36,
+                    justifyContent: "center",
+                    paddingHorizontal: espacement.md,
+                    borderRadius: rayons.pill,
+                    borderWidth: 1,
+                    borderColor: couleurs.bordure,
+                    backgroundColor: couleurs.surfaceCarte,
+                  }}
+                >
+                  <Texte variante="micro" poids="semibold" couleur={couleurs.texteSecondaire}>
+                    {b.libelle}
+                  </Texte>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {parolesTropCourtes(invite, duree) && (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: espacement.sm }}>
+              <Ionicons name="alert-circle-outline" size={16} color={couleurs.warmGold} />
+              <Texte variante="micro" couleur={couleurs.warmGold} style={{ flex: 1 }}>
+                {`Avec voix, le morceau s'arrête quand les paroles finissent : ce texte en couvre nettement moins que ${formatTemps(
+                  duree ?? 0
+                )}. Ajoute des couplets, répète le refrain, ou choisis Sans voix.`}
+              </Texte>
+            </View>
+          )}
+        </>
       )}
 
       {modeParoles && (

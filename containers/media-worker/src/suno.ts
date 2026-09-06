@@ -39,6 +39,41 @@ export function dureeApplicable(customMode: boolean, model: Modele): boolean {
   return customMode && model === 'V5_5';
 }
 
+const BALISE_STRUCTURE = /\[[^\]]+\]/;
+
+export function aDesBalises(paroles: string): boolean {
+  return BALISE_STRUCTURE.test(paroles);
+}
+
+/**
+ * Complète des paroles nues d'une ossature, sans ajouter un seul mot chanté.
+ *
+ * Avec voix, Suno s'arrête quand le texte est épuisé : un couplet de quatre
+ * lignes rend seize secondes, quelle que soit la durée demandée. Le même
+ * morceau en instrumental en rend bien trois minutes — la durée est honorée,
+ * c'est la matière chantée qui manque.
+ *
+ * On ne peut pas écrire de paroles à la place de l'auteur. On peut en revanche
+ * déclarer les sections instrumentales que Suno n'ose pas inventer seul, et
+ * poser l'[Outro] sans lequel il coupe net.
+ */
+export function structurerParoles(paroles: string): string {
+  const texte = paroles.trim();
+  if (!texte || aDesBalises(texte)) return texte;
+  return [
+    '[Intro]',
+    '',
+    '[Verse 1]',
+    texte,
+    '',
+    '[Instrumental Break]',
+    '(extended instrumental solo)',
+    '',
+    '[Outro]',
+    '(instrumental fade)',
+  ].join('\n');
+}
+
 function objet(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
 }
@@ -81,7 +116,12 @@ export function validerDemande(brut: Record<string, unknown>): Demande {
       ? Math.round(brut.duration)
       : undefined;
 
-  return { prompt, customMode, instrumental, model, style, title, duration };
+  // L'ossature ne se justifie que si une durée a été demandée : ailleurs, rien
+  // ne dit que l'auteur veuille autre chose que ce qu'il a écrit.
+  const promptFinal =
+    duration !== undefined && customMode && !instrumental ? structurerParoles(prompt) : prompt;
+
+  return { prompt: promptFinal, customMode, instrumental, model, style, title, duration };
 }
 
 export function parseTacheId(reponse: unknown): string {
