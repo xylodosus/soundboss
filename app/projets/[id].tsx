@@ -20,7 +20,7 @@ import { Ecran } from "@/components/ui/ecran";
 import { Texte } from "@/components/ui/texte";
 import { Bouton } from "@/components/ui/bouton";
 import { Champ, AlerteErreur } from "@/components/ui/champ";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { ModalCreerSeance } from "@/components/ui/modal-creer-seance";
 import { OngletTaches } from "@/components/projet/onglet-taches";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
@@ -307,9 +307,17 @@ export default function DetailProjet() {
 
           <View style={{ gap: 8, marginTop: 12 }}>
             {morceaux.length === 0 ? (
-              <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                Aucun morceau dans le répertoire.
-              </Texte>
+              <EtatVide
+                icone="musical-notes-outline"
+                titre="Répertoire vide"
+                message={
+                  estGestionnaire
+                    ? "Ajoute les morceaux à préparer pour ce projet : leur progression alimentera la barre d'avancement."
+                    : "Aucun morceau n'a encore été inscrit au répertoire de ce projet."
+                }
+                action={estGestionnaire ? () => setModeAjout(true) : undefined}
+                actionTitre={estGestionnaire ? "Ajouter un morceau" : undefined}
+              />
             ) : (
               morceaux.map((morceau, index) => (
                 <CarteMorceau
@@ -343,9 +351,17 @@ export default function DetailProjet() {
           </View>
           <View style={{ gap: 8, marginTop: 12 }}>
             {seances.length === 0 ? (
-              <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                Aucune répétition rattachée à ce projet.
-              </Texte>
+              <EtatVide
+                icone="calendar-outline"
+                titre="Aucune répétition liée"
+                message={
+                  estGestionnaire
+                    ? "Planifie les répétitions consacrées à ce projet pour les retrouver ici."
+                    : "Aucune répétition n'est encore rattachée à ce projet."
+                }
+                action={estGestionnaire ? () => setModeAjoutSeance(true) : undefined}
+                actionTitre={estGestionnaire ? "Planifier une répétition" : undefined}
+              />
             ) : (
               seances.map((seance) => (
                 <Pressable
@@ -385,10 +401,8 @@ export default function DetailProjet() {
 
         {/* Tâches */}
         <View style={{ marginTop: 24, paddingBottom: 60 }}>
-          <Texte poids="extrabold" variante="titre3" style={{ marginBottom: 12 }}>
-            Tâches
-          </Texte>
           <OngletTaches
+            titre="Tâches"
             projetId={id}
             groupeId={projet.groupe_id}
             estGestionnaire={estGestionnaire}

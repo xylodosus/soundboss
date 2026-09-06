@@ -25,7 +25,7 @@ import { Bouton } from "@/components/ui/bouton";
 import { Champ, AlerteErreur } from "@/components/ui/champ";
 import { Avatar } from "@/components/ui/avatar";
 import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
-import { SqueletteListe } from "@/components/ui/etat-vide";
+import { EtatVide, SqueletteListe } from "@/components/ui/etat-vide";
 import { BoutonAjout } from "@/components/ui/bouton-ajout";
 import { formatDateCourte, libelleStatutSeance } from "@/lib/format";
 import * as DocumentPicker from "expo-document-picker";
@@ -311,12 +311,27 @@ export default function DetailSeancePersonnelle() {
           )}
 
           {/* Programme */}
-          <Section titre="Programme (setlist)">
+          <Section
+            titre="Programme (setlist)"
+            action={
+              estProprietaire && !modeSetlist ? (
+                <BoutonAjout titre="Morceau" onPress={() => setModeSetlist(true)} />
+              ) : null
+            }
+          >
             <View style={{ gap: 8 }}>
               {setlist.length === 0 && !modeSetlist && (
-                <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                  Aucun morceau au programme.
-                </Texte>
+                <EtatVide
+                  icone="list-outline"
+                  titre="Aucun morceau au programme"
+                  message={
+                    estProprietaire
+                      ? "Ajoute les morceaux que tu travailleras pendant cette répétition."
+                      : "Le programme de cette répétition n'est pas encore fixé."
+                  }
+                  action={estProprietaire ? () => setModeSetlist(true) : undefined}
+                  actionTitre={estProprietaire ? "Composer le programme" : undefined}
+                />
               )}
               {setlist.map((item, index) => (
                 <View
@@ -401,8 +416,6 @@ export default function DetailSeancePersonnelle() {
                     />
                   </View>
                 </View>
-              ) : estProprietaire ? (
-                <BoutonAjout titre="+ Morceau" onPress={() => setModeSetlist(true)} />
               ) : null}
             </View>
           </Section>
@@ -613,12 +626,31 @@ export default function DetailSeancePersonnelle() {
   );
 }
 
-function Section({ titre, children }: { titre: string; children: React.ReactNode }) {
+function Section({
+  titre,
+  action,
+  children,
+}: {
+  titre: string;
+  /** Bouton d'ajout, placé face au titre plutôt qu'en pleine largeur sous la liste. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <View style={{ marginTop: 24 }}>
-      <Texte poids="extrabold" variante="titre3" style={{ marginBottom: 12 }}>
-        {titre}
-      </Texte>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <Texte poids="extrabold" variante="titre3">
+          {titre}
+        </Texte>
+        {action}
+      </View>
       {children}
     </View>
   );

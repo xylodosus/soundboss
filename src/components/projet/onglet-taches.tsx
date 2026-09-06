@@ -50,10 +50,14 @@ function libellePriorite(priorite: PrioriteTache | null): string {
 
 /** Section Tâches d'un projet : progression, assignation, échéances, priorité. */
 export function OngletTaches({
+  titre,
   projetId,
   groupeId,
   estGestionnaire,
 }: {
+  /** Titre de section : rendu ici pour que le bouton d'ajout lui fasse face,
+   *  plutôt qu'au compteur. Omis quand le composant sert d'onglet. */
+  titre?: string;
   projetId: string;
   groupeId?: string | null;
   estGestionnaire: boolean;
@@ -143,9 +147,16 @@ export function OngletTaches({
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Texte variante="petit" poids="semibold" couleur={couleurs.texteSecondaire}>
-          {taches.length} tâche{taches.length > 1 ? "s" : ""}
-        </Texte>
+        <View>
+          {titre && (
+            <Texte poids="extrabold" variante="titre3">
+              {titre}
+            </Texte>
+          )}
+          <Texte variante="petit" poids="semibold" couleur={couleurs.texteSecondaire}>
+            {taches.length} tâche{taches.length > 1 ? "s" : ""}
+          </Texte>
+        </View>
         {estGestionnaire && !modeFormulaire && (
           <BoutonAjout onPress={ouvrirAjout} />
         )}

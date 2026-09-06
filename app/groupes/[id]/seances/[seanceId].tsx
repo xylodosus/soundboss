@@ -425,7 +425,14 @@ export default function DetailSeance() {
         )}
 
         {/* Setlist */}
-        <Section titre="Programme (setlist)">
+        <Section
+          titre="Programme (setlist)"
+          action={
+            estGestionnaire && !modeSetlist ? (
+              <BoutonAjout titre="Morceau" onPress={() => setModeSetlist(true)} />
+            ) : null
+          }
+        >
           <View style={{ gap: 8 }}>
             {setlist.length === 0 && !modeSetlist && (
               <EtatVide
@@ -521,8 +528,6 @@ export default function DetailSeance() {
                   />
                 </View>
               </View>
-            ) : estGestionnaire ? (
-              <BoutonAjout titre="+ Morceau" onPress={() => setModeSetlist(true)} />
             ) : null}
           </View>
         </Section>
@@ -988,12 +993,31 @@ export default function DetailSeance() {
   );
 }
 
-function Section({ titre, children }: { titre: string; children: React.ReactNode }) {
+function Section({
+  titre,
+  action,
+  children,
+}: {
+  titre: string;
+  /** Bouton d'ajout, placé face au titre plutôt qu'en pleine largeur sous la liste. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <View style={{ marginTop: 24 }}>
-      <Texte poids="extrabold" variante="titre3" style={{ marginBottom: 12 }}>
-        {titre}
-      </Texte>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <Texte poids="extrabold" variante="titre3">
+          {titre}
+        </Texte>
+        {action}
+      </View>
       {children}
     </View>
   );
