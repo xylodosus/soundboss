@@ -4198,6 +4198,19 @@ export type Database = {
     }
     Functions: {
       a_achete_produit: { Args: { p_produit_id: string }; Returns: boolean }
+      demander_generation: {
+        Args: {
+          p_custom_mode?: boolean
+          p_duree?: number
+          p_instrumental?: boolean
+          p_modele?: string
+          p_projet_id?: string
+          p_prompt: string
+          p_style?: string
+          p_titre?: string
+        }
+        Returns: Json
+      }
       demander_stems: {
         Args: { p_enregistrement_id: string; p_stem_type?: string }
         Returns: Json

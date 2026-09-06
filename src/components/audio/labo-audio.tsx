@@ -53,6 +53,7 @@ import {
   type EtatMixage,
 } from "@/lib/stems";
 import { Mixeur } from "@/components/audio/mixeur";
+import { OngletCreation } from "@/components/audio/onglet-creation";
 import { ModalChoixMultiple } from "@/components/ui/modal-choix-multiple";
 import { useAjouterRessource } from "@/lib/queries/ressources";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1475,14 +1476,7 @@ export function LaboAudio({
               )}
 
               {onglet === "creation" && (
-                <View style={{ gap: espacement.sm, paddingVertical: espacement.xl }}>
-                  <Texte variante="petit" couleur={couleurs.texteSecondaire}>
-                    La génération musicale arrive dans un prochain lot.
-                  </Texte>
-                  <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-                    {"Elle produira des maquettes à partir d'une description, pour préparer un arrangement avant la répétition."}
-                  </Texte>
-                </View>
+                <OngletCreation actif={visible && onglet === "creation"} />
               )}
             </ScrollView>
           )}
