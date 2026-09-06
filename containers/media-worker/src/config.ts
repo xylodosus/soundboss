@@ -47,6 +47,17 @@ export const config = {
   /** Conserver le fichier source après traitement (v1 : oui, filet de sécurité). */
   deleteSourceAfterProcessing: process.env.DELETE_SOURCE_AFTER_PROCESSING === 'true',
 
+  kie: {
+    /** Absente, la génération reste inerte plutôt que d'échouer bruyamment. */
+    apiKey: process.env.KIE_API_KEY ?? '',
+    /** Adresse publique du conteneur : Kie.ai y renvoie la fin de génération.
+     *  Sans elle, la génération ne peut pas être lancée — le résultat
+     *  n'arriverait nulle part. */
+    baseUrlPublique: process.env.PUBLIC_BASE_URL ?? '',
+    /** Les fichiers de Kie.ai expirent au bout de 14 jours : on les rapatrie. */
+    bitrate: process.env.KIE_BITRATE ?? '128k',
+  },
+
   fadr: {
     /** Absente, la séparation reste inerte : une fonctionnalité qui se tait vaut
      *  mieux qu'un service qui tombe. Même règle que le déclencheur d'analyse

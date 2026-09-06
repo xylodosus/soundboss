@@ -11,6 +11,9 @@ import { Hono } from 'hono';
 import { config } from './config.ts';
 import { analyzeMedia } from './analyze.ts';
 import { separerStems } from './stems.ts';
+import { finirJobGeneration, lancerJobGeneration } from './generation.ts';
+import { estCallbackFinal, pistesDuCallback } from './suno.ts';
+import { getJobParTacheFournisseur } from './db.ts';
 import { STEM_TYPES, type StemType } from './fadr.ts';
 import { listUnanalyzed } from './db.ts';
 
@@ -37,6 +40,52 @@ const app = new Hono();
 app.get('/health', (c) => c.json({ ok: true }));
 
 // Toutes les autres routes exigent le secret partagé.
+/**
+ * Rappel de fin de génération, appelé par Kie.ai.
+ *
+ * Volontairement **hors** du garde `/jobs/*` : c'est un tiers qui appelle, il
+ * ne connaît pas notre secret partagé. L'authentification se fait autrement —
+ * le `task_id` doit correspondre à un job réellement en attente, sans quoi rien
+ * n'est écrit. Un appel au hasard sur cette adresse ne peut donc rien altérer.
+ */
+app.post('/callbacks/suno', async (c) => {
+  const corps = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const donnees = (corps.data ?? corps) as Record<string, unknown>;
+  const tacheId =
+    typeof donnees.task_id === 'string'
+      ? donnees.task_id
+      : typeof corps.task_id === 'string'
+        ? corps.task_id
+        : null;
+
+  // Toujours répondre 200 : un rappel non reconnu ne doit pas pousser Kie.ai à
+  // réessayer indéfiniment, et un code d'erreur renseignerait un appelant
+  // malveillant sur ce que nous connaissons.
+  if (!tacheId) return c.json({ success: true }, 200);
+
+  const job = await getJobParTacheFournisseur(tacheId).catch(() => null);
+  if (!job) {
+    console.warn('[callback suno] tâche inconnue', tacheId);
+    return c.json({ success: true }, 200);
+  }
+  if (!estCallbackFinal(donnees) && !estCallbackFinal(corps)) {
+    // « text » et « first » annoncent un résultat partiel : on attend la suite.
+    return c.json({ success: true }, 200);
+  }
+  if (job.statut === 'completed') return c.json({ success: true }, 200);
+
+  queueMicrotask(async () => {
+    try {
+      await finirJobGeneration(job.id, pistesDuCallback(donnees));
+      console.log('[callback suno] job terminé', job.id);
+    } catch (e: any) {
+      console.error('[callback suno] échec', job.id, describeError(e));
+    }
+  });
+
+  return c.json({ success: true }, 200);
+});
+
 app.use('/jobs/*', async (c, next) => {
   const auth = c.req.header('Authorization') ?? '';
   if (auth !== `Bearer ${config.workerSecret}`) {
@@ -89,6 +138,23 @@ app.post('/jobs/stems', async (c) => {
   });
 
   return c.json({ success: true, accepted: mediaId, stemType }, 202);
+});
+
+/** Lance une génération musicale. La suite arrive par rappel de Kie.ai. */
+app.post('/jobs/generer', async (c) => {
+  const corps = (await c.req.json().catch(() => ({}))) as { job_id?: string };
+  if (!corps.job_id) return c.json({ success: false, message: 'job_id requis' }, 400);
+
+  queueMicrotask(async () => {
+    try {
+      const r = await lancerJobGeneration(corps.job_id!);
+      console.log('[generation]', JSON.stringify(r));
+    } catch (e: any) {
+      console.error('[generation] échec', corps.job_id, describeError(e));
+    }
+  });
+
+  return c.json({ success: true, accepted: corps.job_id }, 202);
 });
 
 /**

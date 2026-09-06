@@ -97,3 +97,46 @@ export async function listStems(
     fadr_asset_id: string | null;
   }[];
 }
+
+export interface JobIA {
+  id: string;
+  user_id: string | null;
+  statut: string | null;
+  provider_job_id: string | null;
+  input_params: Record<string, unknown>;
+  resultat: Record<string, unknown> | null;
+}
+
+const TABLE_JOBS = 'ai_jobs';
+
+export async function getJobIA(jobId: string): Promise<JobIA | null> {
+  const url =
+    `${config.supabase.url}/rest/v1/${TABLE_JOBS}` +
+    `?id=eq.${jobId}&select=id,user_id,statut,provider_job_id,input_params,resultat`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Lecture job IA échouée (${res.status})`);
+  return ((await res.json()) as JobIA[])[0] ?? null;
+}
+
+/**
+ * Job correspondant à un identifiant de tâche du fournisseur.
+ *
+ * C'est ce qui authentifie un rappel : l'adresse est publique — Kie.ai doit
+ * pouvoir l'appeler — donc un rappel dont le task_id ne correspond à aucun job
+ * en attente est ignoré, sans que rien ne soit écrit.
+ */
+export async function getJobParTacheFournisseur(tacheId: string): Promise<JobIA | null> {
+  const url =
+    `${config.supabase.url}/rest/v1/${TABLE_JOBS}` +
+    `?provider_job_id=eq.${encodeURIComponent(tacheId)}` +
+    `&select=id,user_id,statut,provider_job_id,input_params,resultat`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Recherche job IA échouée (${res.status})`);
+  return ((await res.json()) as JobIA[])[0] ?? null;
+}
+
+export async function patchJobIA(jobId: string, patch: Record<string, unknown>): Promise<void> {
+  const url = `${config.supabase.url}/rest/v1/${TABLE_JOBS}?id=eq.${jobId}`;
+  const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+  if (!res.ok) throw new Error(`Mise à jour job IA échouée (${res.status})`);
+}
