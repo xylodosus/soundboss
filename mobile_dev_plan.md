@@ -635,10 +635,28 @@ Instrumental de 30 s demandé, modèle V5_5, mode personnalisé.
 **Aucune table créée** : `ai_jobs` couvrait déjà le besoin, jusqu'à `credits_cout`
 et `cout_api_reel` côte à côte.
 
-**Reste ouvert :** le tarif réel par génération, à lire dans le tableau de bord
-Kie.ai. Les 2 crédits inscrits dans `demander_generation` sont une supposition,
-pas un calcul — à ajuster pour retrouver le rapport de marge de l'extraction
-(~×4).
+**Tarif établi le 6 septembre.** Kie.ai vend 1 000 de ses crédits pour 5 $. La
+génération « Suno, Generate Music » en consomme **12, soit 0,06 $ par requête**
+— forfaitaire, quelle que soit la durée demandée.
+
+Prix retenu : **1 crédit SoundBoss** (100 F ≈ 0,167 $) pour une génération, qui
+rend deux pistes.
+
+| | Marge |
+|---|---|
+| Prix plein (100 F le crédit) | ×2,8 |
+| Avec la remise du gros pack (83 F) | ×2,3 |
+
+Plus mince que l'extraction (×4,1 et ×3,4), mais sain — et le forfait joue en
+notre faveur : une génération de trois minutes coûte le même prix qu'une de
+trente secondes.
+
+**À creuser : Suno sait aussi séparer, et au forfait.** Le même catalogue
+propose `Vocal Separate` à 0,05 $ et `Multi-Stem Separation` à 0,25 $ **par
+requête**, là où Fadr facture 0,05 $ **par minute**. Le point d'équilibre est à
+cinq minutes : au-delà, Suno revient moins cher — 0,25 $ contre 0,41 $ sur
+`02 Piste 2`. La qualité n'est pas comparée, mais l'écart mérite un essai si le
+volume d'extraction devient significatif.
 
 **Faiblesse connue :** aucun délai d'expiration sur un job de génération. Si un
 rappel se perdait, le job resterait en `processing` indéfiniment. L'extraction,

@@ -30,8 +30,13 @@ declare
   -- Plafond journalier, même rôle que pour les stems : empêcher qu'un testeur
   -- épuise le crédit Kie.ai en un après-midi. Ce n'est pas la facturation.
   c_plafond constant integer := 10;
-  -- Coût en crédits, à ajuster quand le tarif réel de Kie.ai sera connu.
-  c_credits constant integer := 2;
+  -- Tarif relevé le 6 septembre : « Suno, Generate Music » coûte 12 crédits
+  -- Kie.ai, soit 0,06 $ par requête, forfaitaire quelle que soit la durée. À
+  -- 1 crédit SoundBoss (100 F ≈ 0,167 $), la marge est de x2,8 — x2,3 pour un
+  -- acheteur du gros pack. Une requête rend deux pistes.
+  c_credits constant integer := 1;
+  -- Coût fournisseur réel, consigné pour suivre la marge dans vue_ai_couts_marge.
+  c_cout_api constant numeric := 0.06;
 begin
   if v_utilisateur is null then
     return jsonb_build_object('success', false, 'message', 'Non authentifié.');
@@ -65,7 +70,7 @@ begin
     return jsonb_build_object('success', false, 'message', 'Service de génération indisponible.');
   end if;
 
-  insert into ai_jobs (user_id, type, statut, input_params, projet_id, credits_cout, provider)
+  insert into ai_jobs (user_id, type, statut, input_params, projet_id, credits_cout, cout_api_reel, provider)
   values (
     v_utilisateur,
     case when p_instrumental then 'generation_instrumental'::ai_job_type
@@ -81,6 +86,7 @@ begin
       'model', p_modele)),
     p_projet_id,
     c_credits,
+    c_cout_api,
     'kie-suno')
   returning id into v_job;
 
