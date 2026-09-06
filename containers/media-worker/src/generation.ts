@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { config } from './config.ts';
 import { getJobIA, patchJobIA } from './db.ts';
-import { uploadFromFile } from './r2.ts';
+import { uploadFromFile, urlSignee } from './r2.ts';
 import { transcodeToM4a } from './ffmpeg.ts';
 import { lancerGeneration, validerDemande, type PisteGeneree } from './suno.ts';
 
@@ -31,11 +31,20 @@ export async function lancerJobGeneration(jobId: string): Promise<{ tacheId?: st
   if (!job) return { skipped: 'job introuvable' };
 
   try {
-    const demande = validerDemande(job.input_params ?? {});
+    const params = job.input_params ?? {};
+    const demande = validerDemande(params);
+
+    // Reprise d'un morceau existant : Kie.ai ne reçoit pas de fichier, il va
+    // le chercher lui-même. Il lui faut donc une URL signée, autonome, et non
+    // notre clé R2 — que lui seul ne saurait pas lire.
+    const cleSource = typeof params.sourceUrl === 'string' ? params.sourceUrl : null;
+    const urlSource = cleSource ? await urlSignee(cleSource) : undefined;
+
     const tacheId = await lancerGeneration(
       cle,
       demande,
       `${base.replace(/\/$/, '')}/callbacks/suno`,
+      urlSource,
     );
     await patchJobIA(jobId, {
       statut: 'processing',

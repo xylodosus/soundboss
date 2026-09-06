@@ -116,20 +116,34 @@ export function pistesDuCallback(corps: unknown): PisteGeneree[] {
     }));
 }
 
+/**
+ * Durée maximale de l'audio source d'une reprise, imposée par Kie.ai.
+ */
+export const SOURCE_MAX_SECONDES = 8 * 60;
+
 /** Lance une génération. Rend l'identifiant de tâche, la suite arrive par rappel. */
 export async function lancerGeneration(
   cle: string,
   demande: Demande,
   urlRappel: string,
+  /** Audio source d'une reprise. Absent, c'est une création à partir de rien. */
+  urlSource?: string,
 ): Promise<string> {
-  const reponse = await fetch(`${BASE}/api/v1/generate`, {
+  // Deux points d'entrée pour une même intention : reprendre un morceau
+  // existant, ou en créer un de toutes pièces.
+  const chemin = urlSource ? '/api/v1/generate/upload-cover' : '/api/v1/generate';
+  const reponse = await fetch(`${BASE}${chemin}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${cle}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...demande, callBackUrl: urlRappel }),
+    body: JSON.stringify({
+      ...demande,
+      callBackUrl: urlRappel,
+      ...(urlSource ? { uploadUrl: urlSource } : {}),
+    }),
   });
   if (!reponse.ok) {
     const detail = await reponse.text().catch(() => '');
-    throw new Error(`Kie.ai /generate a répondu ${reponse.status} ${detail.slice(0, 200)}`);
+    throw new Error(`Kie.ai ${chemin} a répondu ${reponse.status} ${detail.slice(0, 200)}`);
   }
   return parseTacheId(await reponse.json());
 }

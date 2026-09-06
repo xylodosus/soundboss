@@ -128,3 +128,20 @@ export async function deleteObject(key: string): Promise<void> {
     throw new Error(`Suppression R2 échouée (${res.status}) pour ${key}`);
   }
 }
+
+/**
+ * URL de lecture signée, valable un temps limité.
+ *
+ * Nécessaire parce que Kie.ai ne reçoit pas de fichier : il faut lui donner une
+ * adresse qu'il puisse aller chercher lui-même. La signature dans la requête —
+ * `aws4fetch` avec `signQuery` — produit un lien autonome, sans en-tête
+ * d'autorisation, seul format qu'un tiers puisse suivre.
+ */
+export async function urlSignee(key: string, secondes = 3600): Promise<string> {
+  const url = new URL(objectUrl(key));
+  url.searchParams.set('X-Amz-Expires', String(secondes));
+  const signee = await client.sign(new Request(url, { method: 'GET' }), {
+    aws: { signQuery: true },
+  });
+  return signee.url;
+}
