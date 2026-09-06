@@ -1479,6 +1479,7 @@ export function LaboAudio({
                 <OngletCreation
                   actif={visible && onglet === "creation"}
                   groupeId={groupeId}
+                  seanceId={seanceId}
                   source={piste ? { cle: piste.url, titre: piste.titre ?? "Audio" } : null}
                 />
               )}

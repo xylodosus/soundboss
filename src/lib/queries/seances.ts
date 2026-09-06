@@ -437,8 +437,9 @@ export function useDemanderStems() {
   });
 }
 
-export function useEnregistrementsSeance(seanceId: string) {
+export function useEnregistrementsSeance(seanceId: string, actif = true) {
   return useQuery({
+    enabled: actif && seanceId.length > 0,
     queryKey: clefsSeances.enregistrements(seanceId),
     queryFn: async () => {
       // La clé étrangère est nommée explicitement : depuis l'ajout de

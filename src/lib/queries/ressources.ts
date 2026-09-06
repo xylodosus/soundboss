@@ -17,8 +17,9 @@ export type RessourceAvecJointures = Ressource & {
   } | null;
 };
 
-export function useRessources(groupeId: string, estGestionnaire: boolean) {
+export function useRessources(groupeId: string, estGestionnaire: boolean, actif = true) {
   return useQuery({
+    enabled: actif && groupeId.length > 0,
     queryKey: clefsRessources.liste(groupeId),
     queryFn: async (): Promise<RessourceAvecJointures[]> => {
       const userId = await utilisateurId();

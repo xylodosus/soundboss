@@ -4,9 +4,26 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { Texte } from "@/components/ui/texte";
 import { EtatVide } from "@/components/ui/etat-vide";
+import { ModalChoix } from "@/components/ui/modal-choix";
+import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
 import { useDemanderGeneration, useGenerations } from "@/lib/queries/generation";
+import { useEnregistrementsSeance } from "@/lib/queries/seances";
+import { useRessources } from "@/lib/queries/ressources";
 import { messageErreurGeneration } from "@/lib/generation-erreurs";
+import {
+  type OrigineSource,
+  type SourceGeneration,
+  libelleOrigine,
+  sourcesDisponibles,
+} from "@/lib/sources-generation";
 import { couleurs, espacement, rayons } from "@/lib/theme";
+
+const ICONE_ORIGINE: Record<OrigineSource, "musical-notes-outline" | "recording-outline" | "folder-open-outline" | "mic-outline"> = {
+  labo: "musical-notes-outline",
+  repetition: "recording-outline",
+  groupe: "folder-open-outline",
+  micro: "mic-outline",
+};
 
 const DUREES: { secondes: number; libelle: string }[] = [
   { secondes: 30, libelle: "30 s" },
@@ -25,11 +42,14 @@ const DUREES: { secondes: number; libelle: string }[] = [
 export function OngletCreation({
   actif,
   groupeId,
+  seanceId,
   source,
 }: {
   actif: boolean;
   /** Génération de groupe : visible par tous ses membres. */
   groupeId?: string;
+  /** Répétition dont les audios sont proposés comme points de départ. */
+  seanceId?: string;
   /** Morceau ouvert dans le labo, proposé comme point de départ d'une reprise. */
   source?: { cle: string; titre: string } | null;
 }) {
@@ -39,7 +59,10 @@ export function OngletCreation({
   const [instrumental, setInstrumental] = useState(false);
   const [duree, setDuree] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [reprise, setReprise] = useState(false);
+  /** Audio dont la génération repart. Null : création à partir de rien. */
+  const [depart, setDepart] = useState<SourceGeneration | null>(null);
+  const [choixOuvert, setChoixOuvert] = useState(false);
+  const [microOuvert, setMicroOuvert] = useState(false);
   /**
    * Empreinte de la demande envoyée. Le bouton reste inactif tant que rien n'a
    * changé : deux appuis de suite lanceraient deux générations facturées pour
@@ -48,6 +71,19 @@ export function OngletCreation({
   const [derniereEnvoyee, setDerniereEnvoyee] = useState<string | null>(null);
 
   const { data: generations = [] } = useGenerations(groupeId ?? null, actif);
+  const { data: enregistrements = [] } = useEnregistrementsSeance(seanceId ?? "", actif);
+  // Portée de simple membre : on ne liste que les fichiers partagés au groupe
+  // entier ou à soi. Un chef verra donc moins de fichiers ici que dans l'onglet
+  // Fichiers — mieux vaut en omettre que d'en exposer.
+  const { data: ressources = [] } = useRessources(groupeId ?? "", false, actif);
+
+  const candidats = sourcesDisponibles({
+    labo: source ?? null,
+    enregistrements,
+    ressources,
+  });
+  const suggestion = source ? candidats.find((c) => c.cle === source.cle) ?? null : null;
+  const affiche = depart ?? suggestion;
   const uneTourne = generations.some((g) => g.statut === "queued" || g.statut === "processing");
   const { mutate: demander, isPending } = useDemanderGeneration();
 
@@ -58,11 +94,12 @@ export function OngletCreation({
     titre: titre.trim(),
     instrumental,
     duree,
-    reprise,
+    depart: depart?.cle ?? null,
   });
   const dejaEnvoyee = empreinte === derniereEnvoyee;
   // Une reprise part d'un audio : le style seul peut suffire à la décrire.
-  const aDeQuoiPartir = invite.trim().length > 0 || (personnalise && instrumental) || reprise;
+  const aDeQuoiPartir =
+    invite.trim().length > 0 || (personnalise && instrumental) || depart !== null;
   const peutLancer = !isPending && !dejaEnvoyee && aDeQuoiPartir;
 
   function lancer() {
@@ -78,7 +115,7 @@ export function OngletCreation({
         titre: titre.trim() || null,
         duree,
         groupeId,
-        sourceUrl: reprise && source ? source.cle : null,
+        sourceUrl: depart?.cle ?? null,
       },
       {
         onSuccess: (r) => {
@@ -92,47 +129,73 @@ export function OngletCreation({
 
   return (
     <View style={{ gap: espacement.lg }}>
-      {source && (
-        <Pressable
-          onPress={() => setReprise((v) => !v)}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: reprise }}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: espacement.md,
-            minHeight: 56,
-            paddingHorizontal: espacement.md,
-            borderRadius: rayons.md,
-            backgroundColor: reprise ? couleurs.warmGold15 : couleurs.surfaceCarte,
-            borderWidth: 1,
-            borderColor: reprise ? "rgba(251,191,36,0.35)" : couleurs.bordure,
-          }}
-        >
-          <Ionicons
-            name="repeat-outline"
-            size={20}
-            color={reprise ? couleurs.warmGold : couleurs.texteSecondaire}
+      <View style={{ gap: espacement.sm }}>
+        <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+          Point de départ
+        </Texte>
+
+        {affiche && (
+          <Pressable
+            onPress={() => setDepart(depart ? null : affiche)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: depart !== null }}
+            accessibilityLabel={`Partir de ${affiche.titre}`}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: espacement.md,
+              minHeight: 56,
+              paddingHorizontal: espacement.md,
+              borderRadius: rayons.md,
+              backgroundColor: depart ? couleurs.warmGold15 : couleurs.surfaceCarte,
+              borderWidth: 1,
+              borderColor: depart ? "rgba(251,191,36,0.35)" : couleurs.bordure,
+            }}
+          >
+            <Ionicons
+              name={ICONE_ORIGINE[affiche.origine]}
+              size={20}
+              color={depart ? couleurs.warmGold : couleurs.texteSecondaire}
+            />
+            <View style={{ flex: 1 }}>
+              <Texte
+                variante="petit"
+                poids="semibold"
+                numberOfLines={1}
+                couleur={depart ? couleurs.warmGold : couleurs.texte}
+              >
+                {affiche.titre}
+              </Texte>
+              <Texte variante="micro" couleur={couleurs.texteSecondaire} numberOfLines={1}>
+                {libelleOrigine(affiche.origine)}
+              </Texte>
+            </View>
+            <Ionicons
+              name={depart ? "checkmark-circle" : "ellipse-outline"}
+              size={20}
+              color={depart ? couleurs.warmGold : couleurs.texteSecondaire}
+            />
+          </Pressable>
+        )}
+
+        <View style={{ flexDirection: "row", gap: espacement.sm }}>
+          <BoutonSource
+            icone="albums-outline"
+            libelle={candidats.length > 0 ? "Choisir un audio" : "Aucun audio"}
+            desactive={candidats.length === 0}
+            onPress={() => setChoixOuvert(true)}
           />
-          <View style={{ flex: 1 }}>
-            <Texte variante="petit" poids="semibold" couleur={reprise ? couleurs.warmGold : couleurs.texte}>
-              {reprise ? "Reprise de ce morceau" : "Partir de ce morceau"}
-            </Texte>
-            <Texte variante="micro" couleur={couleurs.texteSecondaire} numberOfLines={1}>
-              {source.titre}
-            </Texte>
-          </View>
-          <Ionicons
-            name={reprise ? "checkmark-circle" : "ellipse-outline"}
-            size={20}
-            color={reprise ? couleurs.warmGold : couleurs.texteSecondaire}
+          <BoutonSource
+            icone="mic-outline"
+            libelle="Enregistrer"
+            onPress={() => setMicroOuvert(true)}
           />
-        </Pressable>
-      )}
+        </View>
+      </View>
 
       {/* Informatif et non dissuasif : un rejet n'est pas facturé, l'essai ne
           coûte donc rien. */}
-      {reprise && (
+      {depart && (
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: espacement.sm }}>
           <Ionicons name="information-circle-outline" size={16} color={couleurs.texteSecondaire} />
           <Texte variante="micro" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
@@ -145,7 +208,7 @@ export function OngletCreation({
         valeur={invite}
         surChanger={setInvite}
         placeholder={
-          reprise
+          depart
             ? "Dans quel style le réarranger ? « version afrobeat, batterie et cuivres »"
             : "Décris le morceau : « gospel joyeux en si bémol, chœur et orgue Hammond »"
         }
@@ -268,7 +331,74 @@ export function OngletCreation({
           })}
         </View>
       )}
+
+      <ModalChoix
+        visible={choixOuvert}
+        titre="Point de départ"
+        elements={candidats.map((c) => ({
+          id: c.cle,
+          titre: c.titre,
+          sousTitre: libelleOrigine(c.origine),
+          icone: ICONE_ORIGINE[c.origine],
+        }))}
+        surChoisir={(cle) => {
+          const choisi = candidats.find((c) => c.cle === cle);
+          if (choisi) setDepart(choisi);
+          setChoixOuvert(false);
+        }}
+        onFermer={() => setChoixOuvert(false)}
+        messageVide="Aucun audio disponible comme point de départ."
+      />
+
+      <ModalEnregistrement
+        visible={microOuvert}
+        onFermer={() => setMicroOuvert(false)}
+        dossier="generation/sources"
+        onAjouter={(cle, titreAudio) =>
+          setDepart({ cle, titre: titreAudio, origine: "micro" })
+        }
+      />
     </View>
+  );
+}
+
+/** Bouton secondaire du choix de source : contour, largeur partagée. */
+function BoutonSource({
+  icone,
+  libelle,
+  onPress,
+  desactive = false,
+}: {
+  icone: "albums-outline" | "mic-outline";
+  libelle: string;
+  onPress: () => void;
+  desactive?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={desactive}
+      accessibilityRole="button"
+      accessibilityLabel={libelle}
+      style={{
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: espacement.xs,
+        minHeight: 44,
+        borderRadius: rayons.pill,
+        borderWidth: 1,
+        borderColor: couleurs.bordure,
+        backgroundColor: couleurs.surfaceCarte,
+        opacity: desactive ? 0.4 : 1,
+      }}
+    >
+      <Ionicons name={icone} size={16} color={couleurs.texteSecondaire} />
+      <Texte variante="micro" poids="semibold" couleur={couleurs.texte}>
+        {libelle}
+      </Texte>
+    </Pressable>
   );
 }
 
