@@ -42,10 +42,16 @@ export async function lancerJobGeneration(jobId: string): Promise<{ tacheId?: st
     if (cleSource) {
       urlSource = await urlSignee(cleSource);
       // Kie.ai va chercher la source lui-même : si notre lien signé n'est pas
-      // suivable, la tâche partirait, serait facturée, et reviendrait vide. Un
-      // appel de vérification coûte une seconde et évite ça.
-      const controle = await fetch(urlSource, { method: 'HEAD' }).catch(() => null);
-      if (!controle || !controle.ok) {
+      // suivable, la tâche partirait, serait facturée, et reviendrait vide.
+      //
+      // Le contrôle se fait en GET sur le premier octet, jamais en HEAD : une
+      // URL signée l'est **pour une méthode**, et un HEAD sur un lien signé
+      // pour GET reçoit un 403 de R2. La première version de ce garde-fou
+      // rejetait ainsi des liens parfaitement valides.
+      const controle = await fetch(urlSource, { headers: { Range: 'bytes=0-0' } }).catch(
+        () => null,
+      );
+      if (!controle || (controle.status !== 200 && controle.status !== 206)) {
         throw new Error(
           `Le lien signé de la source n'est pas accessible (${controle?.status ?? 'réseau'}).`,
         );
