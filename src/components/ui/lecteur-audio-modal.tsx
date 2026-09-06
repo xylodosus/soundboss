@@ -471,7 +471,12 @@ export function LecteurAudioModal({
                 le tempo, la tonalité et les pistes séparées. */}
             {piste && (
               <Pressable
-                onPress={() => setLaboOuvert(true)}
+                onPress={() => {
+                  // Le labo a son propre moteur audio : laisser ce lecteur-ci
+                  // tourner ferait jouer le même morceau deux fois, décalé.
+                  player.pause();
+                  setLaboOuvert(true);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Ouvrir dans le labo audio"
                 style={{
