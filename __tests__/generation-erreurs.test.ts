@@ -1,4 +1,8 @@
-import { etatGeneration, messageErreurGeneration } from "../src/lib/generation-erreurs";
+import {
+  etatGeneration,
+  generationsVisibles,
+  messageErreurGeneration,
+} from "../src/lib/generation-erreurs";
 
 describe("messageErreurGeneration", () => {
   it("explique le refus pour contenu reconnu", () => {
@@ -56,5 +60,72 @@ describe("etatGeneration", () => {
   it("suppose un travail en cours devant un statut inconnu ou absent", () => {
     expect(etatGeneration(null, 0).ton).toBe("attente");
     expect(etatGeneration("bizarre", 0).ton).toBe("attente");
+  });
+});
+
+describe("messageErreurGeneration — droits d'auteur", () => {
+  it("distingue le refus portant sur les paroles de celui portant sur l'enregistrement", () => {
+    const paroles = messageErreurGeneration(
+      "Kie.ai 413 : Uploaded audio contains copyrighted lyrics"
+    );
+    expect(paroles).toContain("paroles chantées");
+    expect(paroles).toContain("texte original");
+
+    const enregistrement = messageErreurGeneration(
+      "Kie.ai 413 : This audio matches an existing recording in our catalog"
+    );
+    expect(enregistrement).toContain("enregistrement existant");
+  });
+
+  it("rappelle dans les deux cas qu'aucune facturation n'a eu lieu", () => {
+    for (const brut of [
+      "Uploaded audio contains copyrighted lyrics",
+      "This audio matches an existing recording in our catalog",
+    ]) {
+      expect(messageErreurGeneration(brut)).toContain("Rien ne t'a été facturé");
+    }
+  });
+
+  it("n'affiche jamais le texte brut du fournisseur pour ces refus", () => {
+    // Le message brut est consigné en base ; ce qui remonte à l'écran doit
+    // être la version compréhensible, jamais l'anglais technique de Kie.ai.
+    expect(messageErreurGeneration("Uploaded audio contains copyrighted lyrics")).not.toContain(
+      "copyrighted"
+    );
+  });
+});
+
+describe("generationsVisibles", () => {
+  const echec = (id: string, user: string, lu: string | null) => ({
+    id,
+    statut: "failed",
+    user_id: user,
+    lu_at: lu,
+  });
+
+  it("garde toutes les générations qui n'ont pas échoué", () => {
+    const liste = [
+      { id: "a", statut: "completed", user_id: "autre", lu_at: null },
+      { id: "b", statut: "processing", user_id: "autre", lu_at: null },
+    ];
+    expect(generationsVisibles(liste, "moi").map((g) => g.id)).toEqual(["a", "b"]);
+  });
+
+  it("montre son propre échec tant qu'il n'a pas été vu", () => {
+    expect(generationsVisibles([echec("a", "moi", null)], "moi")).toHaveLength(1);
+  });
+
+  it("écarte l'échec une fois vu", () => {
+    expect(generationsVisibles([echec("a", "moi", "2026-09-06T10:00:00Z")], "moi")).toEqual([]);
+  });
+
+  it("n'expose jamais l'échec d'un autre membre du groupe", () => {
+    expect(generationsVisibles([echec("a", "quelquun", null)], "moi")).toEqual([]);
+  });
+
+  it("cache les échecs tant que l'identité n'est pas connue", () => {
+    // Rien ne vaut mieux qu'un échec attribué à tort : l'identité arrive de
+    // façon asynchrone, la liste peut être rendue avant.
+    expect(generationsVisibles([echec("a", "moi", null)], null)).toEqual([]);
   });
 });

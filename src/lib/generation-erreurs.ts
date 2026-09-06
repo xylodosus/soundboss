@@ -16,6 +16,14 @@ const TRADUCTIONS: { motif: RegExp; message: string }[] = [
       "Cet audio a été rejeté au titre des droits d'auteur : il correspond à un enregistrement existant. Rien ne t'a été facturé. Essaie avec une création du groupe ou une idée enregistrée au micro.",
   },
   {
+    // Second refus de Suno, distinct du précédent : il ne porte pas sur
+    // l'enregistrement mais sur le texte chanté. Une reprise de cantique
+    // populaire échoue ici même chantée par une voix originale.
+    motif: /copyrighted lyrics|copyright.*lyrics/i,
+    message:
+      "Cet audio a été rejeté au titre des droits d'auteur : les paroles chantées appartiennent à une œuvre protégée. Rien ne t'a été facturé. Essaie avec un texte original.",
+  },
+  {
     motif: /insufficient credits/i,
     message: "Le service de génération n'a plus de crédit. Préviens l'administrateur.",
   },
@@ -55,4 +63,21 @@ export function etatGeneration(
     };
   }
   return { libelle: "En cours", ton: "attente" };
+}
+
+/**
+ * Générations à faire figurer dans la liste.
+ *
+ * Un échec n'a pas sa place dans l'historique : dans un groupe, il s'afficherait
+ * à tous les membres alors qu'il ne concerne que son auteur, et il y resterait.
+ * Il n'est donc montré qu'à son demandeur, et seulement tant qu'il ne l'a pas
+ * vu. La ligne survit en base, où elle sert au suivi des coûts.
+ */
+export function generationsVisibles<
+  T extends { statut: string | null; user_id: string | null; lu_at: string | null },
+>(generations: T[], moi: string | null): T[] {
+  return generations.filter((g) => {
+    if (g.statut !== "failed") return true;
+    return moi !== null && g.user_id === moi && !g.lu_at;
+  });
 }

@@ -13,6 +13,7 @@ import {
 import {
   type TonGeneration,
   etatGeneration,
+  generationsVisibles,
   messageErreurGeneration,
 } from "@/lib/generation-erreurs";
 import { urlLectureR2 } from "@/lib/r2";
@@ -52,9 +53,11 @@ export function OngletGenerations({ groupeId }: { groupeId?: string }) {
     if (job.user_id === moi && !job.lu_at) marquerLue(job.id);
   }
 
+  const visibles = generationsVisibles(generations, moi);
+
   if (isLoading) return <SqueletteListe lignes={3} hauteur={72} />;
 
-  if (generations.length === 0) {
+  if (visibles.length === 0) {
     return (
       <EtatVide
         icone="sparkles-outline"
@@ -70,7 +73,7 @@ export function OngletGenerations({ groupeId }: { groupeId?: string }) {
 
   return (
     <View style={{ gap: 10 }}>
-      {generations.map((job) => {
+      {visibles.map((job) => {
         const enCours = job.statut === "queued" || job.statut === "processing";
         const pistes = job.resultat?.pistes ?? [];
         const etat = etatGeneration(job.statut, pistes.length);
@@ -161,9 +164,31 @@ export function OngletGenerations({ groupeId }: { groupeId?: string }) {
             )}
 
             {job.statut === "failed" && (
-              <Texte variante="micro" couleur={couleurs.danger}>
-                {messageErreurGeneration(job.message_erreur)}
-              </Texte>
+              <View style={{ gap: 10 }}>
+                <Texte variante="micro" couleur={couleurs.danger}>
+                  {messageErreurGeneration(job.message_erreur)}
+                </Texte>
+                {/* L'échec ne s'affiche qu'à son demandeur, et une seule fois :
+                    ce bouton le retire de la liste pour de bon. */}
+                <Pressable
+                  onPress={() => marquerLue(job.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retirer cette génération de la liste"
+                  style={{
+                    alignSelf: "flex-start",
+                    minHeight: 36,
+                    justifyContent: "center",
+                    paddingHorizontal: 14,
+                    borderRadius: rayons.pill,
+                    borderWidth: 1,
+                    borderColor: couleurs.bordure,
+                  }}
+                >
+                  <Texte variante="micro" poids="semibold" couleur={couleurs.texteSecondaire}>
+                    Compris
+                  </Texte>
+                </Pressable>
+              </View>
             )}
 
             {/* Une demande rend deux versions : on les propose toutes les deux

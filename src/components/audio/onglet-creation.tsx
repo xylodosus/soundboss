@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -60,8 +60,17 @@ export function OngletCreation({
   const [instrumental, setInstrumental] = useState(false);
   const [duree, setDuree] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  /** Audio dont la génération repart. Null : création à partir de rien. */
-  const [depart, setDepart] = useState<SourceGeneration | null>(null);
+  /**
+   * Écrire soi-même les paroles, ou laisser Suno les écrire.
+   *
+   * Le choix ne relève pas du confort : en mode personnalisé, l'API chante
+   * `prompt` mot pour mot. Ce mode s'activait auparavant de lui-même dès qu'un
+   * style était saisi, et la description se retrouvait chantée telle quelle.
+   */
+  const [modeParoles, setModeParoles] = useState(false);
+  /** Audio affiché sur la carte de départ, sélectionné ou non. */
+  const [carte, setCarte] = useState<SourceGeneration | null>(null);
+  const [selectionnee, setSelectionnee] = useState(false);
   const [choixOuvert, setChoixOuvert] = useState(false);
   const [microOuvert, setMicroOuvert] = useState(false);
   /**
@@ -83,11 +92,22 @@ export function OngletCreation({
     enregistrements,
     ressources,
   });
-  const suggestion = source ? candidats.find((c) => c.cle === source.cle) ?? null : null;
-  const affiche = depart ?? suggestion;
   const uneTourne = generations.some((g) => g.statut === "queued" || g.statut === "processing");
   const { mutate: demander, isPending } = useDemanderGeneration();
   const { mutate: rangerAudio } = useAjouterAudioPersonnel();
+
+  // Le morceau ouvert dans le labo est proposé d'emblée, mais pas coché : on
+  // suggère, on ne décide pas à la place de l'utilisateur.
+  const cleSource = source?.cle ?? null;
+  useEffect(() => {
+    if (!cleSource || !source) return;
+    setCarte({ cle: cleSource, titre: source.titre, origine: "labo" });
+    setSelectionnee(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleSource]);
+
+  /** Audio réellement envoyé comme point de départ. */
+  const depart = selectionnee ? carte : null;
 
   /**
    * L'audio enregistré au micro est conservé dans « Mes audios » du demandeur.
@@ -96,7 +116,8 @@ export function OngletCreation({
    */
   function surEnregistrement(cle: string, dureeSecondes?: number, tailleOctets?: number) {
     const nom = `Enregistrement ${formatDateHeure(new Date().toISOString())}`;
-    setDepart({ cle, titre: nom, origine: "micro" });
+    setCarte({ cle, titre: nom, origine: "micro" });
+    setSelectionnee(true);
     rangerAudio({
       nom,
       url: cle,
@@ -106,32 +127,36 @@ export function OngletCreation({
     });
   }
 
-  const personnalise = style.trim().length > 0 || titre.trim().length > 0;
   const empreinte = JSON.stringify({
     invite: invite.trim(),
     style: style.trim(),
     titre: titre.trim(),
     instrumental,
     duree,
+    modeParoles,
     depart: depart?.cle ?? null,
   });
   const dejaEnvoyee = empreinte === derniereEnvoyee;
-  // Une reprise part d'un audio : le style seul peut suffire à la décrire.
-  const aDeQuoiPartir =
-    invite.trim().length > 0 || (personnalise && instrumental) || depart !== null;
-  const peutLancer = !isPending && !dejaEnvoyee && aDeQuoiPartir;
+  const complet = modeParoles
+    ? // Le mode personnalisé exige style et titre ; les paroles elles-mêmes ne
+      // sont facultatives que si le morceau est instrumental.
+      style.trim().length > 0 &&
+      titre.trim().length > 0 &&
+      (instrumental || invite.trim().length > 0)
+    : invite.trim().length > 0;
+  const peutLancer = !isPending && !dejaEnvoyee && complet;
 
   function lancer() {
     setMessage(null);
     demander(
       {
         prompt: invite.trim(),
-        // Le mode personnalisé s'active de lui-même dès qu'un style ou un titre
-        // est saisi : un interrupteur de plus n'aurait rien expliqué.
-        customMode: personnalise,
+        customMode: modeParoles,
         instrumental,
-        style: style.trim() || null,
-        titre: titre.trim() || null,
+        // Hors mode personnalisé, l'API veut ces champs vides : les envoyer
+        // quand même ferait basculer la demande sans qu'on l'ait demandé.
+        style: modeParoles ? style.trim() || null : null,
+        titre: modeParoles ? titre.trim() || null : null,
         duree,
         groupeId,
         sourceUrl: depart?.cle ?? null,
@@ -153,48 +178,72 @@ export function OngletCreation({
           Point de départ
         </Texte>
 
-        {affiche && (
-          <Pressable
-            onPress={() => setDepart(depart ? null : affiche)}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: depart !== null }}
-            accessibilityLabel={`Partir de ${affiche.titre}`}
+        {carte && (
+          <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: espacement.md,
               minHeight: 56,
-              paddingHorizontal: espacement.md,
+              paddingLeft: espacement.md,
               borderRadius: rayons.md,
-              backgroundColor: depart ? couleurs.warmGold15 : couleurs.surfaceCarte,
+              backgroundColor: selectionnee ? couleurs.warmGold15 : couleurs.surfaceCarte,
               borderWidth: 1,
-              borderColor: depart ? "rgba(251,191,36,0.35)" : couleurs.bordure,
+              borderColor: selectionnee ? "rgba(251,191,36,0.35)" : couleurs.bordure,
             }}
           >
-            <Ionicons
-              name={ICONE_ORIGINE[affiche.origine]}
-              size={20}
-              color={depart ? couleurs.warmGold : couleurs.texteSecondaire}
-            />
-            <View style={{ flex: 1 }}>
-              <Texte
-                variante="petit"
-                poids="semibold"
-                numberOfLines={1}
-                couleur={depart ? couleurs.warmGold : couleurs.texte}
-              >
-                {affiche.titre}
-              </Texte>
-              <Texte variante="micro" couleur={couleurs.texteSecondaire} numberOfLines={1}>
-                {libelleOrigine(affiche.origine)}
-              </Texte>
-            </View>
-            <Ionicons
-              name={depart ? "checkmark-circle" : "ellipse-outline"}
-              size={20}
-              color={depart ? couleurs.warmGold : couleurs.texteSecondaire}
-            />
-          </Pressable>
+            <Pressable
+              onPress={() => setSelectionnee((v) => !v)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: selectionnee }}
+              accessibilityLabel={`Partir de ${carte.titre}`}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: espacement.md,
+                minHeight: 56,
+              }}
+            >
+              <Ionicons
+                name={ICONE_ORIGINE[carte.origine]}
+                size={20}
+                color={selectionnee ? couleurs.warmGold : couleurs.texteSecondaire}
+              />
+              <View style={{ flex: 1 }}>
+                <Texte
+                  variante="petit"
+                  poids="semibold"
+                  numberOfLines={1}
+                  couleur={selectionnee ? couleurs.warmGold : couleurs.texte}
+                >
+                  {carte.titre}
+                </Texte>
+                <Texte variante="micro" couleur={couleurs.texteSecondaire} numberOfLines={1}>
+                  {selectionnee ? "Reprise de cet audio" : libelleOrigine(carte.origine)}
+                </Texte>
+              </View>
+            </Pressable>
+
+            {/* La croix écarte l'audio ; la surface de la carte ne fait que
+                cocher et décocher, la couleur suffisant à dire l'état. */}
+            <Pressable
+              onPress={() => {
+                setCarte(null);
+                setSelectionnee(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Retirer cet audio"
+              hitSlop={8}
+              style={{
+                width: 48,
+                height: 56,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="close" size={20} color={couleurs.texteSecondaire} />
+            </Pressable>
+          </View>
         )}
 
         <View style={{ flexDirection: "row", gap: espacement.sm }}>
@@ -223,26 +272,56 @@ export function OngletCreation({
         </View>
       )}
 
-      <Champ
-        valeur={invite}
-        surChanger={setInvite}
-        placeholder={
-          depart
-            ? "Dans quel style le réarranger ? « version afrobeat, batterie et cuivres »"
-            : "Décris le morceau : « gospel joyeux en si bémol, chœur et orgue Hammond »"
-        }
-        multiligne
-        label="Description"
-      />
-
+      {/* Le mode décide de la nature du grand champ : idée dont Suno tire des
+          paroles, ou paroles chantées telles quelles. */}
       <View style={{ flexDirection: "row", gap: espacement.sm }}>
-        <View style={{ flex: 1 }}>
-          <Champ valeur={style} surChanger={setStyle} placeholder="Gospel, afrobeat…" label="Style" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Champ valeur={titre} surChanger={setTitre} placeholder="Titre" label="Titre" />
-        </View>
+        <Puce
+          libelle="Décrire"
+          actif={!modeParoles}
+          onPress={() => setModeParoles(false)}
+        />
+        <Puce
+          libelle="Écrire les paroles"
+          actif={modeParoles}
+          onPress={() => setModeParoles(true)}
+        />
       </View>
+
+      {/* En personnalisé instrumental, l'API ignore ce champ : l'afficher
+          laisserait croire que le texte saisi sera chanté. */}
+      {!(modeParoles && instrumental) && (
+        <Champ
+          valeur={invite}
+          surChanger={setInvite}
+          placeholder={
+            modeParoles
+              ? "Le texte qui sera chanté, tel quel"
+              : depart
+                ? "Dans quel style le réarranger ? « version afrobeat, batterie et cuivres »"
+                : "Décris le morceau : « gospel joyeux en si bémol, chœur et orgue Hammond »"
+          }
+          multiligne
+          label={modeParoles ? "Paroles" : "Description"}
+          aide={
+            modeParoles
+              ? "Chanté mot pour mot."
+              : "Suno écrit les paroles à partir de cette idée."
+          }
+        />
+      )}
+
+      {modeParoles && (
+        <>
+          <Champ
+            valeur={style}
+            surChanger={setStyle}
+            placeholder="Gospel ivoirien, tempo lent, chœur mixte, orgue Hammond, batterie discrète…"
+            label="Style"
+            multiligne
+          />
+          <Champ valeur={titre} surChanger={setTitre} placeholder="Titre du morceau" label="Titre" />
+        </>
+      )}
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: espacement.sm }}>
         <Texte variante="petit" couleur={couleurs.texteSecondaire} style={{ flex: 1 }}>
@@ -313,7 +392,10 @@ export function OngletCreation({
         }))}
         surChoisir={(cle) => {
           const choisi = candidats.find((c) => c.cle === cle);
-          if (choisi) setDepart(choisi);
+          if (choisi) {
+            setCarte(choisi);
+            setSelectionnee(true);
+          }
           setChoixOuvert(false);
         }}
         onFermer={() => setChoixOuvert(false)}
@@ -377,19 +459,29 @@ function Champ({
   surChanger,
   placeholder,
   label,
+  aide,
   multiligne = false,
 }: {
   valeur: string;
   surChanger: (v: string) => void;
   placeholder: string;
   label: string;
+  /** Précise ce que l'API fera du texte : la nuance change le résultat. */
+  aide?: string;
   multiligne?: boolean;
 }) {
   return (
     <View style={{ gap: espacement.xs }}>
-      <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-        {label}
-      </Texte>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: espacement.sm }}>
+        <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+          {label}
+        </Texte>
+        {aide && (
+          <Texte variante="micro" couleur={couleurs.muted} numberOfLines={1} style={{ flex: 1 }}>
+            {aide}
+          </Texte>
+        )}
+      </View>
       <TextInput
         value={valeur}
         onChangeText={surChanger}
