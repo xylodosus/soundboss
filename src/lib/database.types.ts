@@ -3152,7 +3152,6 @@ export type Database = {
           duree_secondes: number | null
           id: string
           peaks_url: string | null
-          pupitre_id: string | null
           pupitre_ids: string[]
           seance_id: string
           stems_demandeur: string | null
@@ -3174,7 +3173,6 @@ export type Database = {
           duree_secondes?: number | null
           id?: string
           peaks_url?: string | null
-          pupitre_id?: string | null
           pupitre_ids?: string[]
           seance_id: string
           stems_demandeur: string | null
@@ -3196,7 +3194,6 @@ export type Database = {
           duree_secondes?: number | null
           id?: string
           peaks_url?: string | null
-          pupitre_id?: string | null
           pupitre_ids?: string[]
           seance_id?: string
           stems_demandeur?: string | null
@@ -3212,13 +3209,6 @@ export type Database = {
           url?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "seance_enregistrements_pupitre_id_fkey"
-            columns: ["pupitre_id"]
-            isOneToOne: false
-            referencedRelation: "roles_pupitres"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "seance_enregistrements_seance_id_fkey"
             columns: ["seance_id"]
