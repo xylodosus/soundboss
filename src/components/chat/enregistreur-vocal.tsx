@@ -12,6 +12,7 @@ import {
 import { Texte } from "@/components/ui/texte";
 import { WaveformMicro } from "@/components/audio/waveform-micro";
 import { ajouterEchantillon, niveauDepuisDb } from "@/lib/niveau-micro";
+import { modeEnregistrement, modeLecture } from "@/lib/mode-audio";
 import {
   SEUIL_ANNULATION,
   chronoVocal,
@@ -29,10 +30,17 @@ const CAPACITE_MAX = 6000;
 /**
  * Enregistreur de note vocale, à même la barre de saisie.
  *
- * Le geste est celui que WhatsApp a imposé : on maintient le micro, on glisse
- * vers la gauche pour annuler, vers le haut pour verrouiller. Le relâchement
- * envoie — c'est ce qui fait tenir une note vocale en un seul geste, là où la
- * modale plein écran en demandait quatre.
+ * Deux entrées, et c'est délibéré :
+ *
+ * — un **appui bref** ouvre l'enregistrement en mains libres, corbeille et
+ *   envoi à portée de doigt ;
+ * — un **maintien** reprend le geste que WhatsApp a imposé : glisser vers la
+ *   gauche pour annuler, vers le haut pour verrouiller, relâcher pour envoyer.
+ *
+ * Le geste ne peut pas être la seule issue. La barre remplace la saisie au
+ * moment même où le doigt appuie, et si le doigt se perd dans ce remaniement
+ * l'utilisateur se retrouve enfermé : ni envoi, ni annulation. C'est ce qui
+ * s'est produit. La corbeille reste donc toujours atteignable.
  */
 export function EnregistreurVocal({
   onEnvoyer,
@@ -99,6 +107,9 @@ export function EnregistreurVocal({
     // enregistrer dans le vide.
     if (annuleRef.current) return;
     try {
+      // iOS refuse d'enregistrer tant que la session ne l'autorise pas, et
+      // l'app la règle au démarrage pour la lecture seule.
+      await modeEnregistrement();
       await recorder.prepareToRecordAsync();
       recorder.record();
       debutRef.current = Date.now();
@@ -122,8 +133,12 @@ export function EnregistreurVocal({
     try {
       await recorder.stop();
     } catch {
+      await modeLecture().catch(() => {});
       return null;
     }
+    // Laisser la session en enregistrement renverrait le son vers l'écouteur
+    // du haut sur iOS : la note qu'on vient d'envoyer serait inaudible.
+    await modeLecture().catch(() => {});
     const uri = recorder.uri;
     return uri ? { uri, dureeMs } : null;
   }
@@ -134,10 +149,11 @@ export function EnregistreurVocal({
     glissement.setValue(0);
     setProgressionAnnulation(0);
     setEchantillons([]);
-    if (!resultat || !envoyer) return;
-
-    if (issueAuRelachement(resultat.dureeMs) === "trop-court") {
-      onErreur("Maintiens le micro pour enregistrer.");
+    if (!resultat) return;
+    if (!envoyer) {
+      if (issueAuRelachement(resultat.dureeMs) === "trop-court") {
+        onErreur("Appuie sur le micro pour enregistrer, ou maintiens-le.");
+      }
       return;
     }
 
@@ -157,9 +173,14 @@ export function EnregistreurVocal({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      // Verrouillé, les appuis reviennent aux boutons : sans cela, la
+      // corbeille et l'envoi seraient inatteignables.
+      onStartShouldSetPanResponder: () => etatRef.current !== "verrouille",
+      onMoveShouldSetPanResponder: () => etatRef.current !== "verrouille",
       onPanResponderGrant: () => {
+        // Un appui sur la barre déjà ouverte ne doit pas relancer un second
+        // enregistrement par-dessus le premier.
+        if (etatRef.current !== "repos") return;
         annuleRef.current = false;
         void demarrer();
       },
@@ -183,8 +204,12 @@ export function EnregistreurVocal({
       },
       onPanResponderRelease: () => {
         annuleRef.current = true;
-        // Verrouillé, le doigt peut se lever sans rien conclure.
-        if (etatRef.current === "enregistre") void terminer(true);
+        if (etatRef.current !== "enregistre") return;
+        const issue = issueAuRelachement(Date.now() - debutRef.current);
+        // Un simple tap passe en mains libres plutôt que d'envoyer : c'est ce
+        // qui garantit qu'on peut toujours atteindre les boutons.
+        if (issue === "verrouiller") majEtat("verrouille");
+        else void terminer(issue === "envoyer");
       },
       onPanResponderTerminate: () => {
         annuleRef.current = true;
@@ -194,97 +219,113 @@ export function EnregistreurVocal({
     })
   ).current;
 
-  if (etat === "repos") {
-    return (
-      <View
-        {...panResponder.panHandlers}
-        accessibilityRole="button"
-        accessibilityLabel="Maintenir pour enregistrer une note vocale"
-        style={{ width: 34, height: 40, alignItems: "center", justifyContent: "center" }}
-      >
-        <Ionicons name="mic" size={19} color={envoi ? couleurs.muted : couleurs.danger} />
-      </View>
-    );
-  }
-
   const verrouille = etat === "verrouille";
 
+  // Une seule View porte le geste, du repos jusqu'à la fin : la démonter au
+  // démarrage de l'enregistrement — ce que faisait la version précédente en
+  // rendant deux arbres différents — perdait le doigt en cours de route et
+  // enfermait l'utilisateur dans une barre sans issue.
   return (
     <View
-      onLayout={(e) => setLargeur(e.nativeEvent.layout.width - 150)}
-      style={{
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        minHeight: 48,
-        paddingHorizontal: 12,
-        borderRadius: rayons.pill,
-        backgroundColor: couleurs.surfaceCarte,
-        borderWidth: 1,
-        borderColor: couleurs.bordure,
-      }}
+      {...panResponder.panHandlers}
+      accessibilityRole={etat === "repos" ? "button" : undefined}
+      accessibilityLabel={
+        etat === "repos" ? "Appuyer ou maintenir pour enregistrer une note vocale" : undefined
+      }
+      style={
+        etat === "repos"
+          ? { width: 34, height: 40, alignItems: "center", justifyContent: "center" }
+          : {
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              minHeight: 48,
+              paddingHorizontal: 10,
+              borderRadius: rayons.pill,
+              backgroundColor: couleurs.surfaceCarte,
+              borderWidth: 1,
+              borderColor: couleurs.bordure,
+            }
+      }
     >
-      <Pressable
-        onPress={() => void terminer(false)}
-        disabled={!verrouille}
-        accessibilityRole="button"
-        accessibilityLabel="Supprimer la note vocale"
-        hitSlop={8}
-        style={{ opacity: verrouille ? 1 : 0.35 }}
-      >
-        <Ionicons name="trash-outline" size={20} color={couleurs.danger} />
-      </Pressable>
-
-      <Texte
-        variante="petit"
-        poids="bold"
-        couleur={couleurs.danger}
-        style={{ width: 44, fontVariant: ["tabular-nums"] }}
-      >
-        {chronoVocal(depuis)}
-      </Texte>
-
-      {largeur > 0 && echantillons.length > 0 ? (
-        <View style={{ flex: 1 }}>
-          <WaveformMicro echantillons={echantillons} largeur={largeur} hauteur={28} direct />
-        </View>
+      {etat === "repos" ? (
+        <Ionicons name="mic" size={19} color={envoi ? couleurs.muted : couleurs.danger} />
       ) : (
-        <View style={{ flex: 1 }} />
-      )}
+        <>
+          {/* Toujours active, même le doigt posé : pendant un maintien le
+              geste capte les appuis et elle reste inerte, mais si le geste se
+              perd elle redevient la porte de sortie. Une barre sans issue est
+              pire qu'un bouton sans effet. */}
+          <Pressable
+            onPress={() => void terminer(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Supprimer la note vocale"
+            hitSlop={8}
+            style={{ width: 32, alignItems: "center" }}
+          >
+            <Ionicons name="trash-outline" size={20} color={couleurs.danger} />
+          </Pressable>
 
-      {verrouille ? (
-        <Pressable
-          onPress={() => void terminer(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Envoyer la note vocale"
-          hitSlop={8}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: couleurs.warmGold,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Ionicons name="send" size={16} color={couleurs.charcoal} />
-        </Pressable>
-      ) : (
-        <Animated.View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 4,
-            transform: [{ translateX: glissement }],
-            opacity: 1 - progressionAnnulation * 0.7,
-          }}
-        >
-          <Ionicons name="chevron-back" size={14} color={couleurs.texteSecondaire} />
-          <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-            Glisser pour annuler
+          <Texte
+            variante="petit"
+            poids="bold"
+            couleur={couleurs.danger}
+            style={{ width: 42, fontVariant: ["tabular-nums"] }}
+          >
+            {chronoVocal(depuis)}
           </Texte>
-        </Animated.View>
+
+          {/* La waveform mesure sa propre place. La déduire d'une soustraction
+              faisait déborder le tracé sur le libellé voisin. */}
+          <View
+            onLayout={(e) => setLargeur(e.nativeEvent.layout.width)}
+            style={{ flex: 1, overflow: "hidden" }}
+          >
+            {largeur > 0 && echantillons.length > 0 && (
+              <WaveformMicro
+                echantillons={echantillons}
+                largeur={largeur}
+                hauteur={26}
+                direct
+              />
+            )}
+          </View>
+
+          {verrouille ? (
+            <Pressable
+              onPress={() => void terminer(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Envoyer la note vocale"
+              hitSlop={8}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: couleurs.warmGold,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="send" size={16} color={couleurs.charcoal} />
+            </Pressable>
+          ) : (
+            <Animated.View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 2,
+                transform: [{ translateX: glissement }],
+                opacity: 1 - progressionAnnulation * 0.7,
+              }}
+            >
+              <Ionicons name="chevron-back" size={14} color={couleurs.texteSecondaire} />
+              <Texte variante="micro" couleur={couleurs.texteSecondaire} numberOfLines={1}>
+                Glisser pour annuler
+              </Texte>
+            </Animated.View>
+          )}
+        </>
       )}
     </View>
   );

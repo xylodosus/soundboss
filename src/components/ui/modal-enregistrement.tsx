@@ -13,6 +13,7 @@ import {
 } from "expo-audio";
 import { COULEUR_PALIER, WaveformMicro } from "@/components/audio/waveform-micro";
 import { ajouterEchantillon, niveauDepuisDb, palierNiveau } from "@/lib/niveau-micro";
+import { modeEnregistrement, modeLecture } from "@/lib/mode-audio";
 import { televerserFichier } from "@/lib/r2";
 import { couleurs, police, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
@@ -140,10 +141,14 @@ export function ModalEnregistrement({
     setErreur(null);
     setEchantillons([]);
     try {
+      // iOS refuse d'enregistrer tant que la session ne l'autorise pas, et
+      // l'app la règle au démarrage pour la lecture seule.
+      await modeEnregistrement();
       await recorder.prepareToRecordAsync();
       recorder.record();
     } catch {
       setErreur("Impossible de démarrer l'enregistrement.");
+      await modeLecture().catch(() => {});
     }
   }
 
@@ -151,6 +156,9 @@ export function ModalEnregistrement({
     playerLecture?.pause();
     try {
       await recorder.stop();
+      // Sans ce retour, iOS garde la sortie sur l'écouteur du haut et la
+      // relecture qui suit est presque inaudible.
+      await modeLecture().catch(() => {});
       setDureeFinale(statut?.durationMillis ?? 0);
     } catch {
       setErreur("Impossible de finaliser l'enregistrement.");

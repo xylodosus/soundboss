@@ -1,5 +1,6 @@
 import {
   DUREE_MINIMALE_MS,
+  DUREE_TAP_MS,
   SEUIL_ANNULATION,
   SEUIL_VERROU,
   chronoVocal,
@@ -51,10 +52,15 @@ describe("progressionVers", () => {
 });
 
 describe("issueAuRelachement", () => {
-  it("écarte un appui accidentel", () => {
-    // Le relâchement envoie : sans ce garde-fou, effleurer le micro
-    // publierait une note vide dans la discussion du groupe.
-    expect(issueAuRelachement(0)).toBe("trop-court");
+  it("passe en mains libres sur un simple tap", () => {
+    // Sans cette issue, le geste serait la seule sortie de l'enregistrement :
+    // s'il se perd, l'utilisateur est enfermé sans bouton pour envoyer.
+    expect(issueAuRelachement(0)).toBe("verrouiller");
+    expect(issueAuRelachement(DUREE_TAP_MS - 1)).toBe("verrouiller");
+  });
+
+  it("écarte un appui trop bref pour être une note", () => {
+    expect(issueAuRelachement(DUREE_TAP_MS)).toBe("trop-court");
     expect(issueAuRelachement(DUREE_MINIMALE_MS - 1)).toBe("trop-court");
   });
 

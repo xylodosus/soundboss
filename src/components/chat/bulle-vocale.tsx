@@ -11,6 +11,16 @@ import { couleurs } from "@/lib/theme";
 const NB_POINTS = 26;
 
 /**
+ * Largeur fixe de la bulle.
+ *
+ * La bulle du message se dimensionne sur son contenu : un enfant en `flex: 1`
+ * n'y a pas de largeur de référence et la sienne s'effondre, ce qui écrasait
+ * la piste en une colonne étroite et haute. Une note vocale a de toute façon
+ * une largeur stable, quelle que soit sa durée.
+ */
+const LARGEUR = 208;
+
+/**
  * Note vocale jouable à même la discussion.
  *
  * Rien n'est téléchargé avant l'appui sur lecture : la durée vient de la
@@ -105,7 +115,7 @@ export function BulleVocale({
   const joues = Math.round(ratio * NB_POINTS);
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 }}>
+    <View style={{ width: LARGEUR, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 }}>
       <Pressable
         onPress={() => void basculer()}
         accessibilityRole="button"

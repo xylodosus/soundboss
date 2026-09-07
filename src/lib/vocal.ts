@@ -15,6 +15,16 @@ export const SEUIL_VERROU = 70;
 /** En deçà, l'appui est un accident : rien n'est envoyé. */
 export const DUREE_MINIMALE_MS = 800;
 
+/**
+ * Sous ce seuil, l'appui est un simple tap : on passe en mains libres.
+ *
+ * C'est ce qui empêche le cul-de-sac. Le geste seul ne peut pas être la seule
+ * issue d'un enregistrement : s'il se perd — et il se perd, la barre remplaçant
+ * la saisie au moment même où le doigt appuie — l'utilisateur se retrouve
+ * enfermé, sans bouton pour envoyer ni pour annuler.
+ */
+export const DUREE_TAP_MS = 300;
+
 export type EtatVocal = "repos" | "enregistre" | "verrouille";
 
 export type IssueGeste = "rien" | "annuler" | "verrouiller";
@@ -40,10 +50,12 @@ export function progressionVers(distance: number, seuil: number): number {
   return Math.min(1, distance / seuil);
 }
 
-export type IssueRelachement = "envoyer" | "trop-court";
+export type IssueRelachement = "verrouiller" | "trop-court" | "envoyer";
 
 export function issueAuRelachement(dureeMs: number): IssueRelachement {
-  return dureeMs >= DUREE_MINIMALE_MS ? "envoyer" : "trop-court";
+  if (dureeMs < DUREE_TAP_MS) return "verrouiller";
+  if (dureeMs < DUREE_MINIMALE_MS) return "trop-court";
+  return "envoyer";
 }
 
 /** Chronomètre d'une note vocale : m:ss, sans heures, contrairement au labo. */
