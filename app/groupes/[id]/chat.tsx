@@ -286,7 +286,13 @@ export default function Chat() {
         groupeId,
         type: "image",
         contenu: null,
-        fichier: { url: key, nom: asset.fileName ?? "image.jpg" },
+        // Sans la taille, l'image ne pèse rien dans le stockage du groupe :
+        // elle y serait comptée pour un fichier de zéro octet.
+        fichier: {
+          url: key,
+          nom: asset.fileName ?? "image.jpg",
+          taille: asset.fileSize,
+        },
         pupitreId,
         parentMessageId: messageReponse?.id ?? null,
       });

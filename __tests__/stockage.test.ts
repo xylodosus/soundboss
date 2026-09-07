@@ -46,8 +46,40 @@ describe("agreger", () => {
 
   it("rend toutes les catégories même vides, pour un graphique stable", () => {
     const r = agreger([], [], []);
-    expect(r.categories).toHaveLength(8);
+    expect(r.categories).toHaveLength(9);
     expect(r.total).toBe(0);
     expect(r.nb).toBe(0);
+  });
+});
+
+describe("agreger — médias des discussions", () => {
+  const MO = 1024 * 1024;
+
+  it("compte les pièces jointes du chat, qui ne vivent pas dans ressources", () => {
+    const r = agreger([], [], [], [{ taille: 2 * MO }, { taille: MO }]);
+    const chat = r.categories.find((c) => c.cle === "discussions")!;
+    expect(chat.nb).toBe(2);
+    expect(chat.total).toBe(3 * MO);
+    expect(r.total).toBe(3 * MO);
+  });
+
+  it("reste absent du total quand la discussion est vide", () => {
+    const r = agreger([{ type: "image", taille: MO }], [], []);
+    expect(r.categories.find((c) => c.cle === "discussions")!.nb).toBe(0);
+    expect(r.total).toBe(MO);
+  });
+
+  it("compte un fichier dont la taille manque, sans gonfler le total", () => {
+    // Les images envoyées dans le chat n'enregistraient aucune taille : mieux
+    // vaut un fichier compté à zéro qu'un fichier invisible.
+    const r = agreger([], [], [], [{ taille: null }, { taille: MO }]);
+    const chat = r.categories.find((c) => c.cle === "discussions")!;
+    expect(chat.nb).toBe(2);
+    expect(chat.total).toBe(MO);
+  });
+
+  it("laisse l'espace perso inchangé, faute de discussion", () => {
+    const r = agreger([{ type: "audio", taille: MO }], [{ taille: MO }], []);
+    expect(r.total).toBe(2 * MO);
   });
 });

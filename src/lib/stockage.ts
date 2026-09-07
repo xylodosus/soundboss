@@ -33,6 +33,11 @@ const CATEGORIE_ENREGISTREMENTS = {
   couleur: couleurs.terracotta,
 };
 const CATEGORIE_STEMS = { cle: "stems", label: "Pistes extraites", couleur: "#F472B6" };
+const CATEGORIE_DISCUSSIONS = {
+  cle: "discussions",
+  label: "Médias des discussions",
+  couleur: "#38BDF8",
+};
 
 /**
  * Agrège des tailles en catégories affichables.
@@ -43,7 +48,13 @@ const CATEGORIE_STEMS = { cle: "stems", label: "Pistes extraites", couleur: "#F4
 export function agreger(
   fichiers: { type: string | null; taille: number | null }[],
   enregistrements: { taille: number | null }[],
-  stems: { taille: number | null }[]
+  stems: { taille: number | null }[],
+  /**
+   * Pièces jointes du chat : images, vidéos, documents et notes vocales. Elles
+   * vivent dans `messages`, pas dans `ressources`, et n'étaient comptées nulle
+   * part. L'espace perso n'a pas de discussion, d'où la valeur par défaut.
+   */
+  discussions: { taille: number | null }[] = []
 ): Stockage {
   const categories: CategorieStockage[] = TYPES_FICHIERS.map((t) => ({
     ...t,
@@ -70,7 +81,13 @@ export function agreger(
     pistes.nb += 1;
   }
 
-  const toutes = [...categories, repetitions, pistes];
+  const chat: CategorieStockage = { ...CATEGORIE_DISCUSSIONS, total: 0, nb: 0 };
+  for (const m of discussions) {
+    chat.total += m.taille ?? 0;
+    chat.nb += 1;
+  }
+
+  const toutes = [...categories, repetitions, pistes, chat];
   return {
     categories: toutes,
     total: toutes.reduce((s, c) => s + c.total, 0),
