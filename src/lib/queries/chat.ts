@@ -194,6 +194,10 @@ export function useEnvoyerMessage() {
         fichier_url: fichier?.url ?? null,
         fichier_nom: fichier?.nom ?? null,
         fichier_taille: fichier?.taille ?? null,
+        // Sans elle, la bulle ne connaîtrait la durée qu'après avoir
+        // téléchargé le fichier — l'inverse de ce qu'on veut pour une note
+        // vocale qu'on ouvre pour la lire vite.
+        duree_secondes: fichier?.duree ?? null,
         pupitre_id: pupitreId ?? null,
         parent_message_id: parentMessageId ?? null,
         mentions: mentionIds && mentionIds.length > 0 ? mentionIds : null,

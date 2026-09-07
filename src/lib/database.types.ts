@@ -2116,6 +2116,7 @@ export type Database = {
         Row: {
           contenu: string | null
           created_at: string | null
+          duree_secondes: number | null
           est_epingle: boolean | null
           est_modifie: boolean | null
           est_supprime: boolean | null
@@ -2134,6 +2135,7 @@ export type Database = {
         Insert: {
           contenu?: string | null
           created_at?: string | null
+          duree_secondes?: number | null
           est_epingle?: boolean | null
           est_modifie?: boolean | null
           est_supprime?: boolean | null
@@ -2152,6 +2154,7 @@ export type Database = {
         Update: {
           contenu?: string | null
           created_at?: string | null
+          duree_secondes?: number | null
           est_epingle?: boolean | null
           est_modifie?: boolean | null
           est_supprime?: boolean | null

@@ -36,7 +36,8 @@ import { formatJour, memeJour } from "@/lib/format";
 import { debutDeSerie, nomAuteur } from "@/lib/chat-affichage";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
+import { BulleVocale } from "@/components/chat/bulle-vocale";
+import { EnregistreurVocal } from "@/components/chat/enregistreur-vocal";
 import { VignetteImage } from "@/components/ui/vignette-fichier";
 import { ModalDetailFichier, type FichierDetail } from "@/components/groupe/modal-detail-fichier";
 import { useDialogue } from "@/lib/dialogue";
@@ -117,7 +118,6 @@ export default function Chat() {
   const [pupitreId, setPupitreId] = useState<string | null>(null);
   const [texte, setTexte] = useState("");
   const [envoiFichier, setEnvoiFichier] = useState(false);
-  const [modeEnregistrement, setModeEnregistrement] = useState(false);
   const [menuAttachement, setMenuAttachement] = useState(false);
   const [fichierSelectionne, setFichierSelectionne] = useState<FichierDetail | null>(null);
   const [menuMessage, setMenuMessage] = useState<MessageChat | null>(null);
@@ -125,6 +125,8 @@ export default function Chat() {
   const [texteEdition, setTexteEdition] = useState("");
   const [messageReponse, setMessageReponse] = useState<MessageChat | null>(null);
   const [menuMentions, setMenuMentions] = useState(false);
+  /** Pendant l'enregistrement, la barre vocale occupe seule le composeur. */
+  const [enregistreVocal, setEnregistreVocal] = useState(false);
   const dialogue = useDialogue();
 
   const { data: messages = [] } = useMessages(groupeId, pupitreId);
@@ -296,13 +298,17 @@ export default function Chat() {
     }
   }
 
-  function ajouterAudio(url: string, titre: string) {
-    setModeEnregistrement(false);
+  function ajouterAudio(url: string, dureeSecondes: number, tailleOctets?: number) {
     envoyer.mutate({
       groupeId,
       type: "audio",
       contenu: null,
-      fichier: { url, nom: titre },
+      fichier: {
+        url,
+        nom: "Note vocale",
+        taille: tailleOctets,
+        duree: dureeSecondes,
+      },
       pupitreId,
       parentMessageId: messageReponse?.id ?? null,
     });
@@ -602,33 +608,13 @@ export default function Chat() {
                         </View>
                       </Pressable>
                     ) : typePieceJointe(message) === "audio" && message.fichier_url ? (
-                      <Pressable
-                        onPress={() => setFichierSelectionne(versFichierDetail(message, nomPupitreActif))}
-                        accessibilityRole="button"
-                        accessibilityLabel="Voir le message vocal"
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          paddingVertical: 2,
-                        }}
-                      >
-                        <View
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            backgroundColor: "rgba(251,191,36,0.15)",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Ionicons name="musical-notes" size={16} color={couleurs.warmGold} />
-                        </View>
-                        <Texte variante="petit" poids="semibold">
-                          Message vocal
-                        </Texte>
-                      </Pressable>
+                      // Lecture à même la discussion : une note vocale se
+                      // consomme d'un appui, pas en ouvrant deux écrans.
+                      <BulleVocale
+                        cle={message.fichier_url}
+                        dureeSecondes={message.duree_secondes}
+                        propre={moi}
+                      />
                     ) : message.fichier_url ? (
                       <Pressable
                         onPress={() => setFichierSelectionne(versFichierDetail(message, nomPupitreActif))}
@@ -863,83 +849,78 @@ export default function Chat() {
             borderTopColor: couleurs.bordure,
           }}
         >
+          {!enregistreVocal && (
           <Pressable
-            onPress={() => setMenuAttachement((v) => !v)}
-            disabled={envoiFichier}
-            accessibilityRole="button"
-            accessibilityLabel="Joindre une image ou un fichier"
-            hitSlop={10}
-            style={{ width: 34, height: 40, alignItems: "center", justifyContent: "center" }}
-          >
-            <Ionicons name="attach" size={20} color={couleurs.texte} />
-          </Pressable>
-          <Pressable
-            onPress={() => setModeEnregistrement(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Envoyer un message vocal"
-            hitSlop={10}
-            style={{ width: 34, height: 40, alignItems: "center", justifyContent: "center" }}
-          >
-            <Ionicons name="mic" size={19} color={couleurs.danger} />
-          </Pressable>
-          <Pressable
-            onPress={() => setMenuMentions(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Mentionner un membre"
-            hitSlop={10}
-            style={{ width: 34, height: 40, alignItems: "center", justifyContent: "center" }}
-          >
-            <Ionicons name="at" size={19} color={couleurs.warmGold} />
-          </Pressable>
-          <TextInput
-            ref={inputTexte}
-            placeholder="Écris un message…"
-            placeholderTextColor={couleurs.texteFaible}
-            value={texte}
-            onChangeText={setTexte}
-            multiline
-            submitBehavior="newline"
-            textAlignVertical="top"
-            style={{
-              flex: 1,
-              minHeight: 44,
-              maxHeight: 120,
-              borderRadius: 22,
-              backgroundColor: couleurs.surfaceCarte,
-              paddingHorizontal: 16,
-              paddingTop: Platform.OS === "ios" ? 12 : 8,
-              paddingBottom: Platform.OS === "ios" ? 12 : 8,
-              color: couleurs.texte,
-              fontFamily: police.regular,
-              fontSize: 15,
-            }}
+              onPress={() => setMenuAttachement((v) => !v)}
+              disabled={envoiFichier}
+              accessibilityRole="button"
+              accessibilityLabel="Joindre une image ou un fichier"
+              hitSlop={10}
+              style={{ width: 34, height: 40, alignItems: "center", justifyContent: "center" }}
+            >
+              <Ionicons name="attach" size={20} color={couleurs.texte} />
+            </Pressable>
+          )}
+          <EnregistreurVocal
+            onEnvoyer={ajouterAudio}
+            onErreur={(m) => dialogue.erreur(m)}
+            onActif={setEnregistreVocal}
           />
-          <Pressable
-            onPress={envoyerTexte}
-            disabled={!texte.trim()}
-            accessibilityRole="button"
-            accessibilityLabel="Envoyer"
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: texte.trim() ? couleurs.warmGold : "rgba(255,255,255,0.1)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="send" size={18} color={texte.trim() ? couleurs.charcoal : couleurs.muted} />
-          </Pressable>
+          {!enregistreVocal && (
+            <>
+            <Pressable
+              onPress={() => setMenuMentions(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Mentionner un membre"
+              hitSlop={10}
+              style={{ width: 34, height: 40, alignItems: "center", justifyContent: "center" }}
+            >
+              <Ionicons name="at" size={19} color={couleurs.warmGold} />
+            </Pressable>
+            <TextInput
+              ref={inputTexte}
+              placeholder="Écris un message…"
+              placeholderTextColor={couleurs.texteFaible}
+              value={texte}
+              onChangeText={setTexte}
+              multiline
+              submitBehavior="newline"
+              textAlignVertical="top"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                maxHeight: 120,
+                borderRadius: 22,
+                backgroundColor: couleurs.surfaceCarte,
+                paddingHorizontal: 16,
+                paddingTop: Platform.OS === "ios" ? 12 : 8,
+                paddingBottom: Platform.OS === "ios" ? 12 : 8,
+                color: couleurs.texte,
+                fontFamily: police.regular,
+                fontSize: 15,
+              }}
+            />
+            <Pressable
+              onPress={envoyerTexte}
+              disabled={!texte.trim()}
+              accessibilityRole="button"
+              accessibilityLabel="Envoyer"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: texte.trim() ? couleurs.warmGold : "rgba(255,255,255,0.1)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="send" size={18} color={texte.trim() ? couleurs.charcoal : couleurs.muted} />
+            </Pressable>
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
       </GestureHandlerRootView>
-
-      <ModalEnregistrement
-        visible={modeEnregistrement}
-        onFermer={() => setModeEnregistrement(false)}
-        dossier="messages"
-        onAjouter={ajouterAudio}
-      />
 
       <ModalDetailFichier
         fichier={fichierSelectionne}
