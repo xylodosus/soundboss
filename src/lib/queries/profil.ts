@@ -9,7 +9,6 @@ export const clefsProfil = {
   packs: ["wallet", "packs"] as const,
   transactions: ["wallet", "transactions"] as const,
   notifications: ["notifications"] as const,
-  jobs: ["jobs-ia"] as const,
 };
 
 export function useProfil() {
@@ -155,22 +154,6 @@ export function useMarquerNotifications() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: clefsProfil.notifications });
       queryClient.invalidateQueries({ queryKey: ["non-lues"] });
-    },
-  });
-}
-
-export function useJobsIA() {
-  return useQuery({
-    queryKey: clefsProfil.jobs,
-    queryFn: async () => {
-      const userId = await utilisateurId();
-      const { data } = await supabase
-        .from("ai_jobs")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      return (data ?? []) as Database["public"]["Tables"]["ai_jobs"]["Row"][];
     },
   });
 }

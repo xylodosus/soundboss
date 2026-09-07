@@ -84,7 +84,6 @@ export default function LayoutRacine() {
                   <Stack.Screen name="projets/[id]" options={{ headerShown: false }} />
                   <Stack.Screen name="profil/parametres" options={{ headerShown: false }} />
                   <Stack.Screen name="profil/notifications" options={{ headerShown: false }} />
-                  <Stack.Screen name="profil/jobs-ia" options={{ headerShown: false }} />
                 </Stack>
               </FournisseurPush>
             </FournisseurAudio>
