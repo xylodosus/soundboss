@@ -70,6 +70,23 @@ export default function Profil() {
                 )}
               </View>
             </View>
+            <Pressable
+              onPress={() => router.push("/profil/editer" as Href)}
+              accessibilityRole="button"
+              accessibilityLabel="Modifier mon profil"
+              hitSlop={8}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: couleurs.bordure,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="create-outline" size={18} color={couleurs.warmGold} />
+            </Pressable>
           </View>
         )}
 

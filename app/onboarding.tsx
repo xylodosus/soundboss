@@ -4,6 +4,7 @@ import { Redirect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase, utilisateurId } from "@/lib/supabase";
+import { GENRES, INSTRUMENTS, NIVEAUX } from "@/lib/profil-options";
 import { couleurs, police, rayons } from "@/lib/theme";
 import { Ecran } from "@/components/ui/ecran";
 import { Texte } from "@/components/ui/texte";
@@ -12,47 +13,6 @@ import { AlerteErreur } from "@/components/ui/champ";
 import { PAYS_AFRIQUE } from "@/components/auth/pays-card";
 import { Drapeau } from "@/components/ui/drapeau";
 import { useSession } from "@/lib/session";
-
-const INSTRUMENTS = [
-  "Chant",
-  "Piano",
-  "Guitare",
-  "Basse",
-  "Batterie",
-  "Percussions",
-  "Balafon",
-  "Djembé",
-  "Saxophone",
-  "Trompette",
-  "Violon",
-  "Kora",
-  "Clavier / Synthé",
-  "Autre",
-] as const;
-
-const GENRES = [
-  "Gospel",
-  "Zouglou",
-  "Coupé-décalé",
-  "Afrobeat",
-  "Mbalax",
-  "Rumba",
-  "Zouk",
-  "Reggae",
-  "Soul",
-  "Jazz",
-  "Hip-hop",
-  "Chorale",
-  "Fusion",
-  "Autre",
-] as const;
-
-const NIVEAUX = [
-  { valeur: "debutant", label: "Débutant" },
-  { valeur: "intermediaire", label: "Intermédiaire" },
-  { valeur: "avance", label: "Avancé" },
-  { valeur: "expert", label: "Expert" },
-] as const;
 
 const ROLES = [
   { valeur: "musicien", label: "Musicien", desc: "pour jouer et créer", icone: "musical-notes" as const },
