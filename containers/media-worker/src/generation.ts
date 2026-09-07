@@ -9,10 +9,22 @@ import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { config } from './config.ts';
-import { getJobIA, patchJobIA } from './db.ts';
+import { generationsEnSuspens, getJobIA, patchJobIA } from './db.ts';
 import { uploadFromFile, urlSignee } from './r2.ts';
 import { transcodeToM4a } from './ffmpeg.ts';
-import { lancerGeneration, validerDemande, type PisteGeneree } from './suno.ts';
+import {
+  etatDeLaTache,
+  lancerGeneration,
+  recupererTache,
+  validerDemande,
+  type PisteGeneree,
+} from './suno.ts';
+import {
+  MESSAGE_ABANDON,
+  aInterroger,
+  ageEnMinutes,
+  suiteADonner,
+} from './generation-regles.ts';
 
 /** Où ranger une piste générée dans R2. */
 export function cleGeneration(jobId: string, index: number): string {
@@ -143,4 +155,91 @@ export async function finirJobGeneration(
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+export interface BilanReconciliation {
+  examines: number;
+  termines: number;
+  echoues: number;
+  laisses: number;
+  erreurs: number;
+}
+
+/**
+ * Rattrape les générations dont le rappel n'est jamais arrivé.
+ *
+ * Le rappel est le seul mécanisme de clôture, et rien ne le garantit : un
+ * redémarrage du conteneur, une adresse publique changée, un échec d'émission
+ * chez Kie.ai, et le job reste `processing` pour toujours. L'écran annonce
+ * alors « en cours » indéfiniment, pour un quota déjà consommé.
+ *
+ * On n'invente pas l'issue à partir du temps écoulé : on interroge le
+ * fournisseur, qui seul sait si les pistes existent. Le temps ne tranche qu'en
+ * dernier recours, quand même lui reste muet.
+ */
+export async function reconcilierGenerations(limite = 25): Promise<BilanReconciliation> {
+  const bilan: BilanReconciliation = {
+    examines: 0,
+    termines: 0,
+    echoues: 0,
+    laisses: 0,
+    erreurs: 0,
+  };
+
+  const cle = config.kie.apiKey;
+  if (!cle) return bilan;
+
+  const jobs = await generationsEnSuspens(limite);
+  const maintenant = new Date();
+
+  for (const job of jobs) {
+    const age = ageEnMinutes(job.started_at ?? job.created_at, maintenant);
+    if (!aInterroger(age)) {
+      bilan.laisses += 1;
+      continue;
+    }
+    bilan.examines += 1;
+
+    // Un job jamais lancé n'a pas d'identifiant de tâche : personne à
+    // interroger. Seule l'échéance peut le clore.
+    if (!job.provider_job_id) {
+      if (suiteADonner('inconnue', age) === 'echouer') {
+        await patchJobIA(job.id, {
+          statut: 'failed',
+          message_erreur: MESSAGE_ABANDON,
+          completed_at: maintenant.toISOString(),
+        });
+        bilan.echoues += 1;
+      } else {
+        bilan.laisses += 1;
+      }
+      continue;
+    }
+
+    try {
+      const { etat, message, pistes } = etatDeLaTache(
+        await recupererTache(cle, job.provider_job_id),
+      );
+      const suite = suiteADonner(etat, age);
+
+      if (suite === 'finir') {
+        // finirJobGeneration rapatrie les pistes dans R2 : c'est exactement ce
+        // qu'aurait fait le rappel perdu.
+        await finirJobGeneration(job.id, pistes);
+        bilan.termines += 1;
+      } else if (suite === 'echouer') {
+        await finirJobGeneration(job.id, [], message ?? MESSAGE_ABANDON);
+        bilan.echoues += 1;
+      } else {
+        bilan.laisses += 1;
+      }
+    } catch (e) {
+      // Un job qu'on n'a pas su joindre reste en suspens : le prochain
+      // balayage réessaiera, et l'échéance absolue le clora de toute façon.
+      console.error('[reconciliation] échec', job.id, e instanceof Error ? e.message : e);
+      bilan.erreurs += 1;
+    }
+  }
+
+  return bilan;
 }

@@ -6,6 +6,8 @@ import {
   parseTacheId,
   pistesDuCallback,
   dureeApplicable,
+  etatDeLaTache,
+  pistesDeLaTache,
   structurerParoles,
   validerDemande,
 } from '../src/suno.ts';
@@ -201,5 +203,89 @@ describe('validerDemande — ossature des paroles', () => {
   it('ne structure pas un instrumental, qui atteint déjà la durée demandée', () => {
     const d = validerDemande({ ...base, prompt: '', instrumental: true, duration: 180 });
     expect(d.prompt).toBe('');
+  });
+});
+
+describe('etatDeLaTache', () => {
+  const tache = (status: string, sunoData: unknown[] = [], extra = {}) => ({
+    code: 200,
+    msg: 'success',
+    data: { status, response: { sunoData }, ...extra },
+  });
+  const piste = { id: 'a', audio_url: 'https://x/a.mp3', duration: 180, title: 'T' };
+
+  it('ne conclut pas sur une étape intermédiaire', () => {
+    // TEXT_SUCCESS annonce les paroles, FIRST_SUCCESS la première piste :
+    // conclure ici enregistrerait un résultat partiel comme définitif.
+    for (const s of ['PENDING', 'TEXT_SUCCESS', 'FIRST_SUCCESS']) {
+      expect(etatDeLaTache(tache(s)).etat).toBe('en_cours');
+    }
+    expect(etatDeLaTache(tache('FIRST_SUCCESS', [piste])).etat).toBe('en_cours');
+  });
+
+  it('rend les pistes d’une tâche réussie', () => {
+    const r = etatDeLaTache(tache('SUCCESS', [piste, { ...piste, id: 'b' }]));
+    expect(r.etat).toBe('reussie');
+    expect(r.pistes).toHaveLength(2);
+    expect(r.pistes[0].url).toBe('https://x/a.mp3');
+    expect(r.pistes[0].duree).toBe(180);
+  });
+
+  it('sauve les pistes d’un rappel perdu', () => {
+    // CALLBACK_EXCEPTION désigne précisément le cas qu’on répare : la
+    // génération a abouti, le rappel n’est pas arrivé. Conclure à l’échec
+    // jetterait deux pistes déjà payées.
+    const r = etatDeLaTache(tache('CALLBACK_EXCEPTION', [piste]));
+    expect(r.etat).toBe('reussie');
+    expect(r.pistes).toHaveLength(1);
+  });
+
+  it('conclut à l’échec sur un CALLBACK_EXCEPTION sans piste', () => {
+    expect(etatDeLaTache(tache('CALLBACK_EXCEPTION')).etat).toBe('echouee');
+  });
+
+  it('reprend le motif d’échec du fournisseur', () => {
+    const r = etatDeLaTache(
+      tache('GENERATE_AUDIO_FAILED', [], { errorMessage: 'copyrighted lyrics' })
+    );
+    expect(r.etat).toBe('echouee');
+    expect(r.message).toContain('copyrighted lyrics');
+  });
+
+  it('traite les mots sensibles comme un échec', () => {
+    expect(etatDeLaTache(tache('SENSITIVE_WORD_ERROR')).etat).toBe('echouee');
+  });
+
+  it('remonte une erreur portée par la racine', () => {
+    const r = etatDeLaTache({ code: 404, msg: 'task not found', data: null });
+    expect(r.etat).toBe('echouee');
+    expect(r.message).toContain('404');
+  });
+
+  it('avoue son ignorance sur un statut inconnu', () => {
+    // Mieux vaut « inconnue » qu’un échec inventé : le job garde sa chance
+    // jusqu’à l’échéance absolue.
+    expect(etatDeLaTache(tache('QUELQUE_CHOSE_DE_NOUVEAU')).etat).toBe('inconnue');
+    expect(etatDeLaTache(null).etat).toBe('inconnue');
+  });
+});
+
+describe('pistesDeLaTache', () => {
+  it('lit sunoData sous data.response', () => {
+    const r = pistesDeLaTache({
+      data: { response: { sunoData: [{ audio_url: 'https://x/a.mp3', duration: 12 }] } },
+    });
+    expect(r).toHaveLength(1);
+    expect(r[0].duree).toBe(12);
+  });
+
+  it('ignore une entrée sans audio_url', () => {
+    expect(
+      pistesDeLaTache({ data: { response: { sunoData: [{ id: 'a' }] } } })
+    ).toEqual([]);
+  });
+
+  it('ne confond pas la forme du rappel avec celle de la tâche', () => {
+    expect(pistesDeLaTache({ data: { data: [{ audio_url: 'https://x/a.mp3' }] } })).toEqual([]);
   });
 });

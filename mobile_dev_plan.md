@@ -81,10 +81,8 @@ pas une tâche.
 
 **Dettes techniques**
 
-- **Jobs de génération sans échéance** : un rappel Kie.ai perdu laisse un job en
-  `processing` indéfiniment, rien ne le clôt.
-- **`seance_enregistrements.pupitre_id`** à supprimer, remplacée par
-  `pupitre_ids`.
+- ~~Jobs de génération sans échéance~~ ✅ réglé le 7/09, § 4 duoetvicies.
+- ~~`seance_enregistrements.pupitre_id`~~ ✅ supprimée le 7/09.
 - **Chaîne push serveur non versionnée** : triggers, `ff_enqueue_notif` et
   `send-push` n'existent que sur le projet distant, à exporter dans `supabase/`.
 
@@ -871,6 +869,41 @@ des coûts.
   moteur — `expo-audio` d'un côté, `react-native-audio-api` de l'autre — et le
   même morceau jouait deux fois, décalé. ✅ vérifié le 6/09, l'empilement de
   modales ne pose pas de problème.
+
+## 4 duoetvicies. Clôture des générations orphelines (7 sept. 2026)
+
+Le rappel de Kie.ai était le **seul** mécanisme de fin, et rien ne le garantit :
+conteneur redémarré, adresse publique changée, échec d'émission chez le
+fournisseur. Le job restait alors `processing` indéfiniment — écran bloqué sur
+« en cours », quota du jour consommé pour rien.
+
+**On n'invente pas l'issue à partir du temps écoulé.** Passé cinq minutes, le
+conteneur interroge `GET /api/v1/generate/record-info?taskId=`, qui seul sait si
+les pistes existent.
+
+| Statut Kie.ai | Lecture |
+|---|---|
+| `PENDING`, `TEXT_SUCCESS`, `FIRST_SUCCESS` | en cours — étapes, pas issues |
+| `SUCCESS` | réussie, pistes rapatriées dans R2 |
+| `CALLBACK_EXCEPTION` **avec** pistes | **réussie** — c'est le rappel perdu |
+| `CALLBACK_EXCEPTION` sans piste | échouée |
+| `CREATE_TASK_FAILED`, `GENERATE_AUDIO_FAILED`, `SENSITIVE_WORD_ERROR` | échouée |
+| inconnu | ni l'un ni l'autre : le job garde sa chance |
+
+⚠️ **`CALLBACK_EXCEPTION` désigne exactement le cas qu'on répare.** La génération
+a abouti, le rappel n'est pas arrivé. Le traiter comme un échec jetterait deux
+pistes déjà payées — d'où la règle : les pistes priment sur le statut.
+
+Le temps ne tranche qu'en dernier recours, à **60 minutes**, et seulement quand
+le fournisseur reste muet (`en_cours` prolongé ou statut inconnu). Un job jamais
+lancé, sans `provider_job_id`, n'a personne à interroger : seule l'échéance le
+clôt.
+
+**Déclenchement** : `pg_cron` toutes les dix minutes appelle
+`reconcilier_generations()` (SECURITY DEFINER), qui lit `app_secrets` et poste
+sur `/jobs/generations/reconcilier`. Deux gardes avant l'appel : secrets
+présents, et au moins un job en suspens — inutile de réveiller le conteneur
+pour rien. ACL vérifiée : `{postgres=X/postgres, service_role=X/postgres}`.
 
 ## 5. Commandes utiles
 

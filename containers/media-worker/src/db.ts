@@ -105,14 +105,19 @@ export interface JobIA {
   provider_job_id: string | null;
   input_params: Record<string, unknown>;
   resultat: Record<string, unknown> | null;
+  created_at?: string | null;
+  started_at?: string | null;
 }
+
+const CHAMPS_JOB =
+  'id,user_id,statut,provider_job_id,input_params,resultat,created_at,started_at';
 
 const TABLE_JOBS = 'ai_jobs';
 
 export async function getJobIA(jobId: string): Promise<JobIA | null> {
   const url =
     `${config.supabase.url}/rest/v1/${TABLE_JOBS}` +
-    `?id=eq.${jobId}&select=id,user_id,statut,provider_job_id,input_params,resultat`;
+    `?id=eq.${jobId}&select=${CHAMPS_JOB}`;
   const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Lecture job IA échouée (${res.status})`);
   return ((await res.json()) as JobIA[])[0] ?? null;
@@ -129,7 +134,7 @@ export async function getJobParTacheFournisseur(tacheId: string): Promise<JobIA 
   const url =
     `${config.supabase.url}/rest/v1/${TABLE_JOBS}` +
     `?provider_job_id=eq.${encodeURIComponent(tacheId)}` +
-    `&select=id,user_id,statut,provider_job_id,input_params,resultat`;
+    `&select=${CHAMPS_JOB}`;
   const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Recherche job IA échouée (${res.status})`);
   return ((await res.json()) as JobIA[])[0] ?? null;
@@ -139,4 +144,20 @@ export async function patchJobIA(jobId: string, patch: Record<string, unknown>):
   const url = `${config.supabase.url}/rest/v1/${TABLE_JOBS}?id=eq.${jobId}`;
   const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
   if (!res.ok) throw new Error(`Mise à jour job IA échouée (${res.status})`);
+}
+
+/**
+ * Générations que Kie.ai n'a jamais clôturées.
+ *
+ * `started_at` est renseigné au lancement ; `created_at` sert de repli pour un
+ * job resté `queued`, que le conteneur n'a même pas réussi à lancer.
+ */
+export async function generationsEnSuspens(limite: number): Promise<JobIA[]> {
+  const url =
+    `${config.supabase.url}/rest/v1/${TABLE_JOBS}` +
+    `?statut=in.(queued,processing)&provider=eq.kie-suno` +
+    `&select=${CHAMPS_JOB}&order=created_at.asc&limit=${limite}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Lecture des générations en suspens échouée (${res.status})`);
+  return (await res.json()) as JobIA[];
 }

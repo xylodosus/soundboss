@@ -170,9 +170,7 @@ export interface PisteGeneree {
 }
 
 /** Pistes d'un rappel, quelle que soit la profondeur d'enveloppe observée. */
-export function pistesDuCallback(corps: unknown): PisteGeneree[] {
-  const o = objet(corps);
-  const brut = Array.isArray(o?.data) ? o.data : objet(o?.data)?.data;
+function normaliserPistes(brut: unknown): PisteGeneree[] {
   if (!Array.isArray(brut)) return [];
   return brut
     .map((p) => objet(p))
@@ -184,6 +182,84 @@ export function pistesDuCallback(corps: unknown): PisteGeneree[] {
       titre: typeof p.title === 'string' ? p.title : null,
       image: typeof p.image_url === 'string' ? p.image_url : null,
     }));
+}
+
+export function pistesDuCallback(corps: unknown): PisteGeneree[] {
+  const o = objet(corps);
+  return normaliserPistes(Array.isArray(o?.data) ? o.data : objet(o?.data)?.data);
+}
+
+/** Pistes portées par `GET /generate/record-info`, sous data.response.sunoData. */
+export function pistesDeLaTache(corps: unknown): PisteGeneree[] {
+  const donnees = objet(objet(corps)?.data);
+  return normaliserPistes(objet(donnees?.response)?.sunoData);
+}
+
+/**
+ * États d'une tâche, tels que documentés par Kie.ai.
+ *
+ * Les trois premiers sont des étapes, pas des issues : `TEXT_SUCCESS` annonce
+ * les paroles et `FIRST_SUCCESS` la première piste. Les prendre pour une fin
+ * enregistrerait un résultat partiel comme définitif — même règle que pour les
+ * rappels, où seul `complete` fait foi.
+ */
+const ETATS_EN_COURS = ['PENDING', 'TEXT_SUCCESS', 'FIRST_SUCCESS'];
+const ETATS_ECHEC = [
+  'CREATE_TASK_FAILED',
+  'GENERATE_AUDIO_FAILED',
+  'SENSITIVE_WORD_ERROR',
+];
+
+export type EtatTache = 'en_cours' | 'reussie' | 'echouee' | 'inconnue';
+
+/**
+ * Lit l'issue d'une tâche interrogée après coup.
+ *
+ * Les pistes priment sur le statut. `CALLBACK_EXCEPTION` désigne exactement le
+ * cas qu'on répare — la génération a abouti mais le rappel n'est pas arrivé —
+ * et la traiter comme un échec jetterait deux pistes déjà payées.
+ */
+export function etatDeLaTache(corps: unknown): {
+  etat: EtatTache;
+  message: string | null;
+  pistes: PisteGeneree[];
+} {
+  const o = objet(corps);
+  const code = o?.code;
+  if (typeof code === 'number' && code !== 200) {
+    return {
+      etat: 'echouee',
+      message: `Kie.ai ${code} : ${String(o?.msg ?? 'sans message')}`,
+      pistes: [],
+    };
+  }
+
+  const donnees = objet(o?.data);
+  const pistes = pistesDeLaTache(corps);
+  const statut = typeof donnees?.status === 'string' ? donnees.status : '';
+
+  if (pistes.length > 0 && !ETATS_EN_COURS.includes(statut)) {
+    return { etat: 'reussie', message: null, pistes };
+  }
+  if (ETATS_EN_COURS.includes(statut)) return { etat: 'en_cours', message: null, pistes: [] };
+  if (ETATS_ECHEC.includes(statut) || statut === 'CALLBACK_EXCEPTION') {
+    const detail =
+      typeof donnees?.errorMessage === 'string' && donnees.errorMessage
+        ? donnees.errorMessage
+        : statut;
+    return { etat: 'echouee', message: `Kie.ai : ${detail}`, pistes: [] };
+  }
+  return { etat: 'inconnue', message: null, pistes: [] };
+}
+
+/** Interroge Kie.ai sur une tâche, quand son rappel n'est jamais arrivé. */
+export async function recupererTache(cle: string, tacheId: string): Promise<unknown> {
+  const url = `${BASE}/api/v1/generate/record-info?taskId=${encodeURIComponent(tacheId)}`;
+  const reponse = await fetch(url, { headers: { Authorization: `Bearer ${cle}` } });
+  if (!reponse.ok) {
+    throw new Error(`Kie.ai record-info a répondu ${reponse.status}`);
+  }
+  return reponse.json();
 }
 
 /**

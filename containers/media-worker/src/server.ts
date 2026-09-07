@@ -11,11 +11,14 @@ import { Hono } from 'hono';
 import { config } from './config.ts';
 import { analyzeMedia } from './analyze.ts';
 import { separerStems } from './stems.ts';
-import { finirJobGeneration, lancerJobGeneration } from './generation.ts';
+import {
+  finirJobGeneration,
+  lancerJobGeneration,
+  reconcilierGenerations,
+} from './generation.ts';
 import { erreurDuCallback, estCallbackFinal, pistesDuCallback } from './suno.ts';
-import { getJobParTacheFournisseur } from './db.ts';
+import { getJobParTacheFournisseur, listUnanalyzed } from './db.ts';
 import { STEM_TYPES, type StemType } from './fadr.ts';
-import { listUnanalyzed } from './db.ts';
 
 /**
  * Message d'erreur exploitable. Sans `stderr`, une commande ffmpeg qui échoue
@@ -161,6 +164,25 @@ app.post('/jobs/generer', async (c) => {
   });
 
   return c.json({ success: true, accepted: corps.job_id }, 202);
+});
+
+/**
+ * Clôture les générations dont le rappel de Kie.ai n'est jamais arrivé.
+ *
+ * Répond en synchrone, contrairement aux autres routes : l'appelant est un
+ * ordonnanceur, pas un utilisateur qui attend, et le bilan chiffré n'a de
+ * valeur que s'il décrit le travail réellement fait.
+ */
+app.post('/jobs/generations/reconcilier', async (c) => {
+  const limite = Number(c.req.query('limit') ?? 25);
+  try {
+    const bilan = await reconcilierGenerations(Number.isFinite(limite) ? limite : 25);
+    console.log('[reconciliation]', JSON.stringify(bilan));
+    return c.json({ success: true, ...bilan });
+  } catch (e: any) {
+    console.error('[reconciliation] échec', describeError(e));
+    return c.json({ success: false, message: describeError(e) }, 500);
+  }
 });
 
 /**
