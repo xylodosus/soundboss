@@ -27,10 +27,17 @@ export function Egaliseur({
   gains,
   actif,
   surChanger,
+  onSaisie,
 }: {
   gains: number[];
   actif: boolean;
   surChanger: (index: number, gain: number) => void;
+  /**
+   * Vrai tant qu'un fader est tenu. L'écran qui héberge l'égaliseur s'en sert
+   * pour couper son défilement : sans cela, tirer un fader faisait glisser
+   * toute la page sous le doigt.
+   */
+  onSaisie?: (actif: boolean) => void;
 }) {
   const [largeur, setLargeur] = useState(0);
 
@@ -138,6 +145,7 @@ export function Egaliseur({
               hauteurUtile={hauteurUtile}
               label={`${bande.libelle} hertz`}
               surChanger={(g) => surChanger(i, g)}
+              onSaisie={onSaisie}
             />
           ))}
       </View>
@@ -160,6 +168,7 @@ function ColonneBande({
   hauteurUtile,
   label,
   surChanger,
+  onSaisie,
 }: {
   gauche: number;
   largeur: number;
@@ -167,6 +176,7 @@ function ColonneBande({
   hauteurUtile: number;
   label: string;
   surChanger: (gain: number) => void;
+  onSaisie?: (actif: boolean) => void;
 }) {
   const gainRef = useRef(gain);
   gainRef.current = gain;
@@ -175,23 +185,32 @@ function ColonneBande({
   surChangerRef.current = surChanger;
   const hauteurRef = useRef(hauteurUtile);
   hauteurRef.current = hauteurUtile;
+  const onSaisieRef = useRef(onSaisie);
+  onSaisieRef.current = onSaisie;
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        // Le ScrollView de la modale réclamerait le geste vertical dès le
-        // premier pixel de déplacement : on refuse de le lui céder.
+        // Refuser de céder le geste ne suffit pas : sur Android le ScrollView
+        // natif défilait quand même sous le doigt. On le désactive donc le
+        // temps de la saisie, plutôt que de s'en remettre à une négociation
+        // qui se perd.
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           departRef.current = gainRef.current;
+          onSaisieRef.current?.(true);
         },
         onPanResponderMove: (_e, geste) => {
           surChangerRef.current(
             gainDepuisDeplacement(departRef.current, geste.dy, hauteurRef.current)
           );
         },
+        onPanResponderRelease: () => onSaisieRef.current?.(false),
+        // Sans ce pendant, un geste interrompu laisserait le défilement
+        // éteint pour de bon.
+        onPanResponderTerminate: () => onSaisieRef.current?.(false),
       }),
     []
   );

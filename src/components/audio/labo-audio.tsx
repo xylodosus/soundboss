@@ -209,6 +209,8 @@ export function LaboAudio({
   const [transposition, setTransposition] = useState(0);
   const [boucle, setBoucle] = useState<{ a: number; b: number } | null>(null);
   const [metronome, setMetronome] = useState(false);
+  /** Un fader de l'égaliseur est tenu : le défilement doit s'effacer. */
+  const [faderTenu, setFaderTenu] = useState(false);
   // Un seul tempo de référence, en temps du tampon : il sert à afficher le tempo
   // du morceau, à en dériver le tempo joué, et à battre la mesure.
   const [bpmOrigine, setBpmOrigine] = useState(0);
@@ -1102,6 +1104,7 @@ export function LaboAudio({
               // dernier réglage collerait au bord bas de la feuille.
               contentContainerStyle={{ gap: espacement.lg, paddingBottom: 50 }}
               showsVerticalScrollIndicator={false}
+              scrollEnabled={!faderTenu}
             >
               {/* Le transport reste au-dessus des onglets : il commande ce qui
                   joue, quel que soit l'onglet. La waveform, elle, dépeint le
@@ -1335,6 +1338,7 @@ export function LaboAudio({
                 <Egaliseur
                   gains={egaliseur}
                   actif={egaliseurActif}
+                  onSaisie={setFaderTenu}
                   surChanger={(i, g) =>
                     setEgaliseur((precedents) =>
                       precedents.map((v, j) => (j === i ? Math.min(GAIN_MAX, Math.max(-GAIN_MAX, g)) : v))

@@ -35,8 +35,6 @@ export function ReglageLabo({
         {libelle}
       </Texte>
       <Bouton icone="remove" label={`Diminuer ${libelle}`} onPress={onMoins} />
-      {/* L'appui long ramène au neutre : plus rapide que dix appuis, et sans
-          bouton supplémentaire dans une barre déjà chargée. */}
       <Pressable
         onPress={onValeur}
         onLongPress={onNeutre}
@@ -53,6 +51,25 @@ export function ReglageLabo({
         </Texte>
       </Pressable>
       <Bouton icone="add" label={`Augmenter ${libelle}`} onPress={onPlus} />
+
+      {/* Retour au neutre.
+          L'appui long sur la valeur le fait aussi, mais un testeur a conclu que
+          l'option n'existait pas : un geste caché n'est pas une option. La place
+          est réservée en permanence pour que les boutons ne se déplacent pas
+          quand il apparaît. */}
+      <View style={{ width: 32, alignItems: "center" }}>
+        {!auNeutre && (
+          <Pressable
+            onPress={onNeutre}
+            accessibilityRole="button"
+            accessibilityLabel={`Revenir au ${libelle.toLowerCase()} d'origine`}
+            hitSlop={8}
+            style={{ minHeight: 44, justifyContent: "center" }}
+          >
+            <Ionicons name="refresh" size={17} color={couleurs.texteSecondaire} />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
