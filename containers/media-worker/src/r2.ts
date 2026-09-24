@@ -120,12 +120,23 @@ export async function uploadBuffer(
   }
 }
 
+/**
+ * Supprime un objet R2 et rend le statut HTTP, sans lever.
+ *
+ * Le drain de la file de purge a besoin du code pour décider entre « purgée »
+ * et « à réessayer » : un 404 vaut succès, un 503 non.
+ */
+export async function deleteObjectStatut(key: string): Promise<number> {
+  const res = await client.fetch(objectUrl(key), { method: 'DELETE' });
+  return res.status;
+}
+
 /** Supprime un objet R2. */
 export async function deleteObject(key: string): Promise<void> {
-  const res = await client.fetch(objectUrl(key), { method: 'DELETE' });
+  const statut = await deleteObjectStatut(key);
   // 204 attendu ; 404 signifie déjà absent, ce n'est pas une erreur.
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Suppression R2 échouée (${res.status}) pour ${key}`);
+  if (statut !== 204 && statut !== 200 && statut !== 404) {
+    throw new Error(`Suppression R2 échouée (${statut}) pour ${key}`);
   }
 }
 

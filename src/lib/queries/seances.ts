@@ -697,3 +697,54 @@ export function useStatistiquesPresencesMembre(membreId: string, actif: boolean)
     enabled: actif && !!membreId,
   });
 }
+
+/**
+ * Supprime une piste extraite, et par cascade ses affinages.
+ *
+ * La RPC relève les clés R2 avant d'effacer les lignes : c'est le seul moment
+ * où elles existent encore. Les octets sont ensuite retirés par le conteneur,
+ * via la file de purge.
+ */
+export function useSupprimerStem() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ stemId }: { stemId: string; enregistrementId: string }) => {
+      const { data, error } = await supabase.rpc("supprimer_stem", { p_stem_id: stemId });
+      if (error) throw error;
+      const r = data as { success: boolean; message: string } | null;
+      if (!r?.success) throw new Error(r?.message ?? "Suppression impossible.");
+      return r;
+    },
+    onSuccess: (_d, v) => {
+      client.invalidateQueries({
+        queryKey: [...clefsSeances.enregistrements(v.enregistrementId), "stems"],
+      });
+      client.invalidateQueries({ queryKey: ["stockage"] });
+    },
+  });
+}
+
+/** Supprime toutes les pistes d'un enregistrement. L'audio d'origine reste. */
+export function useSupprimerStemsEnregistrement() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (enregistrementId: string) => {
+      const { data, error } = await supabase.rpc("supprimer_stems_enregistrement", {
+        p_enregistrement_id: enregistrementId,
+      });
+      if (error) throw error;
+      const r = data as { success: boolean; message: string } | null;
+      if (!r?.success) throw new Error(r?.message ?? "Suppression impossible.");
+      return r;
+    },
+    onSuccess: (_d, enregistrementId) => {
+      client.invalidateQueries({
+        queryKey: [...clefsSeances.enregistrements(enregistrementId), "stems"],
+      });
+      client.invalidateQueries({
+        queryKey: [...clefsSeances.enregistrements(enregistrementId), "stems-statut"],
+      });
+      client.invalidateQueries({ queryKey: ["stockage"] });
+    },
+  });
+}

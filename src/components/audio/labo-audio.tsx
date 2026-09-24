@@ -39,6 +39,8 @@ import {
   clefsSeances,
   useAjouterEnregistrement,
   useDemanderStems,
+  useSupprimerStem,
+  useSupprimerStemsEnregistrement,
   useStatutStems,
   useStemsEnregistrement,
 } from "@/lib/queries/seances";
@@ -60,6 +62,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
+import {
+  descendants,
+  octetsDe,
+  resumeSuppressionArbre,
+  resumeSuppressionStem,
+} from "@/lib/suppression";
 import { urlLectureR2 } from "@/lib/r2";
 import { couleurs, espacement, rayons } from "@/lib/theme";
 
@@ -681,9 +689,59 @@ export function LaboAudio({
   const { mutate: demanderStems, isPending: demandeEnCours } = useDemanderStems();
   const { mutateAsync: ajouterEnregistrement } = useAjouterEnregistrement();
   const { mutateAsync: ajouterRessource } = useAjouterRessource(groupeId ?? "");
+  const { mutateAsync: supprimerStem } = useSupprimerStem();
+  const { mutateAsync: supprimerTousLesStems } = useSupprimerStemsEnregistrement();
   const { data: statutStems } = useStatutStems(piste?.id ?? "", visible && !!piste && avecStems);
   const extractionEnCours = statutStems?.stems_statut === "en_cours";
   const stemsOrdonnes = useMemo(() => ordonnerStems(stems), [stems]);
+
+  /**
+   * Supprime une piste après avoir annoncé ce qu'elle emporte.
+   *
+   * `parent_id` est en cascade : un affinage disparaît avec la piste dont il
+   * est né, sans que rien ne le dise. Le décompte est fait ici pour que la
+   * confirmation soit exacte.
+   */
+  async function supprimerUnStem(stemId: string) {
+    if (!piste) return;
+    const enfants = descendants(stems, stemId);
+    const ok = await dialogue.confirmer({
+      titre: "Supprimer cette piste ?",
+      message: resumeSuppressionStem(enfants.length, octetsDe(stems, [stemId, ...enfants])),
+    });
+    if (!ok) return;
+    try {
+      // Retirer du mixage AVANT de supprimer : basculerPiste arrête la source
+      // et recale les autres. Se contenter de vider `pistesActives` laisserait
+      // le moteur jouer un tampon devenu orphelin.
+      for (const id of [stemId, ...enfants]) {
+        if (pistesActives.includes(id)) await basculerPiste(id);
+      }
+      await supprimerStem({ stemId, enregistrementId: piste.id });
+      dialogue.succes("Piste supprimée.");
+    } catch (e) {
+      dialogue.erreur(e instanceof Error ? e.message : "Suppression impossible.");
+    }
+  }
+
+  async function supprimerToutesLesPistes() {
+    if (!piste || stems.length === 0) return;
+    const ok = await dialogue.confirmer({
+      titre: "Supprimer toutes les pistes ?",
+      message: resumeSuppressionArbre(
+        stems.length,
+        octetsDe(stems, stems.map((s) => s.id))
+      ),
+    });
+    if (!ok) return;
+    try {
+      for (const id of [...pistesActives]) await basculerPiste(id);
+      await supprimerTousLesStems(piste.id);
+      dialogue.succes("Pistes supprimées.");
+    } catch (e) {
+      dialogue.erreur(e instanceof Error ? e.message : "Suppression impossible.");
+    }
+  }
   const clientRequetes = useQueryClient();
 
   // L'extraction s'achève côté serveur : sans cette invalidation, la liste des
@@ -1474,6 +1532,32 @@ export function LaboAudio({
                         {messageStems}
                       </Texte>
                     )}
+
+                    {/* À l'écart des autres actions, et en rouge : « j'ai
+                        extrait pour travailler, je n'en ai plus besoin » est
+                        l'usage courant, mais l'opération est définitive. */}
+                    <Pressable
+                      onPress={() => void supprimerToutesLesPistes()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Supprimer toutes les pistes extraites"
+                      style={{
+                        alignSelf: "flex-start",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: espacement.xs,
+                        minHeight: 44,
+                        paddingHorizontal: espacement.md,
+                        marginTop: espacement.md,
+                        borderRadius: rayons.pill,
+                        borderWidth: 1,
+                        borderColor: "rgba(224,82,74,0.35)",
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={couleurs.danger} />
+                      <Texte variante="micro" poids="semibold" couleur={couleurs.danger}>
+                        Supprimer toutes les pistes
+                      </Texte>
+                    </Pressable>
                   </>
                 )}
                 </View>
@@ -1493,7 +1577,7 @@ export function LaboAudio({
 
         <ModalChoix
           visible={transfert !== null}
-          titre="Transférer cette piste"
+          titre="Cette piste"
           elements={[
             ...(seanceId
               ? [
@@ -1515,11 +1599,21 @@ export function LaboAudio({
                   },
                 ]
               : []),
+            {
+              id: "supprimer",
+              titre: "Supprimer cette piste",
+              sousTitre: "Retire aussi les octets du stockage du groupe",
+              icone: "trash-outline" as const,
+            },
           ]}
           surChoisir={(id) => {
             const stemId = transfert;
             setTransfert(null);
             if (!stemId) return;
+            if (id === "supprimer") {
+              void supprimerUnStem(stemId);
+              return;
+            }
             // Le choix des pupitres se fait dans une seconde étape : mêler les
             // deux listes dans une même modale rendait le geste illisible.
             if (id === "audios") setChoixPupitres(stemId);

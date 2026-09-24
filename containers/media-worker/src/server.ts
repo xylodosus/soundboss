@@ -16,6 +16,7 @@ import {
   lancerJobGeneration,
   reconcilierGenerations,
 } from './generation.ts';
+import { drainerPurges } from './purge.ts';
 import { erreurDuCallback, estCallbackFinal, pistesDuCallback } from './suno.ts';
 import { getJobParTacheFournisseur, listUnanalyzed } from './db.ts';
 import { STEM_TYPES, type StemType } from './fadr.ts';
@@ -181,6 +182,24 @@ app.post('/jobs/generations/reconcilier', async (c) => {
     return c.json({ success: true, ...bilan });
   } catch (e: any) {
     console.error('[reconciliation] échec', describeError(e));
+    return c.json({ success: false, message: describeError(e) }, 500);
+  }
+});
+
+/**
+ * Retire de R2 les octets dont la ligne en base a déjà disparu.
+ *
+ * Synchrone comme la réconciliation : l'appelant est la base ou un
+ * ordonnanceur, et le bilan n'a de valeur que s'il décrit le travail fait.
+ */
+app.post('/jobs/purge', async (c) => {
+  const limite = Number(c.req.query('limit') ?? 100);
+  try {
+    const bilan = await drainerPurges(Number.isFinite(limite) ? limite : 100);
+    console.log('[purge]', JSON.stringify(bilan));
+    return c.json({ success: true, ...bilan });
+  } catch (e: any) {
+    console.error('[purge] échec', describeError(e));
     return c.json({ success: false, message: describeError(e) }, 500);
   }
 });

@@ -161,3 +161,27 @@ export async function generationsEnSuspens(limite: number): Promise<JobIA[]> {
   if (!res.ok) throw new Error(`Lecture des générations en suspens échouée (${res.status})`);
   return (await res.json()) as JobIA[];
 }
+
+export interface PurgeR2 {
+  id: string;
+  cle: string;
+  essais: number;
+}
+
+const TABLE_PURGES = 'r2_purges';
+
+/** Clés dont les octets restent à retirer de R2. */
+export async function purgesEnAttente(limite: number): Promise<PurgeR2[]> {
+  const url =
+    `${config.supabase.url}/rest/v1/${TABLE_PURGES}` +
+    `?purgee_at=is.null&select=id,cle,essais&order=created_at.asc&limit=${limite}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Lecture de la file de purge échouée (${res.status})`);
+  return (await res.json()) as PurgeR2[];
+}
+
+export async function patchPurge(id: string, patch: Record<string, unknown>): Promise<void> {
+  const url = `${config.supabase.url}/rest/v1/${TABLE_PURGES}?id=eq.${id}`;
+  const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+  if (!res.ok) throw new Error(`Mise à jour de la purge échouée (${res.status})`);
+}
