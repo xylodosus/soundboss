@@ -70,8 +70,11 @@ pas une tâche.
 - **14 — Offline-first** : il manque la persistance React Query
   (`query-async-storage-persister` + `persistQueryClient`). Le `gcTime: 24 h`
   est déjà posé dans `app/_layout.tsx`.
-- **16 — Monétisation par crédits** : modèle entièrement arrêté (§ 4 quindecies),
-  rien d'implémenté.
+- **16 — Monétisation par crédits** : modèle arrêté (§ 4 quindecies).
+  ✅ 24/09 — réglages, cadeau d'inscription, devis, débit atomique et
+  remboursements (§ 4 quinquiesetvicies). **Reste** : l'extension de stockage
+  payante et son prélèvement mensuel, les sept jours de grâce et le blocage
+  qui suit.
 
 **Préalables à la facturation**
 
@@ -1014,6 +1017,70 @@ compressé à l'envoi ; les compter demanderait deux colonnes et un rattrapage.
 `/jobs/tailles` renseigne par HEAD les tailles jamais enregistrées, côté
 `messages` et `ressources`. Idempotent, et il laisse la taille **inconnue**
 plutôt que d'écrire un zéro qui passerait ensuite pour une mesure.
+
+## 4 quinquiesetvicies. Facturation : devis, débit, remboursement (24 sept. 2026)
+
+Les opérations facturées le sont désormais pour de bon. L'extraction et la
+génération ne partent plus sans accord explicite ni crédits.
+
+### Réglages
+
+`app_settings`, table à **ligne unique** — clé primaire booléenne contrainte à
+`true`. Sans cette contrainte, « les réglages » deviendraient vite « le premier
+réglage trouvé », et deux lignes divergentes passeraient inaperçues.
+
+`credits_gift = true`, `gift_credits_number = 10`. Lecture ouverte, écriture
+fermée à tous : qui pourrait porter ce nombre à mille se servirait lui-même.
+
+Le portefeuille naît crédité, avec une transaction `bonus` à l'appui — un solde
+initial non nul sans trace serait indiscernable d'une erreur de comptage.
+
+### Le devis n'engage rien
+
+`devis_operation()` rend `{cout, solde, suffisant}` pour l'affichage. Le tarif
+est **recalculé au moment du débit**. C'est la seule façon qu'un client modifié
+ne puisse pas s'offrir une extraction à un crédit.
+
+| Opération | Tarif |
+|---|---|
+| Extraction, affinage | `ceil(durée / 60)`, minimum 1 |
+| Génération | 1, forfaitaire |
+
+Vérifié contre le barème : HOSANNA reprise (1,70 min) → 2 crédits, ALLELUIA
+(3,27 min) → 4.
+
+### Débit atomique, et dans cet ordre
+
+`debiter_credits` porte `solde_credits >= cout` **dans l'UPDATE lui-même**.
+Lire puis écrire laisserait deux demandes simultanées passer toutes les deux et
+rendre un solde négatif.
+
+Le débit **précède** l'appel au fournisseur : lancer d'abord et débiter ensuite
+offrirait l'opération dès que le solde ne suffit pas.
+
+### Remboursements
+
+Une opération qui n'a rien produit ne se paie pas. Deux triggers, gardés contre
+le double remboursement — le montant prélevé est remis à zéro après
+restitution. `seance_enregistrements.stems_credits` retient ce qui a été pris :
+sans elle, un remboursement ne saurait pas combien rendre.
+
+Le remboursement des générations tient la promesse que `notify_ai_job_termine`
+affichait depuis le début sans que rien ne l'implémente.
+
+### Côté app
+
+`useConfirmerDepense()` demande le devis puis la bonne modale : « Cette
+opération te coûtera N crédits » avec Payer/Annuler, ou « Ton solde est
+insuffisant » avec Recharger/Annuler. Recharger mène au wallet.
+
+Sur l'affinage, l'accord sur le **contenu** précède l'accord sur le **prix** :
+accepter le principe puis découvrir le coût vaut mieux que l'inverse.
+
+⚠️ **31 des 32 comptes existants ont un solde nul.** Le cadeau ne vaut que pour
+les nouvelles inscriptions ; les testeurs sont donc bloqués tant qu'un
+rattrapage n'est pas fait. Le script est dans
+`supabase/migrations/2026-09-24-facturation-credits.sql`.
 
 ## 5. Commandes utiles
 

@@ -62,6 +62,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { telechargerEtPartager } from "@/lib/telechargement";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
+import { useConfirmerDepense } from "@/lib/queries/facturation";
 import {
   descendants,
   octetsDe,
@@ -687,6 +688,7 @@ export function LaboAudio({
   const sections = useMemo(() => parseSections(piste?.tonalite_sections), [piste]);
   const { data: stems = [] } = useStemsEnregistrement(piste?.id ?? "", visible && !!piste && avecStems);
   const { mutate: demanderStems, isPending: demandeEnCours } = useDemanderStems();
+  const confirmerDepense = useConfirmerDepense();
   const { mutateAsync: ajouterEnregistrement } = useAjouterEnregistrement();
   const { mutateAsync: ajouterRessource } = useAjouterRessource(groupeId ?? "");
   const { mutateAsync: supprimerStem } = useSupprimerStem();
@@ -960,6 +962,10 @@ export function LaboAudio({
       danger: false,
     });
     if (!accepte) return;
+
+    // Le prix se demande en second : accepter le principe puis découvrir le
+    // coût vaut mieux que l'inverse, et le devis est recalculé au débit.
+    if (!(await confirmerDepense("stems", piste.id))) return;
 
     demanderStems(
       { enregistrementId: piste.id, stemType: decoupe },
@@ -1472,15 +1478,18 @@ export function LaboAudio({
                         principal
                         actif={false}
                         onPress={() => {
-                          if (demandeEnCours || !piste) return;
-                          demanderStems(
-                            { enregistrementId: piste.id },
-                            {
-                              onSuccess: (r) => setMessageStems(r.message),
-                              onError: (e) =>
-                                setMessageStems(e instanceof Error ? e.message : String(e)),
-                            }
-                          );
+                          void (async () => {
+                            if (demandeEnCours || !piste) return;
+                            if (!(await confirmerDepense("stems", piste.id))) return;
+                            demanderStems(
+                              { enregistrementId: piste.id },
+                              {
+                                onSuccess: (r) => setMessageStems(r.message),
+                                onError: (e) =>
+                                  setMessageStems(e instanceof Error ? e.message : String(e)),
+                              }
+                            );
+                          })();
                         }}
                       />
                     </View>

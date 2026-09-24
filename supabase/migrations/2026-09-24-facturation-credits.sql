@@ -1,0 +1,96 @@
+-- Facturation par crédits : réglages, cadeau d'inscription, devis, débit,
+-- remboursement.
+--
+-- Appliquée le 24 septembre 2026 via le MCP Supabase, en quatre migrations :
+-- app_settings_et_credits_offerts, tarification_et_debit_credits,
+-- debit_stems_generation_et_remboursement, et une réécriture de
+-- demander_generation.
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- app_settings
+--
+-- Table à ligne unique : la clé primaire booléenne contrainte à `true` rend
+-- une seconde ligne impossible. Sans cela, « les réglages » deviendraient vite
+-- « le premier réglage trouvé », et deux lignes divergentes passeraient
+-- inaperçues.
+--
+--   credits_gift        = true
+--   gift_credits_number = 10
+--
+-- Lecture ouverte aux authentifiés (l'app annonce le cadeau), écriture fermée
+-- à tous : qui pourrait porter gift_credits_number à mille se servirait
+-- lui-même.
+--
+-- `handle_new_user_wallet` crédite le portefeuille à sa création et inscrit
+-- une transaction `bonus` : sans trace, un solde initial non nul serait
+-- indiscernable d'une erreur de comptage. Réglages absents ou cadeau
+-- désactivé : le portefeuille naît à zéro, comme avant — une inscription ne
+-- doit jamais échouer parce qu'un réglage manque.
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- Tarifs, calculés côté serveur et nulle part ailleurs
+--
+--   cout_extraction(enregistrement) = ceil(durée / 60), minimum 1
+--   cout_generation()               = 1, forfaitaire
+--
+-- Vérifié contre le plan : HOSANNA reprise (1,70 min) → 2 crédits,
+-- ALLELUIA (3,27 min) → 4 crédits.
+--
+-- `devis_operation(type, ref)` rend {cout, solde, suffisant} pour que l'app
+-- affiche « cette opération te coûtera N crédits ». Ce devis **n'engage
+-- rien** : le tarif est recalculé au moment du débit. Un client modifié ne
+-- peut donc pas s'offrir une extraction à un crédit.
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- Débit atomique
+--
+-- `debiter_credits` porte la condition `solde_credits >= cout` dans l'UPDATE
+-- lui-même. Lire puis écrire laisserait deux demandes simultanées passer
+-- toutes les deux et rendre un solde négatif.
+--
+-- Le débit précède l'appel au fournisseur, dans demander_stems comme dans
+-- demander_generation : lancer d'abord et débiter ensuite offrirait
+-- l'opération dès que le solde ne suffit pas.
+--
+-- Les deux RPC rendent `code: 'solde_insuffisant'` avec {cout, solde} quand le
+-- solde manque.
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- Remboursements
+--
+-- Une opération qui n'a rien produit ne se paie pas. Deux triggers, tous deux
+-- gardés contre le double remboursement : le montant prélevé est remis à zéro
+-- après restitution.
+--
+--   trg_rembourser_stems       : stems_statut → 'echec'
+--   trg_rembourser_generation  : ai_jobs.statut → 'failed'
+--
+-- Le second tient la promesse que `notify_ai_job_termine` affichait depuis le
+-- début (« Vos crédits seront remboursés ») sans que rien ne l'implémente.
+-- Kie.ai ne facture pas un rejet pour droits d'auteur : rendre le crédit est
+-- juste, et sans coût. Décision du 24 septembre.
+--
+-- `seance_enregistrements.stems_credits` retient ce qui a été prélevé : sans
+-- cette colonne, un remboursement ne saurait pas combien rendre, et le tarif
+-- recalculé plus tard pourrait différer.
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- Vérifié après application
+--
+--   cout_extraction conforme au barème du plan
+--   un portefeuille vide refuse le débit, solde inchangé, aucune transaction
+--
+-- ⚠️ 31 des 32 comptes existants ont un solde nul : le cadeau ne vaut que pour
+-- les nouvelles inscriptions. Pour l'accorder rétroactivement aux testeurs :
+--
+--   do $$
+--   declare r record; v_nb integer;
+--   begin
+--     select gift_credits_number into v_nb from app_settings where id;
+--     for r in select id, user_id from wallets where coalesce(solde_credits,0) = 0 loop
+--       update wallets set solde_credits = v_nb, total_bonus = coalesce(total_bonus,0) + v_nb
+--       where id = r.id;
+--       insert into wallet_transactions (wallet_id, type, credits, solde_apres, description)
+--       values (r.id, 'bonus', v_nb, v_nb, 'Crédits offerts — rattrapage');
+--     end loop;
+--   end $$;

@@ -8,6 +8,7 @@ import { ModalChoix } from "@/components/ui/modal-choix";
 import { ModalEnregistrement } from "@/components/ui/modal-enregistrement";
 import { useDemanderGeneration, useGenerations } from "@/lib/queries/generation";
 import { useAjouterAudioPersonnel } from "@/lib/queries/dossiers";
+import { useConfirmerDepense } from "@/lib/queries/facturation";
 import { useEnregistrementsSeance } from "@/lib/queries/seances";
 import { useRessources } from "@/lib/queries/ressources";
 import {
@@ -96,6 +97,7 @@ export function OngletCreation({
   const uneTourne = generations.some((g) => g.statut === "queued" || g.statut === "processing");
   const { mutate: demander, isPending } = useDemanderGeneration();
   const { mutate: rangerAudio } = useAjouterAudioPersonnel();
+  const confirmerDepense = useConfirmerDepense();
 
   // Le morceau ouvert dans le labo est proposé d'emblée, mais pas coché : on
   // suggère, on ne décide pas à la place de l'utilisateur.
@@ -147,8 +149,9 @@ export function OngletCreation({
     : invite.trim().length > 0;
   const peutLancer = !isPending && !dejaEnvoyee && complet;
 
-  function lancer() {
+  async function lancer() {
     setMessage(null);
+    if (!(await confirmerDepense("generation"))) return;
     demander(
       {
         prompt: invite.trim(),
@@ -407,7 +410,7 @@ export function OngletCreation({
       )}
 
       <Pressable
-        onPress={lancer}
+        onPress={() => void lancer()}
         disabled={!peutLancer}
         accessibilityRole="button"
         accessibilityLabel="Lancer la génération"
