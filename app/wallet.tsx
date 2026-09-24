@@ -12,8 +12,11 @@ import { Ecran } from "@/components/ui/ecran";
 import { Texte } from "@/components/ui/texte";
 import { EtatVide, Squelette } from "@/components/ui/etat-vide";
 import { formatDateHeure } from "@/lib/format";
+import { estDebit, formatMontantTransaction } from "@/lib/wallet-affichage";
+import { useRouter } from "expo-router";
 
 export default function Wallet() {
+  const router = useRouter();
   const { data: wallet } = useWallet();
   const { data: packs = [] } = usePacksCredits();
   const { data: transactions = [] } = useTransactionsWallet();
@@ -32,12 +35,25 @@ export default function Wallet() {
   return (
     <Ecran>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-        <Texte variante="titre2" poids="extrabold">
-          Wallet
-        </Texte>
-        <Texte variante="micro" couleur={couleurs.texteSecondaire}>
-          Tes crédits pour les outils IA
-        </Texte>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            hitSlop={8}
+            style={{ width: 40, height: 40, justifyContent: "center" }}
+          >
+            <Ionicons name="arrow-back" size={22} color={couleurs.texte} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Texte variante="titre2" poids="extrabold">
+              Wallet
+            </Texte>
+            <Texte variante="micro" couleur={couleurs.texteSecondaire}>
+              Tes crédits pour les outils IA
+            </Texte>
+          </View>
+        </View>
 
         {/* Solde */}
         <View
@@ -150,7 +166,7 @@ export default function Wallet() {
                   height: 36,
                   borderRadius: 12,
                   backgroundColor:
-                    (transaction.credits ?? 0) >= 0
+                    !estDebit(transaction.type)
                       ? "rgba(52,211,153,0.12)"
                       : "rgba(224,122,86,0.12)",
                   alignItems: "center",
@@ -158,9 +174,9 @@ export default function Wallet() {
                 }}
               >
                 <Ionicons
-                  name={(transaction.credits ?? 0) >= 0 ? "add" : "remove"}
+                  name={estDebit(transaction.type) ? "remove" : "add"}
                   size={18}
-                  color={(transaction.credits ?? 0) >= 0 ? "#34D399" : couleurs.terracottaLight}
+                  color={estDebit(transaction.type) ? couleurs.terracottaLight : "#34D399"}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -174,10 +190,9 @@ export default function Wallet() {
               <Texte
                 variante="petit"
                 poids="extrabold"
-                couleur={(transaction.credits ?? 0) >= 0 ? "#34D399" : couleurs.terracottaLight}
+                couleur={estDebit(transaction.type) ? couleurs.terracottaLight : "#34D399"}
               >
-                {transaction.credits ?? 0 > 0 ? "+" : ""}
-                {transaction.credits}
+                {formatMontantTransaction(transaction.type, transaction.credits)}
               </Texte>
             </View>
           ))}
