@@ -75,22 +75,21 @@ pas une tâche.
 
 **Préalables à la facturation**
 
-- **Suppression des fichiers et des pistes** (§ 4 terdecies) : sans elle, un
-  groupe saturé n'a d'autre issue que de payer. Retirer les octets de R2, pas
-  seulement la ligne en base.
+- ~~Suppression des fichiers et des pistes~~ ✅ 24/09, § 4 quateretvicies.
+- ~~Décompte du stockage incomplet~~ ✅ 24/09 : générations IA comptées et
+  supprimables, tailles manquantes rattrapées par HEAD sur R2.
 
 **Dettes techniques**
 
 - ~~Jobs de génération sans échéance~~ ✅ réglé le 7/09, § 4 duoetvicies.
 - ~~`seance_enregistrements.pupitre_id`~~ ✅ supprimée le 7/09.
 - ~~Chaîne push serveur non versionnée~~ ✅ exportée le 24/09, § 4 tresetvicies.
-- **Tailles manquantes sur six fichiers de chat** antérieurs au correctif du
-  24/09 : ils comptent pour zéro octet dans le stockage du groupe. Le conteneur
-  a déjà l'accès R2 et pourrait les renseigner par un `HEAD`.
 - **`notify_ai_job_termine` fait doublon** avec `trg_generation_terminee` sur
   `ai_jobs` : une génération qui aboutit écrit deux notifications, l'une poussée
-  et l'autre non. Elle annonce en outre un remboursement de crédits qui n'existe
-  pas. À trancher avec la facturation.
+  et l'autre non. À trancher avec la facturation.
+  **Décision du 24/09 : la promesse de remboursement est tenue.** Un rejet pour
+  droits d'auteur n'est de toute façon pas facturé par Kie.ai — rendre le
+  crédit est donc juste, et sans coût.
 
 **Confort**
 
@@ -941,6 +940,80 @@ chaîne tomberait **en silence** : les lignes continueraient d'être écrites da
 Deux constats faits en exportant, consignés au § 3 bis sans être corrigés ici :
 le doublon `notify_ai_job_termine` / `trg_generation_terminee`, et la phrase sur
 le remboursement de crédits qu'elle annonce sans que rien ne l'implémente.
+
+## 4 quateretvicies. Suppression et décompte exact (24 sept. 2026)
+
+Les deux préalables à la facturation, traités ensemble parce qu'ils se
+tiennent : on ne facture pas un stockage qu'on ne sait pas mesurer, et on ne
+mesure pas sans permettre de réduire.
+
+### Ce qui fuyait
+
+| Poste | Constat |
+|---|---|
+| Pistes extraites | aucun moyen de les supprimer |
+| Toutes les suppressions | effaçaient la ligne, jamais les octets |
+| Cascade des stems | effaçait la **seule trace** des clés R2 |
+| Générations IA | 16 fichiers, 19,3 Mo, ni comptés ni supprimables |
+| Images du chat | taille jamais enregistrée : comptées pour zéro |
+| Dossier personnel supprimé | ses fichiers survivaient, introuvables et facturés |
+
+### La file de purge, et pourquoi elle existe
+
+Les clés R2 ne vivent que dans les lignes qu'on s'apprête à effacer. Appeler le
+conteneur **après** le DELETE aurait suffi la plupart du temps — mais une
+coupure au mauvais moment laissait les octets sur R2 **sans plus rien pour dire
+où ils sont**. Une suppression à moitié faite ferait payer un stockage devenu
+invisible : exactement le défaut qu'on corrige.
+
+Les clés sont donc inscrites dans `r2_purges` **avant** l'effacement. Le
+conteneur draine ensuite, et un balayage horaire rattrape les fois où il n'a
+pas répondu. `deleteObject` traite un 404 comme un succès : rejouer est sans
+danger.
+
+### Triggers plutôt que RPC
+
+Les RLS de suppression existaient déjà et étaient justes. Ce n'est pas la
+permission qui manquait, c'est le relevé de la clé. Un RPC par table aurait
+obligé chaque appelant, présent et futur, à y penser ; un trigger ne s'oublie
+pas et couvre les cascades — celles qu'on ne voit pas passer.
+
+**Deux triggers par table**, et c'est le point : si le trigger de ligne
+réveillait le conteneur, supprimer un enregistrement à seize pistes ferait
+seize appels HTTP pour une seule intention. L'inscription est par ligne
+(`inscrire_purge_r2`), le réveil par instruction (`reveiller_purge_r2`).
+
+Couvre `ressources`, `messages`, `enregistrement_stems`,
+`seance_enregistrements` (url + peaks_url) et `ai_jobs` (pistes du JSONB).
+
+### Vérifié, pas supposé
+
+Un seul DELETE sur un enregistrement factice a inscrit quatre clés — audio,
+pics, piste et affinage par cascade — toutes purgées par le conteneur au
+premier essai. Idem pour une ressource et un message.
+
+⚠️ Ces essais ont déclenché les triggers de notification : 21 notifications et
+autant de push réellement envoyés aux membres. Les lignes ont été nettoyées,
+les push non — ils ne se rappellent pas. **Désactiver les triggers de
+notification avant tout essai d'écriture en production.**
+
+### État du décompte après rattrapage
+
+| Poste | Fichiers | Octets |
+|---|---|---|
+| Fichiers (ressources) | 16 | 42,4 Mo |
+| Audios de répétition | 11 | 43,9 Mo |
+| Pistes extraites | 50 | 99,5 Mo |
+| Médias des discussions | 10 | 1,3 Mo |
+| Générations IA | 16 | 20,2 Mo |
+
+Hors décompte, assumé : avatars et photos de groupe (4 fichiers). Volume borné,
+compressé à l'envoi ; les compter demanderait deux colonnes et un rattrapage.
+À revoir si le volume cesse d'être négligeable.
+
+`/jobs/tailles` renseigne par HEAD les tailles jamais enregistrées, côté
+`messages` et `ressources`. Idempotent, et il laisse la taille **inconnue**
+plutôt que d'écrire un zéro qui passerait ensuite pour une mesure.
 
 ## 5. Commandes utiles
 

@@ -212,3 +212,24 @@ export async function patchMessage(id: string, patch: Record<string, unknown>): 
   const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
   if (!res.ok) throw new Error(`Mise à jour du message échouée (${res.status})`);
 }
+
+export interface RessourceSansTaille {
+  id: string;
+  url: string;
+}
+
+/** Fichiers dont la taille n'a jamais été enregistrée. */
+export async function ressourcesSansTaille(limite: number): Promise<RessourceSansTaille[]> {
+  const url =
+    `${config.supabase.url}/rest/v1/ressources` +
+    `?taille_bytes=is.null&select=id,url&limit=${limite}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Lecture des ressources échouée (${res.status})`);
+  return (await res.json()) as RessourceSansTaille[];
+}
+
+export async function patchRessource(id: string, patch: Record<string, unknown>): Promise<void> {
+  const url = `${config.supabase.url}/rest/v1/ressources?id=eq.${id}`;
+  const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+  if (!res.ok) throw new Error(`Mise à jour de la ressource échouée (${res.status})`);
+}
