@@ -185,3 +185,30 @@ export async function patchPurge(id: string, patch: Record<string, unknown>): Pr
   const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
   if (!res.ok) throw new Error(`Mise à jour de la purge échouée (${res.status})`);
 }
+
+export interface MessageSansTaille {
+  id: string;
+  fichier_url: string;
+}
+
+/**
+ * Pièces jointes du chat dont la taille n'a jamais été enregistrée.
+ *
+ * L'envoi d'image ne la transmettait pas : ces fichiers comptent aujourd'hui
+ * pour zéro octet dans le stockage du groupe.
+ */
+export async function messagesSansTaille(limite: number): Promise<MessageSansTaille[]> {
+  const url =
+    `${config.supabase.url}/rest/v1/messages` +
+    `?fichier_url=not.is.null&fichier_taille=is.null&est_supprime=not.is.true` +
+    `&select=id,fichier_url&limit=${limite}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Lecture des pièces jointes échouée (${res.status})`);
+  return (await res.json()) as MessageSansTaille[];
+}
+
+export async function patchMessage(id: string, patch: Record<string, unknown>): Promise<void> {
+  const url = `${config.supabase.url}/rest/v1/messages?id=eq.${id}`;
+  const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+  if (!res.ok) throw new Error(`Mise à jour du message échouée (${res.status})`);
+}

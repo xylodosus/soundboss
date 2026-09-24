@@ -8,8 +8,10 @@ import { LecteurAudioModal, type PisteAudio } from "@/components/ui/lecteur-audi
 import {
   useGenerations,
   useMarquerGenerationLue,
+  useSupprimerGeneration,
   type JobGeneration,
 } from "@/lib/queries/generation";
+import { useDialogue } from "@/lib/dialogue";
 import {
   type TonGeneration,
   etatGeneration,
@@ -18,7 +20,7 @@ import {
 } from "@/lib/generation-erreurs";
 import { urlLectureR2 } from "@/lib/r2";
 import { utilisateurId } from "@/lib/supabase";
-import { formatDateHeure, formatTemps } from "@/lib/format";
+import { formatDateHeure, formatTemps, tailleLisible } from "@/lib/format";
 import { couleurs, rayons } from "@/lib/theme";
 
 /**
@@ -31,6 +33,8 @@ import { couleurs, rayons } from "@/lib/theme";
 export function OngletGenerations({ groupeId }: { groupeId?: string }) {
   const { data: generations = [], isLoading } = useGenerations(groupeId ?? null, true);
   const { mutate: marquerLue } = useMarquerGenerationLue();
+  const { mutateAsync: supprimerGeneration } = useSupprimerGeneration();
+  const dialogue = useDialogue();
   const [piste, setPiste] = useState<PisteAudio | null>(null);
   const [moi, setMoi] = useState<string | null>(null);
 
@@ -54,6 +58,28 @@ export function OngletGenerations({ groupeId }: { groupeId?: string }) {
   }
 
   const visibles = generationsVisibles(generations, moi);
+
+  async function supprimer(job: JobGeneration) {
+    const pistes = job.resultat?.pistes ?? [];
+    const octets = pistes.reduce((t, p) => t + (p.taille_octets ?? 0), 0);
+    const ok = await dialogue.confirmer({
+      titre: "Supprimer cette génération ?",
+      message:
+        pistes.length > 0
+          ? `Les ${pistes.length} version${pistes.length > 1 ? "s" : ""} seront définitivement supprimées${
+              octets > 0 ? ` (${tailleLisible(octets)})` : ""
+            }.`
+          : "Cette génération sera définitivement supprimée.",
+      boutonConfirmer: "Supprimer",
+    });
+    if (!ok) return;
+    try {
+      await supprimerGeneration(job.id);
+      dialogue.succes("Génération supprimée.");
+    } catch (e) {
+      dialogue.erreur(e instanceof Error ? e.message : "Suppression impossible.");
+    }
+  }
 
   if (isLoading) return <SqueletteListe lignes={3} hauteur={72} />;
 
@@ -155,6 +181,18 @@ export function OngletGenerations({ groupeId }: { groupeId?: string }) {
                   }}
                 />
               )}
+
+              {/* Sans ce geste, les pistes resteraient sur R2 sans que rien ne
+                  permette de les retirer : leur adresse vit dans un JSONB. */}
+              <Pressable
+                onPress={() => void supprimer(job)}
+                accessibilityRole="button"
+                accessibilityLabel="Supprimer cette génération"
+                hitSlop={8}
+                style={{ paddingLeft: 6 }}
+              >
+                <Ionicons name="trash-outline" size={16} color={couleurs.texteSecondaire} />
+              </Pressable>
             </View>
 
             {enCours && (

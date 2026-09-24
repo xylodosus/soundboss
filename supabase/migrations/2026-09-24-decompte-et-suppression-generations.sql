@@ -1,0 +1,39 @@
+-- Décompte et suppression des générations IA.
+--
+-- Appliquée le 24 septembre 2026 via le MCP Supabase
+-- (migration supprimer_generation_et_purge).
+--
+-- LE TROU
+--
+-- Les pistes produites par Suno sont rapatriées dans R2 sous `generations/`,
+-- mais leur adresse vit dans un JSONB — `ai_jobs.resultat.pistes` — et non
+-- dans une table de fichiers. Elles échappaient donc à tout : ni comptées dans
+-- le stockage, ni supprimables. Seize fichiers et 19,3 Mo sur le projet de
+-- test, que personne ne pouvait ni voir ni retirer.
+--
+-- Côté app, `pistesGenerees()` déplie ce JSONB pour l'agrégation, et une
+-- nouvelle catégorie « Générations IA » apparaît dans les deux écrans de
+-- stockage. Une génération de groupe compte pour le groupe, une génération
+-- personnelle pour son auteur — même règle que partout : les fichiers au
+-- compte du groupe, les crédits au demandeur.
+--
+-- Le trigger suit la convention posée au lot 2 : il inscrit, il ne réveille
+-- pas ; le réveil est par instruction.
+--
+-- Droits : l'auteur peut retirer ce qu'il a payé ; dans un groupe, le chef et
+-- les admins disposent aussi de ce qui occupe le stockage commun.
+--
+-- Pour relire les définitions telles qu'elles tournent :
+--   select pg_get_functiondef(p.oid)
+--   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public'
+--     and p.proname in ('trg_purge_generation', 'supprimer_generation');
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- CE QUI RESTE VOLONTAIREMENT HORS DÉCOMPTE
+--
+-- Avatars (`users.avatar_url`) et photos de groupe (`groupes.photo_url`) :
+-- quatre fichiers, aucune taille en base. Les compter demanderait deux
+-- colonnes et un rattrapage pour un volume borné — un fichier par utilisateur
+-- et par groupe, compressé à l'envoi par `compresserImage`. C'est une
+-- décision, pas un oubli : à revoir si le volume cesse d'être négligeable.

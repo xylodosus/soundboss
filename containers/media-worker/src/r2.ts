@@ -121,6 +121,20 @@ export async function uploadBuffer(
 }
 
 /**
+ * Taille d'un objet R2, sans le télécharger.
+ *
+ * Null si l'objet n'existe plus ou si R2 ne donne pas de Content-Length :
+ * mieux vaut laisser la taille inconnue qu'en inventer une.
+ */
+export async function tailleObjet(key: string): Promise<number | null> {
+  const res = await client.fetch(objectUrl(key), { method: 'HEAD' });
+  if (!res.ok) return null;
+  const brut = res.headers.get('content-length');
+  const n = brut === null ? Number.NaN : Number(brut);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
  * Supprime un objet R2 et rend le statut HTTP, sans lever.
  *
  * Le drain de la file de purge a besoin du code pour décider entre « purgée »

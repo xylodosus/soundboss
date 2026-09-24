@@ -111,3 +111,26 @@ export function useMarquerGenerationLue() {
     onSuccess: () => client.invalidateQueries({ queryKey: ["generations"] }),
   });
 }
+
+/**
+ * Supprime une génération et ses pistes.
+ *
+ * Les pistes vivent dans un JSONB, pas dans une table de fichiers : sans ce
+ * chemin, elles restaient sur R2 sans que rien ne permette de les retirer.
+ */
+export function useSupprimerGeneration() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobId: string) => {
+      const { data, error } = await supabase.rpc("supprimer_generation", { p_job_id: jobId });
+      if (error) throw error;
+      const r = data as { success: boolean; message: string } | null;
+      if (!r?.success) throw new Error(r?.message ?? "Suppression impossible.");
+      return r;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["generations"] });
+      client.invalidateQueries({ queryKey: ["stockage"] });
+    },
+  });
+}

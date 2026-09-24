@@ -4216,6 +4216,10 @@ export type Database = {
         Args: { p_job_id: string }
         Returns: Json
       }
+      supprimer_generation: {
+        Args: { p_job_id: string }
+        Returns: Json
+      }
       supprimer_stem: {
         Args: { p_stem_id: string }
         Returns: Json

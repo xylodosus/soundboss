@@ -38,24 +38,39 @@ const CATEGORIE_DISCUSSIONS = {
   label: "Médias des discussions",
   couleur: "#38BDF8",
 };
+const CATEGORIE_GENERATIONS = {
+  cle: "generations",
+  label: "Générations IA",
+  couleur: "#A78BFA",
+};
+
+export type SourcesStockage = {
+  fichiers?: { type: string | null; taille: number | null }[];
+  enregistrements?: { taille: number | null }[];
+  stems?: { taille: number | null }[];
+  /** Pièces jointes du chat : elles vivent dans `messages`, pas `ressources`. */
+  discussions?: { taille: number | null }[];
+  /** Pistes produites par Suno, rangées sous `generations/` dans R2. */
+  generations?: { taille: number | null }[];
+};
 
 /**
  * Agrège des tailles en catégories affichables.
  *
  * Exporté pour être testé : le calcul décidait jusqu'ici du seul écran de
- * stockage, et il ignorait silencieusement deux familles de fichiers entières.
+ * stockage, et il ignorait silencieusement des familles de fichiers entières.
+ *
+ * Paramètres nommés et non positionnels : à cinq listes du même type dont
+ * quatre facultatives, intervertir `discussions` et `generations` n'aurait
+ * rien cassé de visible — le total serait juste, la répartition fausse.
  */
-export function agreger(
-  fichiers: { type: string | null; taille: number | null }[],
-  enregistrements: { taille: number | null }[],
-  stems: { taille: number | null }[],
-  /**
-   * Pièces jointes du chat : images, vidéos, documents et notes vocales. Elles
-   * vivent dans `messages`, pas dans `ressources`, et n'étaient comptées nulle
-   * part. L'espace perso n'a pas de discussion, d'où la valeur par défaut.
-   */
-  discussions: { taille: number | null }[] = []
-): Stockage {
+export function agreger({
+  fichiers = [],
+  enregistrements = [],
+  stems = [],
+  discussions = [],
+  generations = [],
+}: SourcesStockage): Stockage {
   const categories: CategorieStockage[] = TYPES_FICHIERS.map((t) => ({
     ...t,
     total: 0,
@@ -87,7 +102,13 @@ export function agreger(
     chat.nb += 1;
   }
 
-  const toutes = [...categories, repetitions, pistes, chat];
+  const creations: CategorieStockage = { ...CATEGORIE_GENERATIONS, total: 0, nb: 0 };
+  for (const g of generations) {
+    creations.total += g.taille ?? 0;
+    creations.nb += 1;
+  }
+
+  const toutes = [...categories, repetitions, pistes, chat, creations];
   return {
     categories: toutes,
     total: toutes.reduce((s, c) => s + c.total, 0),
