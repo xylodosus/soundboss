@@ -1,0 +1,53 @@
+-- Lot 2 de la suppression : les fichiers. La purge passe du RPC au trigger.
+--
+-- Appliquée le 24 septembre 2026 via le MCP Supabase (migrations
+-- purge_r2_par_triggers et rpc_suppression_sans_double_enfilement).
+--
+-- POURQUOI DES TRIGGERS ET NON DES RPC
+--
+-- Les suppressions de fichiers existaient déjà, et leurs RLS étaient justes :
+-- `messages_delete` (auteur ou chef de groupe), `ressources_delete`
+-- (est_gestionnaire_ressource). Ce n'est pas la permission qui manquait, c'est
+-- le relevé de la clé R2 avant l'effacement.
+--
+-- Un RPC par table aurait obligé chaque appelant — et chaque appelant futur —
+-- à penser à la purge. Un trigger ne s'oublie pas, et il couvre en prime les
+-- suppressions en cascade, qui sont précisément celles qu'on ne voit pas
+-- passer : supprimer un enregistrement emporte jusqu'à seize pistes.
+--
+-- POURQUOI DEUX TRIGGERS PAR TABLE
+--
+-- Si le trigger de ligne réveillait le conteneur, cette même cascade ferait
+-- seize appels HTTP pour une seule intention. L'inscription est donc par
+-- ligne (`inscrire_purge_r2`), le réveil par instruction
+-- (`reveiller_purge_r2`).
+--
+-- Tables couvertes et colonnes relevées :
+--   ressources              → url
+--   messages                → fichier_url (quand il y en a un)
+--   enregistrement_stems    → url
+--   seance_enregistrements  → url, peaks_url
+--
+-- Les RPC du lot 1 ont perdu leur relevé explicite : le garder enfilerait deux
+-- fois la même clé. Elles conservent leur contrôle d'accès et leur décompte,
+-- qui sert au message affiché avant confirmation.
+--
+-- VÉRIFIÉ DE BOUT EN BOUT le 24/09 sur des lignes factices : un seul DELETE
+-- sur un enregistrement a inscrit quatre clés — l'audio, ses pics, une piste
+-- et son affinage, ces deux dernières par cascade — et le conteneur les a
+-- toutes purgées au premier essai. Idem pour une ressource et un message.
+--
+-- Pour relire les définitions telles qu'elles tournent :
+--   select pg_get_functiondef(p.oid)
+--   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public'
+--     and p.proname in ('inscrire_purge_r2','reveiller_purge_r2',
+--                       'trg_purge_ressource','trg_purge_message',
+--                       'trg_purge_stem','trg_purge_enregistrement',
+--                       'trg_reveiller_purge');
+--
+-- ⚠️ RESTE OUVERT : ressources_dossier_id_fkey est en SET NULL. Supprimer un
+-- dossier personnel laisserait ses fichiers sans dossier — toujours comptés,
+-- mais introuvables dans l'app. L'écran refuse désormais de supprimer un
+-- dossier non vide, faute de quoi la suppression fabriquerait des fichiers
+-- fantômes que l'utilisateur continuerait de payer.

@@ -135,6 +135,8 @@ export function useSupprimerFichierPersonnel(dossierId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: clefsDossiers.fichiers(dossierId) });
       queryClient.invalidateQueries({ queryKey: clefsDossiers.liste });
+      // Les octets partent de R2 par trigger : le stockage doit suivre.
+      queryClient.invalidateQueries({ queryKey: ["stockage"] });
     },
   });
 }

@@ -262,6 +262,8 @@ export function useSupprimerMessage() {
     onSuccess: (_d, v) => {
       queryClient.invalidateQueries({ queryKey: clefsChat.messages(v.groupeId, v.pupitreId) });
       queryClient.invalidateQueries({ queryKey: clefsChat.conversations });
+      // La pièce jointe part de R2 par trigger : le stockage doit suivre.
+      queryClient.invalidateQueries({ queryKey: ["stockage"] });
     },
   });
 }

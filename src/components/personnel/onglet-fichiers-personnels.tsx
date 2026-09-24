@@ -152,9 +152,22 @@ export function OngletFichiersPersonnels() {
                 {!parDefaut && (
                   <Pressable
                     onPress={async () => {
+                      // `ressources_dossier_id_fkey` est en SET NULL : les
+                      // fichiers survivraient au dossier sans plus être
+                      // atteignables nulle part, tout en continuant d'occuper
+                      // le stockage. Mieux vaut refuser que fabriquer des
+                      // fichiers fantômes.
+                      if (dossier.nbFichiers > 0) {
+                        dialogue.erreur(
+                          `Ce dossier contient ${dossier.nbFichiers} fichier${
+                            dossier.nbFichiers > 1 ? "s" : ""
+                          }. Supprime-les d'abord : ils deviendraient introuvables tout en occupant ton stockage.`
+                        );
+                        return;
+                      }
                       const ok = await dialogue.confirmer({
                         titre: "Supprimer ce dossier ?",
-                        message: "Le dossier sera supprimé, ses fichiers seront déplacés hors dossier.",
+                        message: "Le dossier est vide, sa suppression est sans effet sur tes fichiers.",
                         boutonConfirmer: "Supprimer",
                       });
                       if (ok) {

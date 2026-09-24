@@ -142,6 +142,10 @@ export function useSupprimerRessource(groupeId: string) {
       const { error } = await supabase.from("ressources").delete().eq("id", ressourceId);
       if (error) throw new Error("Impossible de supprimer le fichier.");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: clefsRessources.liste(groupeId) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: clefsRessources.liste(groupeId) });
+      // Les octets partent de R2 par trigger : le stockage affiché doit suivre.
+      queryClient.invalidateQueries({ queryKey: ["stockage"] });
+    },
   });
 }
