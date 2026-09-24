@@ -14,5 +14,6 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", "containers"]
+  "_exclude": "containers/ et supabase/functions/ tournent ailleurs — Node pour le worker, Deno pour les edge functions. Les typer avec la config Expo ne prouverait rien et produirait des erreurs sur Deno.serve et les imports jsr:/npm:.",
+  "exclude": ["node_modules", "containers", "supabase/functions"]
 }

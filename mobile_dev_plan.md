@@ -83,13 +83,22 @@ pas une tâche.
 
 - ~~Jobs de génération sans échéance~~ ✅ réglé le 7/09, § 4 duoetvicies.
 - ~~`seance_enregistrements.pupitre_id`~~ ✅ supprimée le 7/09.
-- **Chaîne push serveur non versionnée** : triggers, `ff_enqueue_notif` et
-  `send-push` n'existent que sur le projet distant, à exporter dans `supabase/`.
+- ~~Chaîne push serveur non versionnée~~ ✅ exportée le 24/09, § 4 tresetvicies.
+- **Tailles manquantes sur six fichiers de chat** antérieurs au correctif du
+  24/09 : ils comptent pour zéro octet dans le stockage du groupe. Le conteneur
+  a déjà l'accès R2 et pourrait les renseigner par un `HEAD`.
+- **`notify_ai_job_termine` fait doublon** avec `trg_generation_terminee` sur
+  `ai_jobs` : une génération qui aboutit écrit deux notifications, l'une poussée
+  et l'autre non. Elle annonce en outre un remboursement de crédits qui n'existe
+  pas. À trancher avec la facturation.
 
 **Confort**
 
 - **Écoute des ressources de type `loop`** (§ 4 duodecies) : décision du chef de
   groupe du 5 septembre, reportée depuis.
+- **Waveform réelle sur les notes vocales** : la bulle affiche une piste de
+  points, aucune analyse n'étant faite sur les messages. Persister l'enveloppe
+  captée à l'enregistrement donnerait un vrai relief, pour les notes futures.
 
 **Question ouverte**
 
@@ -904,6 +913,34 @@ clôt.
 sur `/jobs/generations/reconcilier`. Deux gardes avant l'appel : secrets
 présents, et au moins un job en suspens — inutile de réveiller le conteneur
 pour rien. ACL vérifiée : `{postgres=X/postgres, service_role=X/postgres}`.
+
+## 4 tresetvicies. Export de la chaîne serveur (24 sept. 2026)
+
+Déployée le 20 août, jamais versionnée : triggers, `ff_enqueue_notif` et les
+**trois** edge functions n'existaient que sur Supabase. Une perte du projet les
+aurait emportées avec lui, sans copie nulle part.
+
+Relevé par `pg_get_functiondef` et `get_edge_function`, sans aucune
+modification de comportement :
+
+- `supabase/migrations/2026-09-24-chaine-push-notifications.sql` — 19 fonctions,
+  14 triggers ;
+- `supabase/functions/send-push/` — l'envoi à l'API Expo ;
+- `supabase/functions/get-signed-upload-url/` et `get-signed-download-url/` —
+  les URL signées R2, qui n'étaient pas davantage sauvegardées.
+
+**Fidélité vérifiée**, pas seulement affirmée : le corps de chacune des 19
+fonctions a été comparé par md5 à `prosrc` sur le projet distant. Zéro écart.
+
+⚠️ `send-push` se déploie avec `--no-verify-jwt`. Son adresse est publique
+parce que c'est la base qui l'appelle, et la base ne porte pas de JWT ; son
+authentification tient au seul en-tête `X-Push-Secret`. Sans ce drapeau, la
+chaîne tomberait **en silence** : les lignes continueraient d'être écrites dans
+`notifications` sans qu'aucun push ne parte.
+
+Deux constats faits en exportant, consignés au § 3 bis sans être corrigés ici :
+le doublon `notify_ai_job_termine` / `trg_generation_terminee`, et la phrase sur
+le remboursement de crédits qu'elle annonce sans que rien ne l'implémente.
 
 ## 5. Commandes utiles
 
