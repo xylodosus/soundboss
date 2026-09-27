@@ -4216,6 +4216,14 @@ export type Database = {
         Args: { p_job_id: string }
         Returns: Json
       }
+      ouvrir_achat_credits: {
+        Args: { p_pack_id: string }
+        Returns: Json
+      }
+      etat_paiement: {
+        Args: { p_reference: string }
+        Returns: Json
+      }
       devis_operation: {
         Args: { p_operation: string; p_ref?: string | null }
         Returns: Json

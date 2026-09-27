@@ -2,7 +2,6 @@ import { ScrollView, View , Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
-  useAcheterPack,
   usePacksCredits,
   useTransactionsWallet,
   useWallet,
@@ -14,21 +13,29 @@ import { EtatVide, Squelette } from "@/components/ui/etat-vide";
 import { formatDateHeure } from "@/lib/format";
 import { estDebit, formatMontantTransaction } from "@/lib/wallet-affichage";
 import { useRouter } from "expo-router";
+import { MOYENS, useAchatCredits, type Moyen } from "@/lib/queries/paiement";
+import { useDialogue } from "@/lib/dialogue";
+import { ModalChoix } from "@/components/ui/modal-choix";
 
 export default function Wallet() {
   const router = useRouter();
   const { data: wallet } = useWallet();
   const { data: packs = [] } = usePacksCredits();
   const { data: transactions = [] } = useTransactionsWallet();
-  const acheter = useAcheterPack();
-  const [packEnCours, setPackEnCours] = useState<string | null>(null);
+  const { acheter, enCours: packEnCours } = useAchatCredits();
+  const dialogue = useDialogue();
+  // Le moyen se choisit avant d'ouvrir la page : l'opérateur en exige un.
+  const [packAPayer, setPackAPayer] = useState<string | null>(null);
 
-  async function acheterPack(packId: string, credits: number, prix: number) {
-    setPackEnCours(packId);
+  async function payer(packId: string, moyen: Moyen) {
     try {
-      await acheter.mutateAsync({ packId, credits, prix });
-    } finally {
-      setPackEnCours(null);
+      const resultat = await acheter(packId, moyen);
+      if (resultat.statut === "completed") await dialogue.succes(resultat.message);
+      else await dialogue.erreur(resultat.message, "Paiement");
+    } catch (e) {
+      await dialogue.erreur(
+        e instanceof Error ? e.message : "Le paiement n'a pas pu être lancé."
+      );
     }
   }
 
@@ -95,7 +102,7 @@ export default function Wallet() {
             <Pressable
               key={pack.id}
               disabled={packEnCours !== null}
-              onPress={() => acheterPack(pack.id, pack.credits, Number(pack.prix))}
+              onPress={() => setPackAPayer(pack.id)}
               style={{
                 borderRadius: rayons.lg,
                 borderWidth: 1,
@@ -198,6 +205,23 @@ export default function Wallet() {
           ))}
         </View>
       </ScrollView>
+
+      <ModalChoix
+        visible={packAPayer !== null}
+        titre="Payer avec"
+        elements={MOYENS.map((m) => ({
+          id: m.id,
+          titre: m.nom,
+          icone: "phone-portrait-outline" as const,
+        }))}
+        surChoisir={(moyen) => {
+          const pack = packAPayer;
+          setPackAPayer(null);
+          if (pack) void payer(pack, moyen as Moyen);
+        }}
+        onFermer={() => setPackAPayer(null)}
+        messageVide="Aucun moyen de paiement disponible."
+      />
     </Ecran>
   );
 }

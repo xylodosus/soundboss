@@ -37,3 +37,41 @@ Aucun n'est dans le dépôt. Ils se posent côté Supabase :
 La table `app_secrets` porte de son côté `push_dispatch_secret`,
 `supabase_functions_url`, `media_worker_secret` et `media_worker_url`, sous une
 RLS en `USING (false)` : seul le `service_role` la lit.
+
+## Paiement Jèko
+
+Trois fonctions ajoutées le 27 septembre 2026 pour l'achat de crédits.
+
+| Fonction | `verify_jwt` | Rôle |
+|---|---|---|
+| `acheter-credits` | true | Ouvre l'intention et demande la page d'encaissement |
+| `jeko-return` | **false** | Redirige le navigateur vers `soundboss://wallet` |
+| `jeko-webhook` | **false** | Seul point capable de créditer un portefeuille |
+
+### Le principe
+
+Le **retour du navigateur ne prouve rien**. Le payeur contrôle son navigateur
+et peut ouvrir l'adresse de succès sans avoir réglé. Seul `jeko-webhook`, sur
+message signé HMAC-SHA256, crédite. L'écran d'arrivée interroge la base par
+`etat_paiement`, jamais l'URL.
+
+### Déploiement
+
+```bash
+npx supabase functions deploy acheter-credits
+npx supabase functions deploy jeko-return  --no-verify-jwt
+npx supabase functions deploy jeko-webhook --no-verify-jwt
+```
+
+⚠️ Sans `--no-verify-jwt`, ni le navigateur ni Jèko ne pourraient appeler : le
+premier n'a pas de jeton, le second non plus.
+
+### Secrets à poser côté Supabase
+
+`JEKO_API_KEY`, `JEKO_API_KEY_ID`, `JEKO_STORE_ID`, `JEKO_WEBHOOK_SECRET`, et
+`JEKO_BASE_URL` seulement si l'adresse diffère de `https://api.jeko.io`.
+
+### À enregistrer chez Jèko
+
+L'URL du webhook :
+`https://<projet>.supabase.co/functions/v1/jeko-webhook`

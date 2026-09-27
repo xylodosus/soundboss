@@ -1,0 +1,62 @@
+-- Achat de crédits par Jèko, et fermeture d'une faille.
+--
+-- Appliquée le 27 septembre 2026 via le MCP Supabase (migrations
+-- jeko_paiement_reference_et_reglement et
+-- fermer_crediter_wallet_aux_utilisateurs).
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- 🔒 CE QUI A ÉTÉ FERMÉ EN CHEMIN
+--
+-- `crediter_wallet` était exécutable par `authenticated`. Elle est
+-- SECURITY DEFINER et prend `p_user_id` et `p_credits` en arguments :
+--
+--   supabase.rpc('crediter_wallet', { p_user_id: <soi>, p_credits: 999999,
+--                                     p_type: 'achat' })
+--
+-- N'importe quel compte connecté pouvait donc s'accorder un solde illimité, la
+-- clé anon étant publique et embarquée dans l'APK. Tant que les crédits ne
+-- valaient rien, c'était sans conséquence ; du jour où ils s'achètent, toute
+-- la facturation devenait du théâtre.
+--
+-- Le droit venait de l'ancien achat « simulation », qui appelait la fonction
+-- depuis le client. ACL désormais {postgres, service_role}, vérifiée par
+-- has_function_privilege.
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- LE PRINCIPE
+--
+-- Le retour du navigateur n'est PAS une preuve de paiement. Le payeur contrôle
+-- son navigateur et peut ouvrir l'URL de succès sans avoir rien payé. Seul un
+-- message signé par Jèko crédite un portefeuille. L'écran d'arrivée interroge
+-- `etat_paiement`, jamais l'URL.
+--
+-- ─────────────────────────────────────────────────────────────────────────
+-- LE CIRCUIT
+--
+--   app → acheter-credits (edge, JWT)
+--       → ouvrir_achat_credits()  : intention `pending`, montant et crédits figés
+--       → POST /partner_api/payment_requests
+--       → rend redirectUrl
+--   navigateur → page Jèko → jeko-return (edge, sans JWT) → soundboss://wallet
+--   Jèko → jeko-webhook (edge, sans JWT, HMAC)
+--        → jeko_regler_paiement() : idempotent, contrôle le montant, crédite
+--
+-- `paiements` gagne `reference` (unique, partielle) et `motif_echec`.
+--
+-- Idempotence : seule une ligne encore `pending` est traitée. Jèko rejoue ses
+-- messages ; un second passage rend `deja_traite` et ne crédite rien.
+--
+-- Contrôle du montant : effectué seulement si le webhook l'a rendu lisible.
+-- Un montant null signifie « on ne sait pas », pas « zéro » — refuser un
+-- paiement réel faute de savoir le lire serait pire que ne pas comparer.
+-- Un écart, lui, échoue le paiement : il trahit une erreur d'intégration ou
+-- une tentative, et offrir la différence n'est pas une option.
+--
+-- Privilèges vérifiés après application :
+--   ouvrir_achat_credits / etat_paiement → authenticated oui, anon non
+--   jeko_regler_paiement / crediter_wallet → ni l'un ni l'autre
+--
+-- ⚠️ RESTE À FAIRE : les intentions `pending` abandonnées (navigateur fermé,
+-- opérateur muet) s'accumulent sans jamais être closes. Prévoir un balayage
+-- qui les passe à `failed` au-delà d'un délai — même raisonnement que la
+-- réconciliation des générations.

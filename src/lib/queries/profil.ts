@@ -70,28 +70,6 @@ export function useTransactionsWallet() {
   });
 }
 
-export function useAcheterPack() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ packId, credits, prix }: { packId: string; credits: number; prix: number }) => {
-      const userId = await utilisateurId();
-      const { data, error } = await supabase.rpc("crediter_wallet", {
-        p_user_id: userId,
-        p_credits: credits,
-        p_type: "achat" as const,
-        p_pack_id: packId,
-        p_description: `Achat pack (${prix} FCFA) — simulation`,
-      });
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
-      queryClient.invalidateQueries({ queryKey: clefsProfil.transactions });
-    },
-  });
-}
-
 export function useMettreAJourProfil() {
   const queryClient = useQueryClient();
   return useMutation({
