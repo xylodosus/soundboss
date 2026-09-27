@@ -63,6 +63,7 @@ import { telechargerEtPartager } from "@/lib/telechargement";
 import { formatTemps } from "@/lib/format";
 import { parsePics } from "@/lib/peaks";
 import { useConfirmerDepense } from "@/lib/queries/facturation";
+import { bpmAffiche, pasTempo } from "@/lib/tempo";
 import {
   descendants,
   octetsDe,
@@ -77,9 +78,6 @@ const SAUT = 10;
 /** Cadence des remontées de position, en millisecondes (unité confirmée côté natif). */
 const INTERVALLE_POSITION = 100;
 
-const TEMPO_MIN = 0.5;
-const TEMPO_MAX = 1.5;
-const TEMPO_PAS = 0.05;
 const DEMI_TONS_MAX = 6;
 
 /**
@@ -1247,7 +1245,7 @@ export function LaboAudio({
                 <ReglageLabo
                   libelle="Tempo"
                   valeurAffichee={
-                    bpmOrigine > 0 ? `${Math.round(bpmOrigine * tempo)} BPM` : `${tempo.toFixed(2)}x`
+                    bpmOrigine > 0 ? `${bpmAffiche(bpmOrigine, tempo)} BPM` : `${tempo.toFixed(2)}x`
                   }
                   auNeutre={tempo === 1}
                   onMoins={() => setTempo((v) => pasTempo(v, -1, bpmOrigine))}
@@ -1722,23 +1720,6 @@ function avecDelai<T>(promesse: Promise<T>, ms: number): Promise<T> {
       }
     );
   });
-}
-
-/** Les pas de 0,05 accumulent des erreurs binaires : 1,0499999 s'afficherait mal. */
-function arrondir(v: number): number {
-  return Math.round(v * 100) / 100;
-}
-
-/**
- * Un cran de tempo. Quand le tempo du morceau est connu, on raisonne en
- * battements par minute — c'est l'unité du musicien ; sinon en multiplicateur.
- */
-function pasTempo(tempo: number, sens: number, bpmOrigine: number): number {
-  if (bpmOrigine > 0) {
-    const cible = Math.round(bpmOrigine * tempo) + sens;
-    return arrondir(Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, cible / bpmOrigine)));
-  }
-  return arrondir(Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, tempo + sens * TEMPO_PAS)));
 }
 
 function demiTons(n: number): string {
