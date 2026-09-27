@@ -18,11 +18,11 @@ import {
  * un chemin construit à l'exécution ne serait pas empaqueté.
  */
 export const MOYENS = [
-  { id: "wave", nom: "Wave", logo: require("../../assets/images/wave.png") },
-  { id: "orange", nom: "Orange Money", logo: require("../../assets/images/orangemoney.jpeg") },
-  { id: "mtn", nom: "MTN MoMo", logo: require("../../assets/images/mtnmomo.png") },
-  { id: "moov", nom: "Moov Money", logo: require("../../assets/images/moovmoney.png") },
-  { id: "djamo", nom: "Djamo", logo: require("../../assets/images/djamo.jpg") },
+  { id: "wave", nom: "Wave", logo: require("../../../assets/images/wave.png") },
+  { id: "orange", nom: "Orange Money", logo: require("../../../assets/images/orangemoney.jpeg") },
+  { id: "mtn", nom: "MTN MoMo", logo: require("../../../assets/images/mtnmomo.png") },
+  { id: "moov", nom: "Moov Money", logo: require("../../../assets/images/moovmoney.png") },
+  { id: "djamo", nom: "Djamo", logo: require("../../../assets/images/djamo.jpg") },
 ] as const;
 
 export type Moyen = (typeof MOYENS)[number]["id"];
