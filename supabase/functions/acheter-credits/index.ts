@@ -44,7 +44,9 @@ Deno.serve(async (req) => {
   const cle = Deno.env.get("JEKO_API_KEY");
   const cleId = Deno.env.get("JEKO_API_KEY_ID");
   const storeId = Deno.env.get("JEKO_STORE_ID");
-  const baseJeko = Deno.env.get("JEKO_BASE_URL") ?? "https://api.jeko.io";
+  // Un seul environnement chez Jèko, en production, sur données réelles : il
+  // n'existe pas de sandbox. Pour développer sans risque, un magasin dédié.
+  const baseJeko = Deno.env.get("JEKO_BASE_URL") ?? "https://api.jeko.africa";
 
   if (!urlSupabase || !anon || !service || !cle || !cleId || !storeId) {
     console.error("[acheter-credits] configuration manquante");

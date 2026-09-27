@@ -87,6 +87,13 @@ export function ModalChoix({
                     accessibilityLabel={element.titre}
                     style={({ pressed }) => [
                       styles.ligne,
+                      // Une marque se regarde : la ligne s'agrandit et
+                      // s'éclaircit quand elle en porte une.
+                      //
+                      // Ternaire et non `&&` : require() rend un nombre pour
+                      // un asset local, et `0 && style` vaudrait 0, que React
+                      // Native refuse comme style.
+                      element.image ? styles.ligneMarque : null,
                       { opacity: pressed ? 0.7 : 1 },
                     ]}
                   >
@@ -130,12 +137,20 @@ export function ModalChoix({
 
 const styles = StyleSheet.create({
   logo: {
-    width: 40,
-    height: 28,
-    borderRadius: 6,
+    width: 58,
+    height: 42,
+    borderRadius: 8,
     // Fond clair : plusieurs logos sont dessinés pour du papier blanc et
     // disparaîtraient sur le thème sombre.
     backgroundColor: "#FFFFFF",
+  },
+  ligneMarque: {
+    gap: 14,
+    padding: 14,
+    // Blanc très dilué : sur le fond sombre de la feuille, il donne une carte
+    // claire sans nuire à la lisibilité du texte crème.
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.20)",
   },
   arrierePlan: {
     flex: 1,
