@@ -11,13 +11,18 @@ import {
   type StatutPaiement,
 } from "@/lib/paiement";
 
-/** Moyens de paiement acceptés par l'opérateur en Côte d'Ivoire. */
+/**
+ * Moyens de paiement acceptés par l'opérateur en Côte d'Ivoire.
+ *
+ * Les logos sont requis statiquement : Metro doit les voir à la compilation,
+ * un chemin construit à l'exécution ne serait pas empaqueté.
+ */
 export const MOYENS = [
-  { id: "wave", nom: "Wave" },
-  { id: "orange", nom: "Orange Money" },
-  { id: "mtn", nom: "MTN MoMo" },
-  { id: "moov", nom: "Moov Money" },
-  { id: "djamo", nom: "Djamo" },
+  { id: "wave", nom: "Wave", logo: require("../../assets/images/wave.png") },
+  { id: "orange", nom: "Orange Money", logo: require("../../assets/images/orangemoney.jpeg") },
+  { id: "mtn", nom: "MTN MoMo", logo: require("../../assets/images/mtnmomo.png") },
+  { id: "moov", nom: "Moov Money", logo: require("../../assets/images/moovmoney.png") },
+  { id: "djamo", nom: "Djamo", logo: require("../../assets/images/djamo.jpg") },
 ] as const;
 
 export type Moyen = (typeof MOYENS)[number]["id"];

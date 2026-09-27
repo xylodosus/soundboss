@@ -1,4 +1,12 @@
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ImageSourcePropType,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { couleurs, rayons } from "@/lib/theme";
 import { Texte } from "./texte";
@@ -8,6 +16,11 @@ export type ElementChoix = {
   titre: string;
   sousTitre?: string;
   icone?: keyof typeof Ionicons.glyphMap;
+  /**
+   * Logo de la marque, quand il y en a un. Il prime sur l'icône : personne ne
+   * reconnaît un opérateur de paiement à un pictogramme générique.
+   */
+  image?: ImageSourcePropType;
 };
 
 /**
@@ -77,13 +90,22 @@ export function ModalChoix({
                       { opacity: pressed ? 0.7 : 1 },
                     ]}
                   >
-                    {element.icone && (
+                    {element.image ? (
+                      <Image
+                        source={element.image}
+                        // `contain` et non `cover` : les logos ont des formats
+                        // très différents, et rogner en déformerait certains.
+                        resizeMode="contain"
+                        style={styles.logo}
+                        accessibilityIgnoresInvertColors
+                      />
+                    ) : element.icone ? (
                       <Ionicons
                         name={element.icone}
                         size={18}
                         color={couleurs.terracottaLight}
                       />
-                    )}
+                    ) : null}
                     <View style={{ flex: 1 }}>
                       <Texte variante="petit" poids="semibold" numberOfLines={1}>
                         {element.titre}
@@ -107,6 +129,14 @@ export function ModalChoix({
 }
 
 const styles = StyleSheet.create({
+  logo: {
+    width: 40,
+    height: 28,
+    borderRadius: 6,
+    // Fond clair : plusieurs logos sont dessinés pour du papier blanc et
+    // disparaîtraient sur le thème sombre.
+    backgroundColor: "#FFFFFF",
+  },
   arrierePlan: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.65)",

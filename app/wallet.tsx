@@ -212,7 +212,7 @@ export default function Wallet() {
         elements={MOYENS.map((m) => ({
           id: m.id,
           titre: m.nom,
-          icone: "phone-portrait-outline" as const,
+          image: m.logo,
         }))}
         surChoisir={(moyen) => {
           const pack = packAPayer;
